@@ -2072,19 +2072,21 @@ function showInvDetail(id,panelId){
     }
     out+=`</div>`;
   }
-  if(d.details&&d.details.length){out+='<table class="det-tbl"><thead><tr><th>ทะเบียนรถ</th><th>เบอร์ตู้</th><th>โรงงาน</th><th>เข้าโรงงาน</th><th>DATE PICKUP</th><th>CADO</th></tr></thead><tbody>';d.details.forEach(r=>{out+=`<tr><td>${h(r.ทะเบียนรถ)}</td><td style="font-family:monospace">${h(r.เบอร์ตู้)}</td><td>${h(r.โรงงาน)}</td><td>${h(r.เข้าโรงงาน)}</td><td>${h(r.DATE_PICKUP)}</td><td>${h(r.CADO)}</td></tr>`;});out+='</tbody></table>';}
-  else if(!invPendCtrs.length){out+='<div style="color:#94a3b8;font-size:12px;">ยังไม่มีข้อมูลตู้</div>';}
-  if(invPendCtrs.length){
-    out+=`<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:8px 12px;margin-top:8px;">`;
-    out+=`<div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:6px;">⏳ PENDING — ยังไม่ไฟนอล (${invPendCtrs.length} ตู้)</div>`;
-    out+=`<table class="det-tbl"><thead><tr><th>เบอร์ตู้</th><th>ทะเบียนรถ</th><th>วันที่</th><th>สถานะ</th></tr></thead><tbody>`;
-    invPendCtrs.forEach(c=>{
-      const zl=c.zone==='pink'?'ค้างหาง':'วันนี้';
-      const zst=c.zone==='pink'?'background:#fce7f3;color:#9d174d':'background:#dcfce7;color:#166534';
-      out+=`<tr style="background:#fffbeb;"><td style="font-family:monospace;">${h(c.ctr)}</td><td>${h(c.truck||'-')}</td><td>${h(c.date||'-')}</td><td><span style="${zst};border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;">${zl}</span></td></tr>`;
+  if(d.details&&d.details.length){
+    const pendSet=new Set(invPendCtrs.map(c=>(c.ctr||'').trim().toUpperCase()));
+    out+='<table class="det-tbl"><thead><tr><th>ทะเบียนรถ</th><th>เบอร์ตู้</th><th>โรงงาน</th><th>เข้าโรงงาน</th><th>DATE PICKUP</th><th>CADO</th></tr></thead><tbody>';
+    d.details.forEach(r=>{
+      const isPend=pendSet.has((r.เบอร์ตู้||'').trim().toUpperCase());
+      const rowBg=isPend?'background:#fffbeb;':'';
+      const pendBadge=isPend?`<span style="display:inline-block;margin-left:5px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:4px;padding:1px 5px;font-size:9px;font-weight:700;vertical-align:middle;">⏳ PENDING</span>`:'';
+      out+=`<tr style="${rowBg}"><td>${h(r.ทะเบียนรถ)}</td><td style="font-family:monospace">${h(r.เบอร์ตู้)}${pendBadge}</td><td>${h(r.โรงงาน)}</td><td>${h(r.เข้าโรงงาน)}</td><td>${h(r.DATE_PICKUP)}</td><td>${h(r.CADO)}</td></tr>`;
     });
-    out+=`</tbody></table><div style="font-size:10px;color:#b45309;margin-top:4px;">⚠️ ยังไม่ได้บันทึกใน DATABASE หลัก</div></div>`;
+    out+='</tbody></table>';
+    if(invPendCtrs.length){
+      out+=`<div style="font-size:10px;color:#b45309;margin-top:5px;">⚠️ ${invPendCtrs.length} ตู้ยังไม่ได้บันทึกใน DATABASE หลัก</div>`;
+    }
   }
+  else if(!invPendCtrs.length){out+='<div style="color:#94a3b8;font-size:12px;">ยังไม่มีข้อมูลตู้</div>';}
   document.getElementById(panelId).innerHTML=out;
 }
 
