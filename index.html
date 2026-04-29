@@ -866,7 +866,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
       <input type="date" id="shipPaidDateInput" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid #bfdbfe;border-radius:8px;font-size:13px;font-family:inherit;color:#1e40af;outline:none;">
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;">
         <button onclick="closeShipPaidModal()" style="padding:8px 18px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:12px;font-weight:700;cursor:pointer;">ยกเลิก</button>
-        <button onclick="confirmShipPaid()" style="padding:8px 18px;border-radius:8px;border:none;background:#1e40af;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">✅ บันทึก</button>
+        <button id="shipPaidSaveBtn" onclick="confirmShipPaid()" style="padding:8px 18px;border-radius:8px;border:none;background:#1e40af;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">✅ บันทึก</button>
       </div>
       <div id="shipPaidUnpaidWrap" style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;display:none;">
         <button onclick="markShipUnpaid()" style="width:100%;padding:7px;border-radius:8px;border:1.5px solid #fca5a5;background:#fff1f2;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;">🔴 ยกเลิก — โรงงานยังไม่ได้จ่าย</button>
@@ -1498,7 +1498,7 @@ function parsePaidAnts(wb){
 async function loadData(){
   setLoad('📡 กำลังเชื่อมต่อ Supabase...','โหลดข้อมูลทั้งหมด 11 ตาราง');
   /* ── Fetch all tables in parallel ── */
-  const [invRows,ctrRows,trBillRows,billingAntsRows,paidAntsRows,vesselRows,stmtRows,bkgRows,vesselPlanRows,priceUpdateRows,ogmPriceRows]=
+  const [invRows,ctrRows,trBillRows,billingAntsRows,paidAntsRows,vesselRows,stmtRows,bkgRows,vesselPlanRows,priceUpdateRows,ogmPriceRows,shipPaidRows]=
     await Promise.all([
       sbFetch('invoices','order=id'),
       sbFetch('containers','order=id'),
@@ -1511,7 +1511,13 @@ async function loadData(){
       sbFetch('vessel_plan','order=id'),
       sbFetch('price_update','order=effective_date'),
       sbFetch('ogm_prices','order=id'),
+      sbFetch('ship_paid_log','select=prefix,month,paid,paid_date').catch(()=>[]),
     ]);
+  /* build SHIP_PAID_CACHE จาก Supabase rows */
+  SHIP_PAID_CACHE={};
+  (shipPaidRows||[]).forEach(r=>{
+    SHIP_PAID_CACHE[r.prefix+'_'+r.month]={paid:!!r.paid,date:r.paid_date||null};
+  });
   setLoad('ประมวลผลข้อมูล...');
 
   /* ── 1. Build DB_MAP from containers table (all rows) ── */
@@ -5131,16 +5137,42 @@ function _buildDebtMap(){
 }
 /* ===== TWI / SHL SHIPPING DEBT — localStorage state ===== */
 const TR_SHIP_PFXS=['TWI','SHL'];
-/* state: false | {paid:true, date:'2026-04-17'} */
+/* in-memory cache โหลดจาก Supabase ตอน loadData() */
+let SHIP_PAID_CACHE={};
+
 function getTrPfxPaid(pfx,month){
+  const key=pfx+'_'+month;
+  /* 1) ดู Supabase cache ก่อน */
+  if(SHIP_PAID_CACHE[key]!==undefined) return SHIP_PAID_CACHE[key];
+  /* 2) fallback localStorage (backward compat) */
   try{
     const v=JSON.parse(localStorage.getItem('trPfxPaid_'+pfx+'_'+month)||'null');
     if(!v)return{paid:false,date:null};
-    if(v===true)return{paid:true,date:null}; /* backward compat */
+    if(v===true)return{paid:true,date:null};
     return v;
   }catch(e){return{paid:false,date:null};}
 }
-function setTrPfxPaid(pfx,month,val){try{localStorage.setItem('trPfxPaid_'+pfx+'_'+month,JSON.stringify(val));}catch(e){}}
+
+async function setTrPfxPaid(pfx,month,val){
+  const key=pfx+'_'+month;
+  const state=val?{paid:true,date:val.date}:{paid:false,date:null};
+  /* update cache ทันที */
+  SHIP_PAID_CACHE[key]=state;
+  /* update localStorage (backward compat) */
+  try{localStorage.setItem('trPfxPaid_'+pfx+'_'+month,JSON.stringify(val));}catch(e){}
+  /* upsert → Supabase */
+  try{
+    await fetch(SB_URL+'/rest/v1/ship_paid_log?on_conflict=prefix,month',{
+      method:'POST',
+      headers:{
+        'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,
+        'Content-Type':'application/json',
+        'Prefer':'resolution=merge-duplicates,return=minimal'
+      },
+      body:JSON.stringify({prefix:pfx,month,paid:state.paid,paid_date:state.date,updated_at:new Date().toISOString()})
+    });
+  }catch(e){console.warn('ship_paid_log upsert failed:',e);}
+}
 /* ---- modal state ---- */
 let _shipModal={pfx:'',month:'',label:'',total:0};
 function openShipPaidModal(pfx,month,evt,label,total){
@@ -5158,15 +5190,18 @@ function openShipPaidModal(pfx,month,evt,label,total){
   document.getElementById('shipPaidModalBg').style.display='flex';
 }
 function closeShipPaidModal(){document.getElementById('shipPaidModalBg').style.display='none';}
-function confirmShipPaid(){
+async function confirmShipPaid(){
   const date=document.getElementById('shipPaidDateInput').value;
   if(!date){alert('กรุณาเลือกวันที่');return;}
-  setTrPfxPaid(_shipModal.pfx,_shipModal.month,{paid:true,date});
+  const btn=document.getElementById('shipPaidSaveBtn');
+  btn.disabled=true; btn.textContent='⏳ กำลังบันทึก...';
+  await setTrPfxPaid(_shipModal.pfx,_shipModal.month,{paid:true,date});
   closeShipPaidModal();
+  btn.disabled=false; btn.textContent='✅ บันทึก';
   _refreshShipViews();
 }
-function markShipUnpaid(){
-  setTrPfxPaid(_shipModal.pfx,_shipModal.month,false);
+async function markShipUnpaid(){
+  await setTrPfxPaid(_shipModal.pfx,_shipModal.month,false);
   closeShipPaidModal();
   _refreshShipViews();
 }
