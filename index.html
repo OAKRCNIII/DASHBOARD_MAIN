@@ -1919,6 +1919,11 @@ function renderTabs(){
       const sub=tot>0?`${cnt}/${tot}`:`${cnt}`;
       out+=`<div class="mtab${SM===m?' active':''}" data-m="${m}">${mLabel(m)}<br><span style="font-size:10px;font-weight:700;color:${clr};">${sub} ตู้</span></div>`;
     });
+    const unassigned=(BY_MONTH['-']||[]).filter(d=>d.year>=2026);
+    if(unassigned.length){
+      const isUA=SM==='__unassigned__';
+      out+=`<div class="mtab${isUA?' active':''}" data-m="__unassigned__" style="border-left-color:#f97316;background:${isUA?'rgba(249,115,22,.3)':'rgba(249,115,22,.1)'};">⚠️ ยังไม่จัดเดือน<br><span style="font-size:10px;font-weight:700;color:#fb923c;">${unassigned.length} INV</span></div>`;
+    }
     document.getElementById('mTabs').innerHTML=out;
     if(!SM&&months.length)selMonth(months[0]);
   }else{
@@ -1936,6 +1941,24 @@ function setYearFilter(y){YEAR_FILTER=y;SM=null;SP=null;SI=null;document.getElem
 function selMonth(m){
   SM=m;SP=null;SI=null;
   document.querySelectorAll('#mTabs .mtab').forEach(el=>el.classList.toggle('active',el.dataset.m===m));
+  if(m==='__unassigned__'){
+    const invs=(BY_MONTH['-']||[]).filter(d=>d.year>=2026);
+    document.getElementById('mHead').innerHTML=`<div style="display:flex;align-items:center;width:100%;gap:4px;"><span class="bc-cur">⚠️ ยังไม่จัดเดือน</span>${midToggle()}</div>`;
+    let out='';
+    invs.slice().sort((a,b)=>a.inv.localeCompare(b.inv)).forEach(d=>{
+      const cOk=d.total_expected>0&&d.total_actual>=d.total_expected,dOk=d.doc_status==='ปล่อยเอกสารแล้ว';
+      const badge=dOk?'<span class="ir-badge" style="background:#dcfce7;color:#166534">✔</span>':(cOk?'<span class="ir-badge" style="background:#ede9fe;color:#7c3aed">~</span>':`<span class="ir-badge" style="background:#fee2e2;color:#991b1b">${d.total_actual}/${d.total_expected}</span>`);
+      const vb=isLoaded(d.inv)?'<span class="ir-badge" style="background:#e0f2fe;color:#0369a1">🚢</span>':'<span class="ir-badge" style="background:#fef9c3;color:#92400e">⚓</span>';
+      const bb=_canSeeBilledPaid()&&BILLED_ANTS.has(normInv(d.inv))?'<span class="ir-badge" style="background:#fdf2f8;color:#9d174d;border:1px solid #f9a8d4;">🧾 BILLED</span>':'';
+      const pb=_canSeeBilledPaid()&&PAID_ANTS.has(normInv(d.inv))?'<span class="ir-badge" style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;">💰 PAID</span>':'';
+      const s=pst(d.prefix);
+      out+=`<div class="ir" data-id="${d.id}"><span style="background:${s.bg};color:${s.tx};border-radius:3px;padding:0 5px;font-size:9px;font-weight:800;margin-right:3px;">${h(d.prefix)}</span><span class="ir-inv">${h(d.inv)}</span>${badge}${vb}${bb}${pb}</div>`;
+    });
+    document.getElementById('mBody').innerHTML=out||'<div style="padding:12px;color:#94a3b8;font-size:12px;">ไม่มีข้อมูล</div>';
+    document.getElementById('dPanel').innerHTML='<div class="placeholder"><div class="ico">👈</div><p>เลือกอินวอยซ์</p></div>';
+    document.getElementById('midPanel').classList.add('open');
+    return;
+  }
   document.getElementById('mHead').innerHTML=`<div style="display:flex;align-items:center;width:100%;gap:4px;"><span class="bc-cur">${mLabel(m)}</span>${midToggle()}</div>`;
   const invs=BY_MONTH[m]||[];let out='';
   if(midMode==='group'){
