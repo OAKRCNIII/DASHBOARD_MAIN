@@ -1674,8 +1674,9 @@ async function loadData(){
       price:parseFloat(r.price)||0,date:r.bill_date?fmtDateFromISO(r.bill_date):'-',
       factory:r.factory||'',billNo:r.bill_no||'',al:seq,co:co||seq});
     if(seq&&seq!=='-'){
-      if(r.source==='OGM')latestOgmAl=seq;
-      else if(r.source==='ALL')latestAllAl=seq;
+      const alN=s=>parseInt((s||'').replace(/[^0-9]/g,''))||0;
+      if(r.source==='OGM'&&alN(seq)>=alN(latestOgmAl))latestOgmAl=seq;
+      else if(r.source==='ALL'&&alN(seq)>=alN(latestAllAl))latestAllAl=seq;
     }
   });
   const billInfoTr={ogm:latestOgmAl,all:latestAllAl};
