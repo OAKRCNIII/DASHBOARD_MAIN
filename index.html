@@ -1684,9 +1684,9 @@ async function loadData(){
     if(!puByDate[d])puByDate[d]={};
     puByDate[d][r.prefix]=parseFloat(r.price)||0;
   });
-  const priceUpdateTable=Object.keys(puByDate).sort().map(d=>({
-    dateMs:new Date(d).getTime(),
-    rates:puByDate[d],
+  const priceUpdateTable=Object.keys(puByDate).sort().map(ds=>({
+    dateMs:(()=>{const[y,mo,dy]=ds.split('-').map(Number);return new Date(y,mo-1,dy).getTime();})(),
+    rates:puByDate[ds],
   }));
 
   /* ── 13. Build OGM_PRICE_MAP + OGM_PRICE_LATEST จาก ogm_prices table ── */
@@ -2367,6 +2367,9 @@ function renderVessel(){
 ===================================================== */
 function renderVesselCal(){
   const wrap=document.getElementById('vesselWrap');
+  /* ขยาย wrap เป็น full-width สำหรับ calendar */
+  wrap.style.maxWidth='100%';
+  wrap.style.padding='14px 20px';
   const y=_vslCalYear,m=_vslCalMonth;
   const THAI_MONTHS=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
   const DAY_NAMES=['อา','จ','อ','พ','พฤ','ศ','ส'];
@@ -2392,7 +2395,7 @@ function renderVesselCal(){
 
   /* toolbar */
   let out=`<div style="padding:4px 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-    <button onclick="_vslViewMode='list';renderVessel();" style="padding:6px 14px;border:1.5px solid #0ea5e9;border-radius:8px;background:#eff6ff;color:#0369a1;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📋 มุมมองรายการ</button>
+    <button onclick="_vslViewMode='list';document.getElementById('vesselWrap').style.maxWidth='';document.getElementById('vesselWrap').style.padding='';renderVessel();" style="padding:6px 14px;border:1.5px solid #0ea5e9;border-radius:8px;background:#eff6ff;color:#0369a1;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📋 มุมมองรายการ</button>
     <button onclick="showVesselPdfModal()" style="padding:6px 14px;border:1.5px solid #0ea5e9;border-radius:8px;background:#eff6ff;color:#0369a1;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">🖨️ PDF</button>
   </div>`;
 
@@ -2412,11 +2415,11 @@ function renderVesselCal(){
   DAY_NAMES.forEach((d,i)=>{ out+=`<div style="text-align:center;padding:6px 2px;font-size:10px;font-weight:800;color:${i===0?'#dc2626':i===6?'#2563eb':'#64748b'};letter-spacing:.3px;">${d}</div>`; });
   out+=`</div>
     <!-- grid -->
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:0;border-left:1px solid #f1f5f9;">`;
+    <div style="display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:0;border-left:1px solid #f1f5f9;">`;
 
   /* empty cells before month starts */
   for(let i=0;i<firstDay;i++){
-    out+=`<div style="min-height:90px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;background:#fafafa;"></div>`;
+    out+=`<div style="min-height:110px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;background:#fafafa;"></div>`;
   }
 
   for(let d=1;d<=daysInMonth;d++){
@@ -2428,7 +2431,7 @@ function renderVesselCal(){
     const bg=isToday?'#eff6ff':(isSun||isSat)?'#fafafa':'white';
     const numColor=isToday?'#1d4ed8':isSun?'#dc2626':isSat?'#2563eb':'#374151';
 
-    out+=`<div style="min-height:90px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;background:${bg};padding:4px 5px;vertical-align:top;">
+    out+=`<div style="min-height:110px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;background:${bg};padding:6px 7px;vertical-align:top;">
       <div style="font-size:11px;font-weight:800;color:${numColor};margin-bottom:3px;${isToday?'background:#1d4ed8;color:white;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;':''}">
         ${d}
       </div>`;
@@ -2728,7 +2731,13 @@ function renderFactory(){
   const fr=isoInt(document.getElementById('fDateFrom').value),to=isoInt(document.getElementById('fDateTo').value);
   const todayFmt=fmtDate(new Date());const tom=new Date();tom.setDate(tom.getDate()+1);const tomFmt=fmtDate(tom);
   /* dm: DATE_PICKUP → { inv → { facDate → [trucks] } } */
-  const dm={};FLAT.forEach(d=>{(d.details||[]).forEach(row=>{
+  const dm={};FLAT.forEach(d=>{
+    /* ซ่อนอินวอยซ์ก่อนปี 2026 และที่ไม่มีข้อมูลใน ALL_INV */
+    if(d.month==='-')return;
+    const yrM=d.month.match(/(\d{4})$/);
+    if(yrM&&parseInt(yrM[1])<2026)return;
+    if(!d.details||!d.details.length)return;
+    (d.details||[]).forEach(row=>{
     const fd=row['เข้าโรงงาน']||'-';
     if(FAC_FAC_FILTER==='today'&&fd!==todayFmt)return;
     if(FAC_FAC_FILTER==='tomorrow'&&fd!==tomFmt)return;
@@ -2738,7 +2747,7 @@ function renderFactory(){
     if(!dm[dt][d.inv][fd])dm[dt][d.inv][fd]=[];
     dm[dt][d.inv][fd].push(row['ทะเบียนรถ']||'-');
   });});
-  let dates=Object.keys(dm).sort((a,b)=>pDate(b)-pDate(a));
+  let dates=Object.keys(dm).filter(dt=>dt!=='-').sort((a,b)=>pDate(b)-pDate(a));
   if(fr||to)dates=dates.filter(dt=>{const v=pDate(dt);if(!v)return false;if(fr&&v<fr)return false;if(to&&v>to)return false;return true;});
   let ttl=0,tinv=0,rows='';
   dates.forEach(dt=>{
