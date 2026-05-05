@@ -2503,7 +2503,8 @@ function renderVesselCal(){
     const planGroups=byDatePlan[key]?Object.values(byDatePlan[key]):[];
     planGroups.forEach(vp=>{
       const shortName=vp.vessel.replace(/\s+/g,' ').split(' ').slice(0,3).join(' ');
-      out+=`<div style="background:linear-gradient(135deg,#78350f,#b45309);color:white;border-radius:5px;padding:3px 6px;margin-bottom:3px;border:1.5px dashed rgba(251,191,36,.5);">
+      const safeVessel=vp.vessel.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      out+=`<div onclick="showVslPlanDetail('${key}','${safeVessel}')" style="background:linear-gradient(135deg,#78350f,#b45309);color:white;border-radius:5px;padding:3px 6px;margin-bottom:3px;border:1.5px dashed rgba(251,191,36,.5);cursor:pointer;transition:opacity .15s;" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
         <div style="font-size:9px;font-weight:800;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📋 ${h(shortName)}</div>
         <div style="font-size:9px;color:rgba(255,255,255,.75);margin-top:1px;">แพลน · ${vp.invs.length} INV</div>
       </div>`;
@@ -2594,6 +2595,80 @@ function showVslCalDetail(dateKey){
   });
 
   document.getElementById('vslCalModalBody').innerHTML=html||'<p style="text-align:center;color:#94a3b8;">ไม่มีเรือในวันนี้</p>';
+  const modal=document.getElementById('vslCalModal');
+  modal.style.display='flex';
+}
+
+function showVslPlanDetail(dateKey,vesselName){
+  const p=dateKey.split('-');
+  const [yyyy,mm,dd]=[parseInt(p[0]),parseInt(p[1]),parseInt(p[2])];
+  const THAI_MONTHS=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+
+  /* collect planned invs for this vessel+date */
+  const loadedInvs=new Set(_VSL_GROUPS.flatMap(g=>g.rows.map(r=>normInv(r.inv))));
+  const invList=[];
+  Object.entries(VESSEL_PLAN).forEach(([invUp,vp])=>{
+    if(!vp.etd||!vp.vessel)return;
+    if(vp.vessel!==vesselName)return;
+    if(loadedInvs.has(normInv(invUp)))return;
+    const p2=vp.etd.split('/');if(p2.length!==3)return;
+    const dd2=parseInt(p2[0]),mm2=parseInt(p2[1]),yy2=parseInt(p2[2]);
+    const yyyy2=yy2<100?2000+yy2:yy2;
+    const key2=`${yyyy2}-${String(mm2).padStart(2,'0')}-${String(dd2).padStart(2,'0')}`;
+    if(key2!==dateKey)return;
+    /* lookup details from FLAT */
+    const flat=FLAT.find(f=>f.inv.toUpperCase()===invUp)||null;
+    invList.push({inv:invUp,bkg:vp.bkg||'-',flat});
+  });
+
+  document.getElementById('vslCalModalTitle').innerHTML=
+    `📅 ${dd} ${THAI_MONTHS[mm-1]} ${yyyy+543} — <span style="background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;padding:2px 10px;border-radius:6px;font-size:13px;">📋 แพลน</span>`;
+
+  let totalExp=0,totalAct=0;
+  let html=`<div style="border:1.5px solid #fed7aa;border-radius:10px;overflow:hidden;">
+    <div style="background:linear-gradient(100deg,#78350f,#b45309);color:white;padding:9px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+      <span style="font-size:13px;font-weight:800;">📋 ${h(vesselName)}</span>
+      <span style="background:rgba(255,255,255,.2);border-radius:6px;padding:2px 10px;font-size:11px;">${invList.length} INV (แพลน)</span>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px;">
+      <thead><tr style="background:#fff7ed;">
+        <th style="padding:6px 8px;text-align:left;font-size:10px;color:#92400e;">อินวอยซ์</th>
+        <th style="padding:6px 8px;text-align:left;font-size:10px;color:#92400e;">Booking</th>
+        <th style="padding:6px 8px;text-align:left;font-size:10px;color:#92400e;">ปลายทาง</th>
+        <th style="padding:6px 8px;text-align:center;font-size:10px;color:#92400e;">ตู้จริง/คาด</th>
+        <th style="padding:6px 8px;text-align:left;font-size:10px;color:#92400e;">สถานะ</th>
+      </tr></thead><tbody>`;
+
+  invList.forEach((item,i)=>{
+    const flat=item.flat;
+    const s=pst(getPfx(item.inv));
+    const act=flat?flat.total_actual:0;
+    const exp=flat?flat.total_expected:0;
+    const doc=flat?flat.doc_status||'-':'-';
+    const des=flat?flat.destination||'-':'-';
+    totalExp+=exp;totalAct+=act;
+    const cOk=exp>0&&act>=exp;
+    const cBadge=cOk?`<span style="background:#dcfce7;color:#166534;border-radius:4px;padding:1px 6px;font-size:9px;">✔ ตู้ครบ</span>`
+      :`<span style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 6px;font-size:9px;">${act}/${exp} ตู้</span>`;
+    const dBadge=doc==='ปล่อยเอกสารแล้ว'?`<span style="background:#dcfce7;color:#166534;border-radius:4px;padding:1px 6px;font-size:9px;">✔ เอกสาร</span>`
+      :`<span style="background:#fef9c3;color:#92400e;border-radius:4px;padding:1px 6px;font-size:9px;">⏳ ${h(doc)}</span>`;
+    html+=`<tr style="background:${i%2===0?'#fff':'#fff7ed'};border-top:1px solid #fed7aa;">
+      <td style="padding:5px 8px;"><span style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd};border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;margin-right:4px;">${h(getPfx(item.inv))}</span>${h(item.inv)}</td>
+      <td style="padding:5px 8px;color:#92400e;font-size:10px;">${h(item.bkg)}</td>
+      <td style="padding:5px 8px;color:#64748b;">${h(des)}</td>
+      <td style="padding:5px 8px;text-align:center;">${cBadge}</td>
+      <td style="padding:5px 8px;">${dBadge}</td>
+    </tr>`;
+  });
+  html+=`</tbody>
+    <tfoot><tr style="background:#fff7ed;border-top:2px solid #fed7aa;">
+      <td colspan="3" style="padding:6px 8px;text-align:right;font-weight:700;font-size:11px;color:#92400e;">รวม</td>
+      <td style="padding:6px 8px;text-align:center;font-weight:800;color:#92400e;">${totalAct}/${totalExp} ตู้</td>
+      <td></td>
+    </tr></tfoot>
+  </table></div>`;
+
+  document.getElementById('vslCalModalBody').innerHTML=html;
   const modal=document.getElementById('vslCalModal');
   modal.style.display='flex';
 }
