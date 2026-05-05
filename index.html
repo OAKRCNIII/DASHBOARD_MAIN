@@ -2424,21 +2424,30 @@ function renderVesselCal(){
     byDate[key].push({vessel:g.vessel,vol:g.vol,invCount:g.rows.length,oc,tl,date:g.date,rows:g.rows});
   });
 
-  /* group VESSEL_PLAN by ETD → byDatePlan (เรือแพลน ยังไม่จัดจริง) */
+  /* group VESSEL_PLAN by ETD → byDatePlan (มี invoice จริง) + byDateFloat (LOY ล้วน) */
   const byDatePlan={};
+  const byDateFloat={};
   const loadedInvs=new Set(_VSL_GROUPS.flatMap(g=>g.rows.map(r=>normInv(r.inv))));
+  /* รวบกลุ่มก่อน (vessel+date) แล้วค่อยแยก planned vs float */
+  const _vpGroups={};
   Object.entries(VESSEL_PLAN).forEach(([invUp,vp])=>{
     if(!vp.etd)return;
-    if(loadedInvs.has(normInv(invUp)))return; /* ข้ามถ้าขึ้นเรือแล้ว */
+    if(loadedInvs.has(normInv(invUp)))return;
     const p=vp.etd.split('/');if(p.length!==3)return;
     const dd=parseInt(p[0]),mm=parseInt(p[1]);
     const yy=parseInt(p[2]);
     const yyyy=yy<100?2000+yy:yy;
     const key=`${yyyy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
-    if(!byDatePlan[key])byDatePlan[key]={};
     const vk=vp.vessel||'(ไม่ระบุ)';
-    if(!byDatePlan[key][vk])byDatePlan[key][vk]={vessel:vk,etd:vp.etd,invs:[]};
-    byDatePlan[key][vk].invs.push(invUp);
+    const gk=key+'||'+vk;
+    if(!_vpGroups[gk])_vpGroups[gk]={key,vessel:vk,etd:vp.etd,invs:[]};
+    _vpGroups[gk].invs.push(invUp);
+  });
+  Object.values(_vpGroups).forEach(g=>{
+    const isFloat=g.invs.every(inv=>inv.startsWith('LOY-'));
+    const target=isFloat?byDateFloat:byDatePlan;
+    if(!target[g.key])target[g.key]={};
+    target[g.key][g.vessel]={vessel:g.vessel,etd:g.etd,invs:g.invs};
   });
 
   /* calendar math */
@@ -2460,7 +2469,7 @@ function renderVesselCal(){
       <button onclick="_vslCalMonth--;if(_vslCalMonth<0){_vslCalMonth=11;_vslCalYear--;}renderVesselCal();" style="background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);color:white;border-radius:8px;padding:5px 14px;cursor:pointer;font-size:16px;font-weight:700;line-height:1;">‹</button>
       <div style="text-align:center;">
         <div style="font-size:15px;font-weight:800;letter-spacing:-.2px;">📅 ${THAI_MONTHS[m]} ${y+543}</div>
-        <div style="font-size:10px;opacity:.6;margin-top:2px;">${Object.keys(byDate).length} วัน มีเรือ${Object.keys(byDatePlan).length>0?' · '+Object.keys(byDatePlan).length+' วัน แพลน':''}</div>
+        <div style="font-size:10px;opacity:.6;margin-top:2px;">${Object.keys(byDate).length} วัน มีเรือ${Object.keys(byDatePlan).length>0?' · '+Object.keys(byDatePlan).length+' วัน แพลน':''}${Object.keys(byDateFloat).length>0?' · '+Object.keys(byDateFloat).length+' วัน ลอย':''}</div>
       </div>
       <button onclick="_vslCalMonth++;if(_vslCalMonth>11){_vslCalMonth=0;_vslCalYear++;}renderVesselCal();" style="background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);color:white;border-radius:8px;padding:5px 14px;cursor:pointer;font-size:16px;font-weight:700;line-height:1;">›</button>
     </div>
@@ -2507,6 +2516,17 @@ function renderVesselCal(){
       out+=`<div onclick="showVslPlanDetail('${key}','${safeVessel}')" style="background:linear-gradient(135deg,#78350f,#b45309);color:white;border-radius:5px;padding:3px 6px;margin-bottom:3px;border:1.5px dashed rgba(251,191,36,.5);cursor:pointer;transition:opacity .15s;" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
         <div style="font-size:9px;font-weight:800;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📋 ${h(shortName)}</div>
         <div style="font-size:9px;color:rgba(255,255,255,.75);margin-top:1px;">แพลน · ${vp.invs.length} INV</div>
+      </div>`;
+    });
+
+    /* บุคกิ้งลอย (สีเหลือง) */
+    const floatGroups=byDateFloat[key]?Object.values(byDateFloat[key]):[];
+    floatGroups.forEach(vp=>{
+      const shortName=vp.vessel.replace(/\s+/g,' ').split(' ').slice(0,3).join(' ');
+      const safeVessel=vp.vessel.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      out+=`<div onclick="showVslFloatDetail('${key}','${safeVessel}')" style="background:#fefce8;color:#854d0e;border-radius:5px;padding:3px 6px;margin-bottom:3px;border:1.5px dashed #fbbf24;cursor:pointer;transition:opacity .15s;" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
+        <div style="font-size:9px;font-weight:800;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">⚓ ${h(shortName)}</div>
+        <div style="font-size:9px;color:#a16207;margin-top:1px;">ลอย · ${vp.invs.length} booking</div>
       </div>`;
     });
 
@@ -2667,6 +2687,55 @@ function showVslPlanDetail(dateKey,vesselName){
       <td></td>
     </tr></tfoot>
   </table></div>`;
+
+  document.getElementById('vslCalModalBody').innerHTML=html;
+  const modal=document.getElementById('vslCalModal');
+  modal.style.display='flex';
+}
+
+function showVslFloatDetail(dateKey,vesselName){
+  const p=dateKey.split('-');
+  const [yyyy,mm,dd]=[parseInt(p[0]),parseInt(p[1]),parseInt(p[2])];
+  const THAI_MONTHS=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+
+  /* หา LOY entries สำหรับ vessel+date นี้ */
+  const bkgList=[];
+  Object.entries(VESSEL_PLAN).forEach(([invUp,vp])=>{
+    if(!invUp.startsWith('LOY-'))return;
+    if(!vp.etd||vp.vessel!==vesselName)return;
+    const p2=vp.etd.split('/');if(p2.length!==3)return;
+    const yy2=parseInt(p2[2]),mm2=parseInt(p2[1]),dd2=parseInt(p2[0]);
+    const yyyy2=yy2<100?2000+yy2:yy2;
+    if(`${yyyy2}-${String(mm2).padStart(2,'0')}-${String(dd2).padStart(2,'0')}`!==dateKey)return;
+    bkgList.push({inv:invUp,bkg:vp.bkg||'-'});
+  });
+
+  document.getElementById('vslCalModalTitle').innerHTML=
+    `📅 ${dd} ${THAI_MONTHS[mm-1]} ${yyyy+543} — <span style="background:#fef9c3;color:#854d0e;padding:2px 10px;border-radius:6px;font-size:13px;border:1px dashed #fbbf24;">⚓ บุคกิ้งลอย</span>`;
+
+  let html=`<div style="border:1.5px dashed #fbbf24;border-radius:10px;overflow:hidden;background:#fffbeb;">
+    <div style="background:linear-gradient(100deg,#92400e,#b45309);color:white;padding:9px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+      <span style="font-size:13px;font-weight:800;">⚓ ${h(vesselName)}</span>
+      <span style="background:rgba(255,255,255,.2);border-radius:6px;padding:2px 10px;font-size:11px;">${bkgList.length} booking (ลอย — ยังไม่ผูก Invoice)</span>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px;">
+      <thead><tr style="background:#fef9c3;">
+        <th style="padding:6px 10px;text-align:left;font-size:10px;color:#92400e;">#</th>
+        <th style="padding:6px 10px;text-align:left;font-size:10px;color:#92400e;">BKG NO.</th>
+        <th style="padding:6px 10px;text-align:left;font-size:10px;color:#92400e;">สถานะ</th>
+      </tr></thead><tbody>`;
+  bkgList.forEach((item,i)=>{
+    html+=`<tr style="background:${i%2===0?'#fff':'#fffbeb'};border-top:1px solid #fde68a;">
+      <td style="padding:5px 10px;color:#a16207;font-weight:700;">${i+1}</td>
+      <td style="padding:5px 10px;font-weight:700;color:#92400e;">${h(item.bkg)}</td>
+      <td style="padding:5px 10px;"><span style="background:#fef9c3;color:#92400e;border-radius:4px;padding:1px 8px;font-size:9px;font-weight:700;border:1px dashed #fbbf24;">⏳ ยังไม่ผูก Invoice</span></td>
+    </tr>`;
+  });
+  html+=`</tbody></table>
+    <div style="padding:8px 14px;font-size:10px;color:#a16207;border-top:1px solid #fde68a;">
+      💡 บุคกิ้งลอย = มีการจองเรือไว้แต่ยังไม่มี Invoice จริง — กรอกผ่านหน้า ENTRY
+    </div>
+  </div>`;
 
   document.getElementById('vslCalModalBody').innerHTML=html;
   const modal=document.getElementById('vslCalModal');
