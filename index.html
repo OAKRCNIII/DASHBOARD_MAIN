@@ -444,6 +444,12 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
 .co-bill-tbl td{padding:4px 8px;border-bottom:1px solid #f1f5f9;color:#1e293b;}
 .co-bill-tbl tr:hover td{background:#faf5ff;}
 .co-mo-badge{font-size:10px;padding:1px 7px;border-radius:8px;background:#ede9fe;color:#5b21b6;font-weight:700;display:inline-block;}
+.co-bill-filter{display:flex;flex-wrap:wrap;gap:5px;align-items:center;padding:8px 0 10px;margin-bottom:6px;border-bottom:1px solid #ede9fe;}
+.bill-chip{padding:3px 10px;border-radius:16px;border:1.5px solid #a78bfa;background:#f5f3ff;color:#5b21b6;font-size:10px;font-weight:700;cursor:pointer;transition:all .15s;}
+.bill-chip.active{background:#7c3aed;color:#fff;border-color:#7c3aed;}
+.bill-chip:hover{opacity:.85;}
+.bill-chip-ctrl{padding:3px 9px;border-radius:16px;border:1.5px solid #cbd5e1;background:#f8fafc;color:#64748b;font-size:10px;font-weight:700;cursor:pointer;}
+.bill-chip-ctrl:hover{background:#e2e8f0;}
 /* ===== RESPONSIVE ===== */
 @media(max-width:600px){
   .htabs{display:none;}
@@ -4360,7 +4366,7 @@ function renderTrCoView(){
       mbObj.bills.forEach(bd=>{
         const factLabel=bd.isOgm?'OGM':'โรงงานอื่นๆ';
         bd.rows.forEach(r=>{
-          rows+=`<tr>
+          rows+=`<tr data-bill="${he(bd.bill)}">
             <td>${he(r.al)}</td>
             <td>${he(r.inv)}</td>
             <td>${he(bd.bill)}</td>
@@ -4378,11 +4384,23 @@ function renderTrCoView(){
         </table>
       </div>`;
     });
-    panelsHtml+=`<div class="co-detail-panel" id="coPanel_${he(ck).replace(/[^A-Za-z0-9]/g,'_')}">
+    const sid=he(ck).replace(/[^A-Za-z0-9]/g,'_');
+    const allBills=[...new Set(Object.keys(c.bills))].sort();
+    const filterBar=allBills.length>1?`<div class="co-bill-filter">
+      <span style="font-size:10px;color:#64748b;font-weight:700;margin-right:2px;">กรองบิล:</span>
+      ${allBills.map(b=>`<button class="bill-chip active" data-bill="${he(b)}" onclick="trToggleBillChip('${sid}','${he(b)}')">${he(b)}</button>`).join('')}
+      <button class="bill-chip-ctrl" onclick="trBillAll('${sid}',true)">✅ ทั้งหมด</button>
+      <button class="bill-chip-ctrl" onclick="trBillAll('${sid}',false)">⬜ ล้าง</button>
+    </div>`:'';
+    panelsHtml+=`<div class="co-detail-panel" id="coPanel_${sid}">
       <div class="co-detail-hdr">
         <h3>🚛 ${he(ck)} — ${c.ctr} ตู้ · ${fmtAmt(c.amount)} บาท</h3>
-        <button class="co-detail-close" onclick="trToggleCoDetail('${he(ck)}')">✕</button>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button onclick="trPrintCoDetailRows('${sid}','${he(ck)}')" style="padding:4px 12px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:11px;font-weight:700;cursor:pointer;">📄 PDF</button>
+          <button class="co-detail-close" onclick="trToggleCoDetail('${he(ck)}')">✕</button>
+        </div>
       </div>
+      ${filterBar}
       ${sectHtml}
     </div>`;
   });
@@ -4395,9 +4413,77 @@ function trToggleCoDetail(ck){
   const panel=document.getElementById(panelId);
   if(!panel)return;
   const isOpen=panel.classList.contains('open');
-  /* close all panels */
   document.querySelectorAll('#trCoWrap .co-detail-panel.open').forEach(p=>p.classList.remove('open'));
   if(!isOpen){panel.classList.add('open');panel.scrollIntoView({behavior:'smooth',block:'nearest'});}
+}
+function trToggleBillChip(sid,bill){
+  const panel=document.getElementById('coPanel_'+sid);
+  if(!panel)return;
+  const chip=[...panel.querySelectorAll('.bill-chip')].find(c=>c.dataset.bill===bill);
+  if(chip)chip.classList.toggle('active');
+  trApplyBillFilter(sid);
+}
+function trBillAll(sid,show){
+  const panel=document.getElementById('coPanel_'+sid);
+  if(!panel)return;
+  panel.querySelectorAll('.bill-chip').forEach(c=>c.classList[show?'add':'remove']('active'));
+  trApplyBillFilter(sid);
+}
+function trApplyBillFilter(sid){
+  const panel=document.getElementById('coPanel_'+sid);
+  if(!panel)return;
+  const active=new Set([...panel.querySelectorAll('.bill-chip.active')].map(c=>c.dataset.bill));
+  panel.querySelectorAll('tr[data-bill]').forEach(tr=>{
+    tr.style.display=active.size===0||active.has(tr.dataset.bill)?'':'none';
+  });
+  panel.querySelectorAll('.co-bill-section').forEach(sec=>{
+    const hasVisible=[...sec.querySelectorAll('tr[data-bill]')].some(tr=>tr.style.display!=='none');
+    sec.style.display=hasVisible?'':'none';
+  });
+}
+function trPrintCoDetailRows(sid,coName){
+  const panel=document.getElementById('coPanel_'+sid);
+  if(!panel)return;
+  const active=new Set([...panel.querySelectorAll('.bill-chip.active')].map(c=>c.dataset.bill));
+  const fm=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}):'-';
+  const he2=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const nowDate=(()=>{const d=new Date();return d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear();})();
+  const rows=[...panel.querySelectorAll('tr[data-bill]')].filter(tr=>active.size===0||active.has(tr.dataset.bill));
+  let grandAmt=0;
+  let tbody=rows.map(tr=>{
+    const cells=[...tr.querySelectorAll('td')];
+    const txt=i=>cells[i]?cells[i].textContent.trim():'';
+    const amt=parseFloat(txt(4).replace(/,/g,''))||0;
+    grandAmt+=amt;
+    return`<tr><td>${he2(txt(0))}</td><td>${he2(txt(1))}</td><td>${he2(txt(2))}</td><td style="text-align:center;font-size:9px;">${he2(txt(3))}</td><td style="text-align:right;">${he2(txt(4))}</td></tr>`;
+  }).join('');
+  const billLabel=active.size>0?[...active].sort().join(', '):'ทั้งหมด';
+  const css=`@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap');
+    @page{size:A4 portrait;margin:12mm 15mm;}*{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Sarabun',sans-serif;font-size:10px;background:#fff;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .hdr{text-align:center;margin-bottom:12px;}
+    .title{font-size:15px;font-weight:800;}
+    .badge{display:block;width:fit-content;margin:6px auto 4px;background:#4c1d95;color:#fff;font-weight:800;font-size:12px;padding:3px 14px;border-radius:6px;}
+    .sub{font-size:9px;color:#555;margin-top:3px;}
+    table{width:100%;border-collapse:collapse;}
+    th,td{border:1px solid #aaa;padding:4px 8px;vertical-align:middle;}
+    thead th{background:#9dc3e6;font-weight:700;font-size:9px;border-color:#555;text-align:left;}
+    th:last-child,td:last-child{text-align:right;}
+    tbody tr:nth-child(even) td{background:#f5f9ff;}
+    tfoot td{background:#ffe699;font-weight:800;border-color:#cca800;border-top:2px solid #cca800;text-align:right;}
+    @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}`;
+  const html=`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>รายงาน ${coName}</title><style>${css}</style></head><body>
+    <div class="hdr"><div class="title">รายงานค่าขนส่งแยกรายการ</div>
+    <div class="badge">${he2(coName)}</div>
+    <div class="sub">เลขวางบิล: ${he2(billLabel)} &nbsp;|&nbsp; ${rows.length} รายการ &nbsp;|&nbsp; ${fm(grandAmt)} บาท &nbsp;|&nbsp; พิมพ์: ${nowDate}</div></div>
+    <table><thead><tr><th>AL/Seq</th><th>อินวอยซ์</th><th>เลขวางบิล</th><th style="text-align:center">โรงงาน</th><th>ราคา (บาท)</th></tr></thead>
+    <tbody>${tbody}</tbody>
+    <tfoot><tr><td colspan="4" style="text-align:right;font-size:9px;">รวม ${he2(coName)}</td><td>${fm(grandAmt)}</td></tr></tfoot>
+    </table></body></html>`;
+  const win=window.open('','_blank','width=860,height=720');
+  if(!win){alert('⚠️ กรุณาอนุญาต Pop-up ก่อนนะครับ');return;}
+  win.document.open();win.document.write(html);win.document.close();
+  win.focus();setTimeout(()=>{try{win.print();}catch(e){}},600);
 }
 
 /* ===== REPORT PDF — invoice selection modal ===== */
