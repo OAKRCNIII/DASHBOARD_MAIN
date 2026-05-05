@@ -2424,6 +2424,23 @@ function renderVesselCal(){
     byDate[key].push({vessel:g.vessel,vol:g.vol,invCount:g.rows.length,oc,tl,date:g.date,rows:g.rows});
   });
 
+  /* group VESSEL_PLAN by ETD → byDatePlan (เรือแพลน ยังไม่จัดจริง) */
+  const byDatePlan={};
+  const loadedInvs=new Set(_VSL_GROUPS.flatMap(g=>g.rows.map(r=>normInv(r.inv))));
+  Object.entries(VESSEL_PLAN).forEach(([invUp,vp])=>{
+    if(!vp.etd)return;
+    if(loadedInvs.has(normInv(invUp)))return; /* ข้ามถ้าขึ้นเรือแล้ว */
+    const p=vp.etd.split('/');if(p.length!==3)return;
+    const dd=parseInt(p[0]),mm=parseInt(p[1]);
+    const yy=parseInt(p[2]);
+    const yyyy=yy<100?2000+yy:yy;
+    const key=`${yyyy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+    if(!byDatePlan[key])byDatePlan[key]={};
+    const vk=vp.vessel||'(ไม่ระบุ)';
+    if(!byDatePlan[key][vk])byDatePlan[key][vk]={vessel:vk,etd:vp.etd,invs:[]};
+    byDatePlan[key][vk].invs.push(invUp);
+  });
+
   /* calendar math */
   const firstDay=new Date(y,m,1).getDay(); /* 0=Sun */
   const daysInMonth=new Date(y,m+1,0).getDate();
@@ -2443,7 +2460,7 @@ function renderVesselCal(){
       <button onclick="_vslCalMonth--;if(_vslCalMonth<0){_vslCalMonth=11;_vslCalYear--;}renderVesselCal();" style="background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);color:white;border-radius:8px;padding:5px 14px;cursor:pointer;font-size:16px;font-weight:700;line-height:1;">‹</button>
       <div style="text-align:center;">
         <div style="font-size:15px;font-weight:800;letter-spacing:-.2px;">📅 ${THAI_MONTHS[m]} ${y+543}</div>
-        <div style="font-size:10px;opacity:.6;margin-top:2px;">${Object.keys(byDate).length} วัน มีเรือ</div>
+        <div style="font-size:10px;opacity:.6;margin-top:2px;">${Object.keys(byDate).length} วัน มีเรือ${Object.keys(byDatePlan).length>0?' · '+Object.keys(byDatePlan).length+' วัน แพลน':''}</div>
       </div>
       <button onclick="_vslCalMonth++;if(_vslCalMonth>11){_vslCalMonth=0;_vslCalYear++;}renderVesselCal();" style="background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);color:white;border-radius:8px;padding:5px 14px;cursor:pointer;font-size:16px;font-weight:700;line-height:1;">›</button>
     </div>
@@ -2479,6 +2496,16 @@ function renderVesselCal(){
       out+=`<div onclick="showVslCalDetail('${key}')" style="background:linear-gradient(135deg,#0a1628,#1e3a6b);color:white;border-radius:5px;padding:3px 6px;margin-bottom:3px;cursor:pointer;transition:opacity .15s;" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
         <div style="font-size:9px;font-weight:800;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">🚢 ${h(shortName)}</div>
         <div style="font-size:9px;color:rgba(255,255,255,.75);margin-top:1px;">${v.invCount} INV · ${v.vol} ตู้${hasFees&&totalRM>0?' · '+fm(totalRM)+' RM':''}</div>
+      </div>`;
+    });
+
+    /* เรือแพลน (สีส้ม) */
+    const planGroups=byDatePlan[key]?Object.values(byDatePlan[key]):[];
+    planGroups.forEach(vp=>{
+      const shortName=vp.vessel.replace(/\s+/g,' ').split(' ').slice(0,3).join(' ');
+      out+=`<div style="background:linear-gradient(135deg,#78350f,#b45309);color:white;border-radius:5px;padding:3px 6px;margin-bottom:3px;border:1.5px dashed rgba(251,191,36,.5);">
+        <div style="font-size:9px;font-weight:800;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📋 ${h(shortName)}</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.75);margin-top:1px;">แพลน · ${vp.invs.length} INV</div>
       </div>`;
     });
 
