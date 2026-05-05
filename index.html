@@ -1661,11 +1661,20 @@ async function loadData(){
     paidAnts.set(normInv(key),{amount,datePaid});
   });
 
-  /* ── 10. Build VESSEL_PLAN from vessel_plan table ── */
+  /* ── 10. Build VESSEL_PLAN (invoice จริง) + VESSEL_PLAN_FLOAT (LOY) ── */
   const vesselPlan={};
+  const vesselPlanFloat={};
   vesselPlanRows.forEach(r=>{
     const inv=(r.invoice_no||'').toUpperCase().trim();if(!inv)return;
-    vesselPlan[inv]={vessel:r.vessel_name||'',etd:r.sail_date?fmtDateFromISO(r.sail_date):'',bkg:r.bkg_no||''};
+    const etd=r.sail_date?fmtDateFromISO(r.sail_date):'';
+    if(inv.startsWith('LOY-')){
+      /* กลุ่มด้วย vessel+etd — ไม่ใช้ invoice_no เป็น key เพราะ LOY-1 ซ้ำข้ามเรือ */
+      const vk=(r.vessel_name||'')+'||'+etd;
+      if(!vesselPlanFloat[vk])vesselPlanFloat[vk]={vessel:r.vessel_name||'',etd,bkgs:[]};
+      vesselPlanFloat[vk].bkgs.push({bkg:r.bkg_no||'-',vol:parseFloat(r.vol)||0,notes:r.notes||''});
+    } else {
+      vesselPlan[inv]={vessel:r.vessel_name||'',etd,bkg:r.bkg_no||''};
+    }
   });
 
   /* ── 11. Build trMap from transport_bills ── */
@@ -1725,7 +1734,7 @@ async function loadData(){
   return{byMonth,flat,stock,vessel,fees:feesMap,stmtInfo,pendCtrs,dbMap,
     trMatched,billInfoTr,dupesTr,
     ogmPriceMap,ogmPriceLatest,
-    vesselPlan,billedAnts,paidAnts,
+    vesselPlan,vesselPlanFloat,billedAnts,paidAnts,
     priceUpdateTable,unpaidTr:[]};
 }
 /* =====================================================
@@ -1748,7 +1757,8 @@ function findPriceEntry(inv){
   const k2=Object.keys(OGM_PRICE_MAP).find(k=>k.replace(/[-_\/]/g,'')===nkFlat);
   return k2?OGM_PRICE_MAP[k2]:null;
 }
-let VESSEL_PLAN={}; /* inv.toUpperCase() → {vessel, etd, bkg} จาก INPUT_1-6 */
+let VESSEL_PLAN={}; /* inv.toUpperCase() → {vessel, etd, bkg} เฉพาะ invoice จริง (ไม่รวม LOY) */
+let VESSEL_PLAN_FLOAT={}; /* "vessel||etd" → {vessel,etd,bkgs:[{bkg,vol,notes}]} สำหรับ LOY ล้วน */
 let PRICE_UPDATE_TABLE=[]; /* [{dateMs, rates:{TWI,BSW,INV,SHL,...}}] sorted asc */
 let TR_UNPAID=[]; /* [{dateRaw,dateStr,inv,prefix,factory,container,price}] ตู้ค้างจ่าย */
 let BILLED_ANTS=new Map(); /* normInv → amount วางบิลแล้ว จาก DATA_BASE_BILL_ANTS */
@@ -2424,12 +2434,9 @@ function renderVesselCal(){
     byDate[key].push({vessel:g.vessel,vol:g.vol,invCount:g.rows.length,oc,tl,date:g.date,rows:g.rows});
   });
 
-  /* group VESSEL_PLAN by ETD → byDatePlan (มี invoice จริง) + byDateFloat (LOY ล้วน) */
+  /* group VESSEL_PLAN (invoice จริงเท่านั้น) → byDatePlan */
   const byDatePlan={};
-  const byDateFloat={};
   const loadedInvs=new Set(_VSL_GROUPS.flatMap(g=>g.rows.map(r=>normInv(r.inv))));
-  /* รวบกลุ่มก่อน (vessel+date) แล้วค่อยแยก planned vs float */
-  const _vpGroups={};
   Object.entries(VESSEL_PLAN).forEach(([invUp,vp])=>{
     if(!vp.etd)return;
     if(loadedInvs.has(normInv(invUp)))return;
@@ -2439,15 +2446,22 @@ function renderVesselCal(){
     const yyyy=yy<100?2000+yy:yy;
     const key=`${yyyy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
     const vk=vp.vessel||'(ไม่ระบุ)';
-    const gk=key+'||'+vk;
-    if(!_vpGroups[gk])_vpGroups[gk]={key,vessel:vk,etd:vp.etd,invs:[]};
-    _vpGroups[gk].invs.push(invUp);
+    if(!byDatePlan[key])byDatePlan[key]={};
+    if(!byDatePlan[key][vk])byDatePlan[key][vk]={vessel:vk,etd:vp.etd,invs:[]};
+    byDatePlan[key][vk].invs.push(invUp);
   });
-  Object.values(_vpGroups).forEach(g=>{
-    const isFloat=g.invs.every(inv=>inv.startsWith('LOY-'));
-    const target=isFloat?byDateFloat:byDatePlan;
-    if(!target[g.key])target[g.key]={};
-    target[g.key][g.vessel]={vessel:g.vessel,etd:g.etd,invs:g.invs};
+
+  /* group VESSEL_PLAN_FLOAT (LOY — key ต่างเรือไม่ซ้ำกัน) → byDateFloat */
+  const byDateFloat={};
+  Object.values(VESSEL_PLAN_FLOAT).forEach(g=>{
+    if(!g.etd)return;
+    const p=g.etd.split('/');if(p.length!==3)return;
+    const dd=parseInt(p[0]),mm=parseInt(p[1]),yy=parseInt(p[2]);
+    const yyyy=yy<100?2000+yy:yy;
+    const key=`${yyyy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+    if(!byDateFloat[key])byDateFloat[key]={};
+    const totalVol=g.bkgs.reduce((s,b)=>s+(b.vol||0),0);
+    byDateFloat[key][g.vessel]={vessel:g.vessel,etd:g.etd,bkgs:g.bkgs,count:g.bkgs.length,totalVol};
   });
 
   /* calendar math */
@@ -2526,7 +2540,7 @@ function renderVesselCal(){
       const safeVessel=vp.vessel.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
       out+=`<div onclick="showVslFloatDetail('${key}','${safeVessel}')" style="background:#fefce8;color:#854d0e;border-radius:5px;padding:3px 6px;margin-bottom:3px;border:1.5px dashed #fbbf24;cursor:pointer;transition:opacity .15s;" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
         <div style="font-size:9px;font-weight:800;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">⚓ ${h(shortName)}</div>
-        <div style="font-size:9px;color:#a16207;margin-top:1px;">ลอย · ${vp.invs.length} booking</div>
+        <div style="font-size:9px;color:#a16207;margin-top:1px;">ลอย · ${vp.count} booking · ${vp.totalVol} ตู้</div>
       </div>`;
     });
 
@@ -2698,17 +2712,16 @@ function showVslFloatDetail(dateKey,vesselName){
   const [yyyy,mm,dd]=[parseInt(p[0]),parseInt(p[1]),parseInt(p[2])];
   const THAI_MONTHS=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 
-  /* หา LOY entries สำหรับ vessel+date นี้ */
-  const bkgList=[];
-  Object.entries(VESSEL_PLAN).forEach(([invUp,vp])=>{
-    if(!invUp.startsWith('LOY-'))return;
-    if(!vp.etd||vp.vessel!==vesselName)return;
-    const p2=vp.etd.split('/');if(p2.length!==3)return;
+  /* หา group จาก VESSEL_PLAN_FLOAT — ค้นด้วย vessel+date */
+  const group=Object.values(VESSEL_PLAN_FLOAT).find(g=>{
+    if(g.vessel!==vesselName||!g.etd)return false;
+    const p2=g.etd.split('/');if(p2.length!==3)return false;
     const yy2=parseInt(p2[2]),mm2=parseInt(p2[1]),dd2=parseInt(p2[0]);
     const yyyy2=yy2<100?2000+yy2:yy2;
-    if(`${yyyy2}-${String(mm2).padStart(2,'0')}-${String(dd2).padStart(2,'0')}`!==dateKey)return;
-    bkgList.push({inv:invUp,bkg:vp.bkg||'-'});
-  });
+    return `${yyyy2}-${String(mm2).padStart(2,'0')}-${String(dd2).padStart(2,'0')}`===dateKey;
+  })||{bkgs:[]};
+  const bkgList=group.bkgs;
+  const totalVol=bkgList.reduce((s,b)=>s+(b.vol||0),0);
 
   document.getElementById('vslCalModalTitle').innerHTML=
     `📅 ${dd} ${THAI_MONTHS[mm-1]} ${yyyy+543} — <span style="background:#fef9c3;color:#854d0e;padding:2px 10px;border-radius:6px;font-size:13px;border:1px dashed #fbbf24;">⚓ บุคกิ้งลอย</span>`;
@@ -2716,30 +2729,37 @@ function showVslFloatDetail(dateKey,vesselName){
   let html=`<div style="border:1.5px dashed #fbbf24;border-radius:10px;overflow:hidden;background:#fffbeb;">
     <div style="background:linear-gradient(100deg,#92400e,#b45309);color:white;padding:9px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
       <span style="font-size:13px;font-weight:800;">⚓ ${h(vesselName)}</span>
-      <span style="background:rgba(255,255,255,.2);border-radius:6px;padding:2px 10px;font-size:11px;">${bkgList.length} booking (ลอย — ยังไม่ผูก Invoice)</span>
+      <span style="background:rgba(255,255,255,.2);border-radius:6px;padding:2px 10px;font-size:11px;">${bkgList.length} booking (ลอย)</span>
+    </div>
+    <div style="padding:10px 14px 6px;font-size:12px;color:#92400e;font-weight:700;">
+      ⚓ บุคกิ้งลอย: ${bkgList.length} booking · ${totalVol} ตู้
+      <span style="font-size:11px;font-weight:400;color:#a16207;margin-left:6px;">(ยังไม่ผูก Invoice)</span>
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:11px;">
       <thead><tr style="background:#fef9c3;">
-        <th style="padding:6px 10px;text-align:left;font-size:10px;color:#92400e;">#</th>
+        <th style="padding:6px 10px;text-align:left;font-size:10px;color:#92400e;">ประเภท</th>
+        <th style="padding:6px 10px;text-align:left;font-size:10px;color:#92400e;">ปลายทาง</th>
         <th style="padding:6px 10px;text-align:left;font-size:10px;color:#92400e;">BKG NO.</th>
-        <th style="padding:6px 10px;text-align:left;font-size:10px;color:#92400e;">สถานะ</th>
+        <th style="padding:6px 10px;text-align:center;font-size:10px;color:#92400e;">ตู้</th>
+        <th style="padding:6px 10px;text-align:left;font-size:10px;color:#92400e;">หมายเหตุ</th>
       </tr></thead><tbody>`;
   bkgList.forEach((item,i)=>{
     html+=`<tr style="background:${i%2===0?'#fff':'#fffbeb'};border-top:1px solid #fde68a;">
-      <td style="padding:5px 10px;color:#a16207;font-weight:700;">${i+1}</td>
+      <td style="padding:5px 10px;color:#854d0e;font-weight:600;">⚓ ลอย</td>
+      <td style="padding:5px 10px;color:#64748b;">-</td>
       <td style="padding:5px 10px;font-weight:700;color:#92400e;">${h(item.bkg)}</td>
-      <td style="padding:5px 10px;"><span style="background:#fef9c3;color:#92400e;border-radius:4px;padding:1px 8px;font-size:9px;font-weight:700;border:1px dashed #fbbf24;">⏳ ยังไม่ผูก Invoice</span></td>
+      <td style="padding:5px 10px;text-align:center;font-weight:800;color:#0f172a;">${item.vol||'-'}</td>
+      <td style="padding:5px 10px;"><span style="background:#fef9c3;color:#92400e;border-radius:4px;padding:1px 8px;font-size:9px;font-weight:700;border:1px dashed #fbbf24;">ลอย${item.notes?' · '+h(item.notes):''}</span></td>
     </tr>`;
   });
   html+=`</tbody></table>
     <div style="padding:8px 14px;font-size:10px;color:#a16207;border-top:1px solid #fde68a;">
-      💡 บุคกิ้งลอย = มีการจองเรือไว้แต่ยังไม่มี Invoice จริง — กรอกผ่านหน้า ENTRY
+      💡 บุคกิ้งลอย = มีการจองเรือไว้แต่ยังไม่มี Invoice — กรอกผ่านหน้า ENTRY
     </div>
   </div>`;
 
   document.getElementById('vslCalModalBody').innerHTML=html;
-  const modal=document.getElementById('vslCalModal');
-  modal.style.display='flex';
+  document.getElementById('vslCalModal').style.display='flex';
 }
 
 /* =====================================================
@@ -5674,7 +5694,7 @@ function showSetup(err){
   updateFolderUI();
 }
 function showDashboard(data){
-  FLAT=data.flat;BY_MONTH=data.byMonth;STOCK=data.stock;VESSEL=data.vessel||[];FEES=data.fees||{};STMT=data.stmtInfo||{};TR_DATA=(data.trMatched||[]).filter(d=>d.month!=='-'); /* กรองอินวอยซ์เก่าปี 2025 (ไม่ระบุ) ออกจากทุก transport view */BILL_INFO_TR=data.billInfoTr||{ogm:'-',all:'-'};TR_DUPES=data.dupesTr||[];PEND_CTRS=data.pendCtrs||[];DB_MAP=data.dbMap||{};OGM_PRICE_MAP=data.ogmPriceMap||{};OGM_PRICE_LATEST=data.ogmPriceLatest||{};VESSEL_PLAN=data.vesselPlan||{};BILLED_ANTS=data.billedAnts||new Map();PAID_ANTS=data.paidAnts||new Map();BILL_ANTS_META=(BILLED_ANTS._meta)||{week:0,year:0};PRICE_UPDATE_TABLE=data.priceUpdateTable||[];TR_UNPAID=data.unpaidTr||[];
+  FLAT=data.flat;BY_MONTH=data.byMonth;STOCK=data.stock;VESSEL=data.vessel||[];FEES=data.fees||{};STMT=data.stmtInfo||{};TR_DATA=(data.trMatched||[]).filter(d=>d.month!=='-'); /* กรองอินวอยซ์เก่าปี 2025 (ไม่ระบุ) ออกจากทุก transport view */BILL_INFO_TR=data.billInfoTr||{ogm:'-',all:'-'};TR_DUPES=data.dupesTr||[];PEND_CTRS=data.pendCtrs||[];DB_MAP=data.dbMap||{};OGM_PRICE_MAP=data.ogmPriceMap||{};OGM_PRICE_LATEST=data.ogmPriceLatest||{};VESSEL_PLAN=data.vesselPlan||{};VESSEL_PLAN_FLOAT=data.vesselPlanFloat||{};BILLED_ANTS=data.billedAnts||new Map();PAID_ANTS=data.paidAnts||new Map();BILL_ANTS_META=(BILLED_ANTS._meta)||{week:0,year:0};PRICE_UPDATE_TABLE=data.priceUpdateTable||[];TR_UNPAID=data.unpaidTr||[];
   hideLoad();document.getElementById('app').style.display='flex';
   const now=new Date();document.getElementById('lastUpd').textContent='☁️ Supabase · '+pad(now.getHours())+':'+pad(now.getMinutes());
   renderTabs();renderStatsMain();const m=Object.keys(BY_MONTH).sort()[0];if(m)selMonth(m);
