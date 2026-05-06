@@ -643,6 +643,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <button class="htab" id="htab-vessel" onclick="switchTab('vessel')">🚢 เรือ</button>
     <button class="htab" id="htab-billing" onclick="switchTab('billing')" style="display:none;">💼 ยังไม่วางบิล</button>
     <button class="htab" id="htab-price" onclick="switchTab('price')" style="display:none;">💰 PRICE UPDATE</button>
+    <button class="htab" id="htab-report" onclick="switchTab('report')">📈 รายงานตู้</button>
   </div>
   <div class="stats-bar" id="sBar"></div>
   <!-- BKG modal -->
@@ -750,6 +751,9 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <div class="view" id="priceView" style="flex-direction:column;overflow-y:auto;background:#f8fafc;">
       <div id="priceWrap" style="max-width:900px;margin:0 auto;padding:16px;width:100%;box-sizing:border-box;"></div>
     </div>
+    <div class="view" id="reportView" style="flex-direction:column;overflow-y:auto;background:#f0f4ff;">
+      <div id="reportWrap" style="max-width:1200px;margin:0 auto;padding:20px;width:100%;box-sizing:border-box;"></div>
+    </div>
   </div>
   <!-- Mobile tabs -->
   <div class="mob-tabs">
@@ -760,6 +764,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <div class="mob-tab" id="mtab-vessel" onclick="switchTab('vessel')"><div class="mob-tab-icon">🚢</div>เรือ</div>
     <div class="mob-tab" id="mtab-billing" onclick="switchTab('billing')" style="display:none;"><div class="mob-tab-icon">💼</div>ยังไม่บิล</div>
     <div class="mob-tab" id="mtab-price" onclick="switchTab('price')" style="display:none;"><div class="mob-tab-icon">💰</div>ราคา</div>
+    <div class="mob-tab" id="mtab-report" onclick="switchTab('report')"><div class="mob-tab-icon">📈</div>รายงาน</div>
   </div>
   </div><!-- end #mainDash -->
 
@@ -1898,7 +1903,7 @@ const isLoaded=inv=>{
 
 function switchTab(tab){
   curTab=tab;
-  ['main','pending','stock','factory','vessel','billing','finance','price'].forEach(t=>{
+  ['main','pending','stock','factory','vessel','billing','finance','price','report'].forEach(t=>{
     document.getElementById(t+'View').classList.toggle('active',t===tab);
     const h2=document.getElementById('htab-'+t);if(h2)h2.classList.toggle('active',t===tab);
     const m2=document.getElementById('mtab-'+t);if(m2)m2.classList.toggle('active',t===tab);
@@ -1911,6 +1916,7 @@ function switchTab(tab){
   if(tab==='billing'){renderBilling();}
   if(tab==='finance'){renderFinance();}
   if(tab==='price'){renderPriceLatest();}
+  if(tab==='report'){renderReport();}
 }
 const kc=(l,v,s,c,f)=>`<div class="sc${f?' sc-click':''}"${f?` data-filter="${f}"`:''}style="border-left-color:${c}!important"><div class="lbl2">${l}</div><div class="val" style="color:${c}!important">${v}</div><div class="sub2">${s}${f?' · คลิกดู':''}</div></div>`;
 function renderStatsMain(){
@@ -5766,6 +5772,174 @@ function toggleDebtDash(){
 }
 
 let _showFinance=false;
+/* ══════════════════════════════════════════════════════
+   📈 renderReport — Monthly Container Pivot Table
+   rows = เดือน (ม.ค.-ธ.ค.), cols = prefix, values = ตู้
+   ══════════════════════════════════════════════════════ */
+let _rptYear = new Date().getFullYear();
+function renderReport(){
+  const wrap = document.getElementById('reportWrap');
+  if(!wrap) return;
+  if(!FLAT || !FLAT.length){
+    wrap.innerHTML = '<div class="placeholder"><div class="ico">📈</div><p>ยังไม่มีข้อมูล — กรุณาโหลดข้อมูลก่อน</p></div>';
+    return;
+  }
+
+  /* ── 1. filter by year ── */
+  const rows = FLAT.filter(d => {
+    const yr = d.year ? parseInt(d.year) : (d.month ? parseInt(String(d.month).split('_')[0]) : 0);
+    return yr === _rptYear;
+  });
+
+  /* ── 2. build pivot: map[month_num][prefix] = total containers ── */
+  const pivot = {}; /* pivot[1..12][pfx] = count */
+  const pfxSet = new Set();
+  rows.forEach(d => {
+    /* parse month number from "2026_1" or numeric */
+    let mNum;
+    if(d.month && String(d.month).includes('_')){
+      mNum = parseInt(String(d.month).split('_')[1]);
+    } else if(d.month){
+      mNum = parseInt(d.month);
+    } else return;
+    if(isNaN(mNum) || mNum < 1 || mNum > 12) return;
+    const pfx = getPfx(d.inv || '');
+    const vol = parseInt(d.total_expected) || 0;
+    if(!pivot[mNum]) pivot[mNum] = {};
+    pivot[mNum][pfx] = (pivot[mNum][pfx] || 0) + vol;
+    pfxSet.add(pfx);
+  });
+
+  /* ── 3. sort prefixes: factory first, then others alphabetically ── */
+  const FACTORY_PFX = ['OGM','ID','JM'];
+  const allPfx = [...pfxSet].sort((a,b) => {
+    const ai = FACTORY_PFX.indexOf(a), bi = FACTORY_PFX.indexOf(b);
+    if(ai !== -1 && bi !== -1) return ai - bi;
+    if(ai !== -1) return -1;
+    if(bi !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
+  /* ── 4. year selector ── */
+  const years = [...new Set(FLAT.map(d => d.year ? parseInt(d.year) : (d.month ? parseInt(String(d.month).split('_')[0]) : 0)).filter(y => y > 2000))].sort();
+  if(!years.includes(_rptYear)) years.push(_rptYear);
+  years.sort();
+  let yrOpts = years.map(y => `<option value="${y}"${y===_rptYear?' selected':''}>${y}</option>`).join('');
+
+  /* ── 5. month labels ── */
+  const MONTH_LABELS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+  /* ── 6. grand totals per prefix & per month ── */
+  const pfxTotals = {}; allPfx.forEach(p => pfxTotals[p] = 0);
+  const mTotals = {};
+  for(let m = 1; m <= 12; m++){
+    mTotals[m] = 0;
+    allPfx.forEach(p => {
+      const v = (pivot[m] && pivot[m][p]) || 0;
+      mTotals[m] += v;
+      pfxTotals[p] += v;
+    });
+  }
+  const grandTotal = allPfx.reduce((a,p) => a + pfxTotals[p], 0);
+
+  /* ── 7. render ── */
+  let out = `
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+    <div style="font-size:20px;font-weight:800;color:#0f2a52;display:flex;align-items:center;gap:8px;">
+      📈 รายงานตู้รายเดือน
+      <span style="font-size:13px;font-weight:500;color:#64748b;">จำนวนตู้ที่เข้าโรงงาน แยกตาม prefix</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <label style="font-size:13px;font-weight:600;color:#475569;">ปี:</label>
+      <select onchange="_rptYear=parseInt(this.value);renderReport();"
+        style="padding:6px 14px;border:1.5px solid #bfdbfe;border-radius:8px;font-size:14px;font-weight:700;background:#fff;color:#1e40af;cursor:pointer;">
+        ${yrOpts}
+      </select>
+    </div>
+  </div>`;
+
+  if(!allPfx.length){
+    out += `<div class="placeholder"><div class="ico">📭</div><p>ไม่มีข้อมูลสำหรับปี ${_rptYear}</p></div>`;
+    wrap.innerHTML = out; return;
+  }
+
+  /* summary cards (top prefixes) */
+  out += `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;">`;
+  allPfx.forEach(p => {
+    if(!pfxTotals[p]) return;
+    const c = pst(p);
+    out += `<div style="background:#fff;border:2px solid ${c.bd};border-radius:12px;padding:12px 20px;min-width:110px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+      <div style="background:${c.bg};color:${c.tx};border-radius:6px;padding:2px 12px;font-size:13px;font-weight:800;display:inline-block;margin-bottom:6px;">${h(p)}</div>
+      <div style="font-size:28px;font-weight:900;color:#0f2a52;line-height:1;">${pfxTotals[p]}</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:2px;">ตู้</div>
+    </div>`;
+  });
+  /* grand total card */
+  out += `<div style="background:linear-gradient(135deg,#1e3a8a,#3b82f6);border:2px solid #1e40af;border-radius:12px;padding:12px 20px;min-width:110px;text-align:center;box-shadow:0 4px 16px rgba(30,58,138,.3);">
+    <div style="color:rgba(255,255,255,.8);font-size:12px;font-weight:700;margin-bottom:6px;">รวมทั้งหมด</div>
+    <div style="font-size:32px;font-weight:900;color:#fff;line-height:1;">${grandTotal}</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:2px;">ตู้</div>
+  </div>`;
+  out += `</div>`;
+
+  /* pivot table */
+  out += `<div style="overflow-x:auto;border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,.08);">
+  <table style="width:100%;border-collapse:collapse;background:#fff;font-size:14px;">
+    <thead>
+      <tr style="background:#1e3a8a;">
+        <th style="padding:12px 16px;text-align:left;color:#fff;font-weight:700;font-size:13px;border-radius:14px 0 0 0;white-space:nowrap;">เดือน</th>`;
+  allPfx.forEach(p => {
+    const c = pst(p);
+    out += `<th style="padding:12px 16px;text-align:center;white-space:nowrap;">
+      <span style="background:${c.bg};color:${c.tx};border:1px solid ${c.bd};border-radius:6px;padding:2px 10px;font-size:12px;font-weight:800;">${h(p)}</span>
+    </th>`;
+  });
+  out += `<th style="padding:12px 16px;text-align:center;color:#fbbf24;font-weight:800;font-size:13px;border-radius:0 14px 0 0;white-space:nowrap;">รวม</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+  const now = new Date();
+  for(let m = 1; m <= 12; m++){
+    const isCurrentMonth = (m === now.getMonth()+1 && _rptYear === now.getFullYear());
+    const hasSomeData = mTotals[m] > 0;
+    const rowBg = isCurrentMonth ? '#eff6ff' : (m % 2 === 0 ? '#f8fafc' : '#fff');
+    const rowStyle = isCurrentMonth ? `background:${rowBg};border-left:4px solid #3b82f6;` : `background:${rowBg};`;
+    out += `<tr style="${rowStyle}${!hasSomeData?'opacity:.45;':''}">
+      <td style="padding:11px 16px;font-weight:700;color:${isCurrentMonth?'#1e40af':'#374151'};white-space:nowrap;border-bottom:1px solid #f1f5f9;">
+        ${MONTH_LABELS[m-1]} <span style="font-size:11px;font-weight:400;color:#94a3b8;">${_rptYear}</span>
+        ${isCurrentMonth?'<span style="font-size:10px;color:#3b82f6;font-weight:700;margin-left:4px;">◀ ปัจจุบัน</span>':''}
+      </td>`;
+    allPfx.forEach(p => {
+      const v = (pivot[m] && pivot[m][p]) || 0;
+      const c = pst(p);
+      out += `<td style="padding:11px 16px;text-align:center;border-bottom:1px solid #f1f5f9;font-weight:${v>0?'700':'400'};color:${v>0?'#0f2a52':'#cbd5e1'};">
+        ${v > 0 ? `<span style="background:${c.bg};color:${c.tx};border-radius:20px;padding:2px 12px;font-size:13px;">${v}</span>` : '—'}
+      </td>`;
+    });
+    out += `<td style="padding:11px 16px;text-align:center;border-bottom:1px solid #f1f5f9;font-weight:800;color:${mTotals[m]>0?'#1e40af':'#cbd5e1'};">
+      ${mTotals[m] > 0 ? `<span style="font-size:15px;">${mTotals[m]}</span>` : '—'}
+    </td></tr>`;
+  }
+
+  /* total row */
+  out += `<tr style="background:linear-gradient(135deg,#dbeafe,#eff6ff);border-top:2px solid #bfdbfe;">
+    <td style="padding:13px 16px;font-weight:800;color:#1e3a8a;font-size:14px;">รวมทั้งปี</td>`;
+  allPfx.forEach(p => {
+    const c = pst(p);
+    out += `<td style="padding:13px 16px;text-align:center;font-weight:900;font-size:15px;color:#0f2a52;">
+      ${pfxTotals[p] > 0 ? `<span style="background:${c.bg};color:${c.tx};border:1.5px solid ${c.bd};border-radius:20px;padding:2px 14px;">${pfxTotals[p]}</span>` : '—'}
+    </td>`;
+  });
+  out += `<td style="padding:13px 16px;text-align:center;font-weight:900;font-size:18px;color:#1e3a8a;">${grandTotal}</td>
+  </tr></tbody></table></div>`;
+
+  /* footnote */
+  out += `<div style="margin-top:12px;font-size:11px;color:#94a3b8;text-align:right;">* ข้อมูลจาก ALL_INV · คำนวณจาก total_expected (จำนวนตู้ต่ออินวอยซ์)</div>`;
+
+  wrap.innerHTML = out;
+}
+
 function toggleFinanceDash(){
   _showFinance=!_showFinance;
   if(_showFinance){_showTransport=false;_showDebt=false;
