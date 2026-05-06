@@ -3572,21 +3572,50 @@ function showFinanceDetail(i){
     body+=`<div style="background:#fef3c7;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;font-weight:900;font-size:13px;"><span>💰 รวม OS ทั้งหมด</span><span style="color:#92400e;">${fm(factoryDebt+shipDebt)} ฿</span></div></div>`;
   }
   else if(seg.id==='unbilled'){
-    const renderList=(list,title,icon)=>{
+    const renderList=(list,title,icon,showFees)=>{
       if(!list.length)return'';
+      let sumTr=0,sumOcf=0,sumTlx=0;
+      const hdrFees=showFees?`<th style="${thStyle}text-align:right;">ค่าเรือ (RM)</th>`:'';
       let rows=`<div style="font-size:11px;font-weight:800;color:#7c3aed;margin:10px 0 4px;">${icon} ${title} (${list.length} INV)</div>
         <table style="width:100%;border-collapse:collapse;">
-        <thead><tr style="background:#7c3aed;"><th style="${thStyle}">อินวอยซ์</th><th style="${thStyle}text-align:center;">เดือน</th><th style="${thStyle}text-align:right;">ค่าขนส่งจ่าย</th></tr></thead><tbody>`;
+        <thead><tr style="background:#7c3aed;">
+          <th style="${thStyle}">อินวอยซ์</th>
+          <th style="${thStyle}text-align:center;">เดือน</th>
+          <th style="${thStyle}text-align:right;">ค่าขนส่ง (฿)</th>
+          ${hdrFees}
+        </tr></thead><tbody>`;
       list.forEach(d=>{
-        const k=normInv(d.inv);const tr=TR_DATA.find(t=>normInv(t.inv)===k);
-        rows+=`<tr><td style="${tdStyle}">${pst2(d.prefix)} <span style="font-weight:600;">${h(d.inv)}</span></td>
+        const k=normInv(d.inv);
+        const tr=TR_DATA.find(t=>normInv(t.inv)===k);
+        const trAmt=tr?.totalPaid||0; sumTr+=trAmt;
+        let feesCell='';
+        if(showFees){
+          const fees=_canSeeFees()?FEES[k]:null;
+          const ocf=fees?.ocf||0,tlx=fees?.tlx||0; sumOcf+=ocf;sumTlx+=tlx;
+          feesCell=`<td style="${tdStyle}text-align:right;font-size:10px;color:#0369a1;">
+            ${(ocf+tlx)>0?`<div style="font-weight:700;">${fm(ocf+tlx)} RM</div>
+            <div style="color:#94a3b8;">OCF ${fm(ocf)} · TLX ${fm(tlx)}</div>
+            <div style="color:#0ea5e9;">${fm((ocf+tlx)*RM_RATE)} ฿</div>`:'<span style="color:#94a3b8;">ยังไม่มี</span>'}
+          </td>`;
+        }
+        rows+=`<tr>
+          <td style="${tdStyle}">${pst2(d.prefix)} <span style="font-weight:600;">${h(d.inv)}</span></td>
           <td style="${tdStyle}text-align:center;color:#64748b;">${mLabel(d.month)}</td>
-          <td style="${tdStyle}text-align:right;font-weight:700;color:#7c3aed;">${tr?.totalPaid?fm(tr.totalPaid)+' ฿':'—'}</td></tr>`;
+          <td style="${tdStyle}text-align:right;font-weight:700;color:#7c3aed;">${trAmt?fm(trAmt)+' ฿':'—'}</td>
+          ${feesCell}
+        </tr>`;
       });
+      /* sum row */
+      const sumFeesTd=showFees?`<td style="${tdStyle}text-align:right;font-weight:800;color:#0369a1;">${(sumOcf+sumTlx)>0?fm(sumOcf+sumTlx)+' RM<br><span style="font-size:9px;color:#0ea5e9;">= '+fm((sumOcf+sumTlx)*RM_RATE)+' ฿</span>':'—'}</td>`:'';
+      rows+=`<tr style="background:#f5f3ff;">
+        <td style="${tdStyle}font-weight:800;" colspan="2">รวม</td>
+        <td style="${tdStyle}text-align:right;font-weight:900;color:#7c3aed;">${fm(sumTr)} ฿</td>
+        ${sumFeesTd}
+      </tr>`;
       rows+=`</tbody></table>`;
       return rows;
     };
-    body=renderList(unbilledSailed,'ออกเรือแล้ว ยังไม่วางบิล','🚢')+renderList(unbilledPend,'รอออกเรือ มีค่าขนส่ง','⏳');
+    body=renderList(unbilledSailed,'ออกเรือแล้ว ยังไม่วางบิล','🚢',true)+renderList(unbilledPend,'รอออกเรือ มีค่าขนส่ง','⏳',false);
   }
 
   const panel=document.getElementById('financeDetail');
