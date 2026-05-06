@@ -640,6 +640,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <button class="htab" id="htab-stock" onclick="switchTab('stock')">📦 STOCK ตู้</button>
     <button class="htab" id="htab-factory" onclick="switchTab('factory')">🏭 เข้าโรงงาน</button>
     <button class="htab" id="htab-vessel" onclick="switchTab('vessel')">🚢 เรือ</button>
+    <button class="htab" id="htab-billing" onclick="switchTab('billing')" style="display:none;">💼 วางบิล</button>
     <button class="htab" id="htab-price" onclick="switchTab('price')" style="display:none;">💰 PRICE UPDATE</button>
   </div>
   <div class="stats-bar" id="sBar"></div>
@@ -736,6 +737,10 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
         <div class="ftbl-wrap"><div id="factoryTable"></div></div>
       </div>
     </div>
+    <!-- BILLING DASHBOARD -->
+    <div class="view" id="billingView" style="flex-direction:column;overflow-y:auto;background:#f8fafc;">
+      <div id="billingWrap" style="max-width:1200px;margin:0 auto;padding:16px;width:100%;box-sizing:border-box;"></div>
+    </div>
     <!-- PRICE UPDATE -->
     <div class="view" id="priceView" style="flex-direction:column;overflow-y:auto;background:#f8fafc;">
       <div id="priceWrap" style="max-width:900px;margin:0 auto;padding:16px;width:100%;box-sizing:border-box;"></div>
@@ -748,6 +753,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <div class="mob-tab" id="mtab-stock" onclick="switchTab('stock')"><div class="mob-tab-icon">📦</div>STOCK</div>
     <div class="mob-tab" id="mtab-factory" onclick="switchTab('factory')"><div class="mob-tab-icon">🏭</div>โรงงาน</div>
     <div class="mob-tab" id="mtab-vessel" onclick="switchTab('vessel')"><div class="mob-tab-icon">🚢</div>เรือ</div>
+    <div class="mob-tab" id="mtab-billing" onclick="switchTab('billing')" style="display:none;"><div class="mob-tab-icon">💼</div>บิล</div>
     <div class="mob-tab" id="mtab-price" onclick="switchTab('price')" style="display:none;"><div class="mob-tab-icon">💰</div>ราคา</div>
   </div>
   </div><!-- end #mainDash -->
@@ -1822,6 +1828,8 @@ function applyRoleRestrictions(){
     if(debtBtn)debtBtn.style.display='none';
     if(setBtn)setBtn.style.display='none';
   }
+  /* BILLING tab: admin only */
+  ['htab-billing','mtab-billing'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=_canSeeBilledPaid()?'':'none';});
   /* PRICE UPDATE tab: admin only */
   const priceTabVisible=_canSeeFees()&&Object.keys(OGM_PRICE_LATEST).length>0;
   ['htab-price','mtab-price'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=priceTabVisible?'':'none';});
@@ -1867,7 +1875,7 @@ const isLoaded=inv=>{
 
 function switchTab(tab){
   curTab=tab;
-  ['main','pending','stock','factory','vessel','price'].forEach(t=>{
+  ['main','pending','stock','factory','vessel','billing','price'].forEach(t=>{
     document.getElementById(t+'View').classList.toggle('active',t===tab);
     const h2=document.getElementById('htab-'+t);if(h2)h2.classList.toggle('active',t===tab);
     const m2=document.getElementById('mtab-'+t);if(m2)m2.classList.toggle('active',t===tab);
@@ -1877,6 +1885,7 @@ function switchTab(tab){
   if(tab==='main'){renderTabs();renderStatsMain();}
   if(tab==='factory'){renderFactory();renderStatsMain();}
   if(tab==='vessel'){renderVessel();renderStatsVessel();}
+  if(tab==='billing'){renderBilling();}
   if(tab==='price'){renderPriceLatest();}
 }
 const kc=(l,v,s,c,f)=>`<div class="sc${f?' sc-click':''}"${f?` data-filter="${f}"`:''}style="border-left-color:${c}!important"><div class="lbl2">${l}</div><div class="val" style="color:${c}!important">${v}</div><div class="sub2">${s}${f?' · คลิกดู':''}</div></div>`;
@@ -3214,10 +3223,134 @@ function getReadyToBill(){
   return FLAT.filter(d=>{
     if(d.month==='-')return false;
     const k=normInv(d.inv);
-    return isLoaded(d.inv)                          /* จ่ายค่าเรือ (ออกเรือแล้ว) */
-      && (trInvSet.has(k)||isPrePaidTr(d.inv))      /* จ่ายค่าขนส่งแล้ว */
-      && !BILLED_ANTS.has(k);                       /* ยังไม่วางบิลลูกค้า */
+    return isLoaded(d.inv)
+      && (trInvSet.has(k)||isPrePaidTr(d.inv))
+      && !BILLED_ANTS.has(k);
   }).sort((a,b)=>mSort(a.month,b.month));
+}
+
+/* =====================================================
+   BILLING DASHBOARD
+===================================================== */
+let BILL_FILTER='unpaid'; /* 'all' | 'unpaid' | 'billed' | 'paid' */
+
+function renderBilling(){
+  const wrap=document.getElementById('billingWrap');
+  if(!_canSeeBilledPaid()){wrap.innerHTML='<div style="padding:40px;text-align:center;color:#94a3b8;">ไม่มีสิทธิ์เข้าถึง</div>';return;}
+
+  const fmRM=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2})+' RM':null;
+  const fmTHB=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2})+' ฿':null;
+
+  /* base: อินวอยซ์ที่ออกเรือแล้ว */
+  const sailed=FLAT.filter(d=>isLoaded(d.inv)&&d.month!=='-').sort((a,b)=>-mSort(a.month,b.month));
+
+  const unpaidCnt =sailed.filter(d=>!BILLED_ANTS.has(normInv(d.inv))).length;
+  const billedCnt =sailed.filter(d=>BILLED_ANTS.has(normInv(d.inv))&&!PAID_ANTS.has(normInv(d.inv))).length;
+  const paidCnt   =sailed.filter(d=>PAID_ANTS.has(normInv(d.inv))).length;
+
+  const filtered=
+    BILL_FILTER==='unpaid'?sailed.filter(d=>!BILLED_ANTS.has(normInv(d.inv))):
+    BILL_FILTER==='billed'?sailed.filter(d=>BILLED_ANTS.has(normInv(d.inv))&&!PAID_ANTS.has(normInv(d.inv))):
+    BILL_FILTER==='paid'  ?sailed.filter(d=>PAID_ANTS.has(normInv(d.inv))):
+    sailed;
+
+  /* filter tabs */
+  const ftab=(f,icon,label,cnt,bg,bdr)=>`<button onclick="BILL_FILTER='${f}';renderBilling();"
+    style="padding:7px 16px;border-radius:9px;border:2px solid ${BILL_FILTER===f?bdr:'#e2e8f0'};background:${BILL_FILTER===f?bg:'white'};
+    color:${BILL_FILTER===f?'white':'#374151'};font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;">
+    ${icon} ${label} <span style="font-size:10px;opacity:.8;">(${cnt})</span></button>`;
+
+  let html=`<div style="margin-bottom:16px;">
+    <div style="font-size:16px;font-weight:900;color:#0a1628;margin-bottom:12px;">💼 แดชบอร์ดวางบิล</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      ${ftab('all','📋','ทั้งหมด',sailed.length,'#6366f1','#6366f1')}
+      ${ftab('unpaid','⏳','ยังไม่วางบิล',unpaidCnt,'#b45309','#b45309')}
+      ${ftab('billed','🧾','วางบิลแล้ว',billedCnt,'#0369a1','#0369a1')}
+      ${ftab('paid','💰','รับเงินแล้ว',paidCnt,'#16a34a','#16a34a')}
+    </div>
+  </div>`;
+
+  /* table */
+  html+=`<div style="background:white;border-radius:14px;box-shadow:0 2px 14px rgba(0,0,0,.08);overflow:hidden;">
+  <table style="width:100%;border-collapse:collapse;font-size:12px;">
+    <thead><tr style="background:#f1f5f9;border-bottom:2px solid #e2e8f0;">
+      <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:800;color:#475569;white-space:nowrap;">อินวอยซ์</th>
+      <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:800;color:#475569;">เดือน</th>
+      <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:800;color:#475569;">เรือ / ETD</th>
+      <th style="padding:10px 14px;text-align:center;font-size:10px;font-weight:800;color:#475569;">ค่าเรือ (OCF+TLX)</th>
+      <th style="padding:10px 14px;text-align:center;font-size:10px;font-weight:800;color:#475569;">ค่าขนส่ง</th>
+      <th style="padding:10px 14px;text-align:center;font-size:10px;font-weight:800;color:#475569;">สถานะบิล</th>
+    </tr></thead><tbody>`;
+
+  filtered.forEach((d,i)=>{
+    const k=normInv(d.inv);
+    const s=pst(d.prefix);
+    const bg=i%2===0?'#fff':'#f8fafc';
+
+    /* ค่าเรือ */
+    const fees=_canSeeFees()?FEES[k]:null;
+    const ocf=fees?.ocf||0, tlx=fees?.tlx||0;
+    const feesCell=_canSeeFees()
+      ?(ocf+tlx>0
+        ?`<div style="color:#16a34a;font-weight:700;font-size:11px;">✔ จ่ายแล้ว</div>
+           <div style="font-size:10px;color:#475569;line-height:1.6;">OCF ${fmRM(ocf)||'—'}<br>TLX ${fmRM(tlx)||'—'}</div>`
+        :`<span style="color:#94a3b8;font-size:11px;">ยังไม่มีข้อมูล</span>`)
+      :`<span style="color:#cbd5e1;font-size:10px;">—</span>`;
+
+    /* ค่าขนส่ง */
+    const trEntry=TR_DATA.find(t=>normInv(t.inv)===k);
+    const prePaid=isPrePaidTr(d.inv);
+    const trCell=prePaid
+      ?`<div style="color:#16a34a;font-weight:700;font-size:11px;">✔ pre-paid</div>`
+      :trEntry&&trEntry.status!=='nodata'
+        ?`<div style="color:${trEntry.status==='full'?'#16a34a':'#d97706'};font-weight:700;font-size:11px;">${trEntry.status==='full'?'✔ ครบ':'⚠ บางส่วน'}</div>
+           ${fmTHB(trEntry.totalPaid)?`<div style="font-size:10px;color:#475569;">${fmTHB(trEntry.totalPaid)}</div>`:''}
+           <div style="font-size:10px;color:#94a3b8;">${trEntry.paidCount||0}/${trEntry.total||0} ตู้</div>`
+        :`<span style="color:#ef4444;font-size:11px;font-weight:700;">❌ ยังไม่มี</span>`;
+
+    /* สถานะบิล */
+    const paid=PAID_ANTS.get(k);
+    const billedAmt=BILLED_ANTS.get(k);
+    const billCell=paid
+      ?`<div style="display:inline-flex;flex-direction:column;align-items:center;background:#dcfce7;color:#166534;border-radius:8px;padding:4px 12px;font-size:10px;font-weight:700;gap:1px;">
+          <span>💰 รับเงินแล้ว</span>
+          ${fmTHB(paid.amount)?`<span style="font-weight:400;">${fmTHB(paid.amount)}</span>`:''}
+          <span style="font-weight:400;opacity:.7;">${paid.datePaid}</span>
+        </div>`
+      :billedAmt
+        ?`<div style="display:inline-flex;flex-direction:column;align-items:center;background:#eff6ff;color:#1d4ed8;border-radius:8px;padding:4px 12px;font-size:10px;font-weight:700;gap:1px;">
+            <span>🧾 วางบิลแล้ว</span>
+            ${fmTHB(billedAmt)?`<span style="font-weight:400;">${fmTHB(billedAmt)}</span>`:''}
+          </div>`
+        :`<span style="background:#fef9c3;color:#92400e;border-radius:8px;padding:4px 12px;font-size:10px;font-weight:700;display:inline-block;">⏳ ยังไม่วางบิล</span>`;
+
+    /* เรือ */
+    const vslRow=VESSEL.find(r=>normInv(r.inv)===k);
+    const vslShort=vslRow?vslRow.vessel.replace(/OOCL /i,'').replace(/ \d+[NS]$/i,''):'—';
+    const vslDate=vslRow?vslRow.date:'';
+
+    html+=`<tr style="background:${bg};border-top:1px solid #f1f5f9;">
+      <td style="padding:9px 14px;">
+        <span style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd};border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;margin-right:5px;">${h(d.prefix)}</span>
+        <span style="font-weight:600;color:#0f172a;font-size:11px;">${h(d.inv)}</span>
+      </td>
+      <td style="padding:9px 14px;color:#64748b;font-size:11px;white-space:nowrap;">${mLabel(d.month)}</td>
+      <td style="padding:9px 14px;">
+        <div style="font-size:11px;font-weight:700;color:#1e40af;">${h(vslShort)}</div>
+        ${vslDate?`<div style="font-size:10px;color:#94a3b8;">${h(vslDate)}</div>`:''}
+      </td>
+      <td style="padding:9px 14px;text-align:center;">${feesCell}</td>
+      <td style="padding:9px 14px;text-align:center;">${trCell}</td>
+      <td style="padding:9px 14px;text-align:center;">${billCell}</td>
+    </tr>`;
+  });
+
+  if(!filtered.length){
+    html+=`<tr><td colspan="6" style="padding:40px;text-align:center;color:#94a3b8;font-size:13px;">ไม่มีรายการ</td></tr>`;
+  }
+
+  html+=`</tbody></table></div>`;
+  wrap.innerHTML=html;
 }
 
 /* detectDuplicatesTr: หา record ที่มี normInv+container+truck ซ้ำกัน */
