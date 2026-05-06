@@ -3493,7 +3493,7 @@ function renderFinance(){
         fill="${seg.c}" opacity=".92" style="cursor:pointer;transition:opacity .15s;"
         onmouseover="this.style.opacity=1;this.style.transform='scale(1.03)';this.style.transformOrigin='140px 140px';"
         onmouseout="this.style.opacity='.92';this.style.transform='';"
-        onclick="showFinanceDetail(${i})"/>`;
+        onclick="showFinanceDetailDash(${i})"/>`;
       ang=ea;
     });
     return paths;
@@ -5834,7 +5834,7 @@ function renderFinanceDash(){
         fill="${seg.c}" style="cursor:pointer;transition:all .15s;filter:drop-shadow(0 2px 6px ${seg.c}55);"
         onmouseover="this.style.filter='drop-shadow(0 4px 12px ${seg.c}aa)';this.style.transform='scale(1.04)';this.style.transformOrigin='130px 130px';"
         onmouseout="this.style.filter='drop-shadow(0 2px 6px ${seg.c}55)';this.style.transform='';"
-        onclick="showFinanceDetail(${i})"/>`;
+        onclick="showFinanceDetailDash(${i})"/>`;
       ang=ea;
     });
     return paths;
