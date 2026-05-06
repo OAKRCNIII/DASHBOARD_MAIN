@@ -5844,49 +5844,78 @@ function renderFinanceDash(){
   body.innerHTML=`
   <div style="max-width:1100px;margin:0 auto;">
 
-    <!-- Cards grid — full width, 2 columns on wide screen -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:20px;">
-      ${segs.map((s,i)=>`
-      <div onclick="showFinanceDetailDash(${i})" style="
-          background:rgba(255,255,255,.06);border-radius:20px;padding:22px 26px;
-          border:1px solid rgba(255,255,255,.1);border-left:6px solid ${s.c};
-          cursor:pointer;transition:all .2s;backdrop-filter:blur(6px);position:relative;overflow:hidden;"
-        onmouseover="this.style.background='rgba(255,255,255,.13)';this.style.transform='translateY(-2px)'"
-        onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.transform=''">
-        <div style="position:absolute;right:-10px;top:-10px;width:80px;height:80px;border-radius:50%;background:${s.c};opacity:.08;"></div>
-        <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.55);letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px;">${s.label}</div>
-        <div style="font-size:28px;font-weight:900;color:${s.c};line-height:1;margin-bottom:5px;text-shadow:0 0 20px ${s.c}66;">${s.val}</div>
-        ${s.sub?`<div style="font-size:13px;color:rgba(255,255,255,.5);margin-bottom:6px;">${s.sub}</div>`:''}
-        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-          <div style="flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.1);">
-            <div style="width:${((s.v/totalTHB)*100).toFixed(1)}%;height:100%;border-radius:2px;background:${s.c};box-shadow:0 0 8px ${s.c}88;"></div>
-          </div>
-          <span style="font-size:12px;font-weight:700;color:${s.c};">${((s.v/totalTHB)*100).toFixed(1)}%</span>
-          <span style="font-size:11px;color:rgba(255,255,255,.3);">ดูรายละเอียด ›</span>
+    <!-- Top row: Donut (star) + total -->
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;justify-content:center;margin-bottom:22px;">
+
+      <!-- BIG Donut -->
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <div style="font-size:11px;color:rgba(255,255,255,.35);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">กดที่ส่วนใดก็ได้เพื่อดูรายละเอียด</div>
+        <div style="position:relative;filter:drop-shadow(0 0 40px rgba(100,100,255,.25));">
+          <svg width="340" height="340" viewBox="0 0 340 340">
+            ${(()=>{
+              const total=segs.reduce((s,g)=>s+g.v,0);
+              if(!total)return'';
+              const cx=170,cy=170,r=155,ri=92;let ang=-Math.PI/2,paths='';
+              segs.forEach((seg,i)=>{
+                const a=(seg.v/total)*2*Math.PI,ea=ang+a;
+                const x1=cx+r*Math.cos(ang),y1=cy+r*Math.sin(ang),x2=cx+r*Math.cos(ea),y2=cy+r*Math.sin(ea);
+                const xi1=cx+ri*Math.cos(ang),yi1=cy+ri*Math.sin(ang),xi2=cx+ri*Math.cos(ea),yi2=cy+ri*Math.sin(ea);
+                const lg=a>Math.PI?1:0;
+                paths+=`<path d="M${xi1.toFixed(1)},${yi1.toFixed(1)} L${x1.toFixed(1)},${y1.toFixed(1)} A${r},${r} 0 ${lg},1 ${x2.toFixed(1)},${y2.toFixed(1)} L${xi2.toFixed(1)},${yi2.toFixed(1)} A${ri},${ri} 0 ${lg},0 ${xi1.toFixed(1)},${yi1.toFixed(1)} Z"
+                  fill="${seg.c}" style="cursor:pointer;transition:all .2s;filter:drop-shadow(0 0 10px ${seg.c}99);"
+                  onmouseover="this.style.filter='drop-shadow(0 0 22px ${seg.c})';this.style.transform='scale(1.05)';this.style.transformOrigin='170px 170px';"
+                  onmouseout="this.style.filter='drop-shadow(0 0 10px ${seg.c}99)';this.style.transform='';"
+                  onclick="showFinanceDetailDash(${i})"/>`;
+                ang=ea;
+              });
+              return paths;
+            })()}
+            <text x="170" y="155" text-anchor="middle" font-size="11" fill="rgba(255,255,255,.45)" font-weight="700" letter-spacing="1">รวมทั้งหมด</text>
+            <text x="170" y="184" text-anchor="middle" font-size="22" fill="white" font-weight="900">${fm(totalTHB)}</text>
+            <text x="170" y="202" text-anchor="middle" font-size="13" fill="rgba(255,255,255,.5)" font-weight="600">บาท</text>
+          </svg>
         </div>
-      </div>`).join('')}
+        ${bankUpd?`<div style="font-size:11px;color:rgba(255,255,255,.3);margin-top:6px;text-align:center;">ยอดแบงค์อัปเดต: ${bankUpd}</div>`:''}
+      </div>
+
+      <!-- Legend ขวา -->
+      <div style="display:flex;flex-direction:column;gap:10px;min-width:220px;">
+        ${segs.map((s,i)=>`
+        <div onclick="showFinanceDetailDash(${i})" style="display:flex;align-items:center;gap:12px;cursor:pointer;padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);transition:all .15s;"
+          onmouseover="this.style.background='rgba(255,255,255,.1)'"
+          onmouseout="this.style.background='rgba(255,255,255,.04)'">
+          <div style="width:14px;height:14px;border-radius:3px;background:${s.c};box-shadow:0 0 10px ${s.c}99;flex-shrink:0;"></div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:11px;color:rgba(255,255,255,.5);">${s.label}</div>
+            <div style="font-size:15px;font-weight:800;color:${s.c};text-shadow:0 0 12px ${s.c}66;">${s.val}</div>
+            ${s.sub?`<div style="font-size:10px;color:rgba(255,255,255,.35);">${s.sub}</div>`:''}
+          </div>
+          <div style="font-size:13px;font-weight:800;color:${s.c};opacity:.8;">${((s.v/totalTHB)*100).toFixed(0)}%</div>
+        </div>`).join('')}
+      </div>
     </div>
 
-    <!-- รวม + Donut row -->
-    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:4px;">
-      <div style="background:rgba(255,255,255,.05);border-radius:20px;padding:20px 30px;border:1px solid rgba(255,255,255,.1);flex:1;min-width:220px;">
-        <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.4);letter-spacing:.5px;margin-bottom:6px;">💰 รวมทั้งหมด (THB)</div>
-        <div style="font-size:36px;font-weight:900;color:white;letter-spacing:-1px;">${fm(totalTHB)} <span style="font-size:18px;opacity:.6;">฿</span></div>
-        ${bankUpd?`<div style="font-size:11px;color:rgba(255,255,255,.3);margin-top:6px;">ยอดแบงค์ล่าสุด: ${bankUpd}</div>`:''}
-      </div>
-      <div style="background:rgba(255,255,255,.05);border-radius:20px;padding:16px;border:1px solid rgba(255,255,255,.1);flex-shrink:0;">
-        <div style="font-size:10px;color:rgba(255,255,255,.3);text-align:center;margin-bottom:6px;">กดที่ส่วนใดก็ได้เพื่อดูรายละเอียด</div>
-        <svg width="200" height="200" viewBox="0 0 260 260">
-          ${mkDonut(segs)}
-          <text x="130" y="124" text-anchor="middle" font-size="9" fill="rgba(255,255,255,.4)" font-weight="600">รวมทั้งหมด</text>
-          <text x="130" y="143" text-anchor="middle" font-size="14" fill="white" font-weight="900">${fm(totalTHB)}</text>
-          <text x="130" y="157" text-anchor="middle" font-size="9" fill="rgba(255,255,255,.4)">บาท</text>
-        </svg>
-      </div>
+    <!-- Cards row — progress bars -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;">
+      ${segs.map((s,i)=>`
+      <div onclick="showFinanceDetailDash(${i})" style="
+          background:rgba(255,255,255,.05);border-radius:16px;padding:18px 20px;
+          border:1px solid rgba(255,255,255,.08);border-top:3px solid ${s.c};
+          cursor:pointer;transition:all .2s;position:relative;overflow:hidden;"
+        onmouseover="this.style.background='rgba(255,255,255,.1)';this.style.transform='translateY(-2px)'"
+        onmouseout="this.style.background='rgba(255,255,255,.05)';this.style.transform=''">
+        <div style="font-size:11px;color:rgba(255,255,255,.45);font-weight:600;margin-bottom:6px;">${s.label}</div>
+        <div style="font-size:26px;font-weight:900;color:${s.c};line-height:1.1;text-shadow:0 0 16px ${s.c}55;">${s.val}</div>
+        ${s.sub?`<div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:3px;">${s.sub}</div>`:''}
+        <div style="margin-top:10px;height:5px;border-radius:3px;background:rgba(255,255,255,.08);">
+          <div style="width:${((s.v/totalTHB)*100).toFixed(1)}%;height:100%;border-radius:3px;background:${s.c};box-shadow:0 0 10px ${s.c}aa;transition:width .6s;"></div>
+        </div>
+        <div style="font-size:11px;font-weight:700;color:${s.c};margin-top:4px;text-align:right;">${((s.v/totalTHB)*100).toFixed(1)}%</div>
+      </div>`).join('')}
     </div>
   </div>
   <!-- Detail panel -->
-  <div id="financeDashDetail" style="max-width:1100px;margin:16px auto 0;"></div>`;
+  <div id="financeDashDetail" style="max-width:1100px;margin:20px auto 0;"></div>`;
 }
 
 function showFinanceDetailDash(i){
