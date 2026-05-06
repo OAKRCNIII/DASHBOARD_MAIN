@@ -626,6 +626,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <div class="hdr-right">
       <button class="dash-toggle-btn" id="dashToggleBtn" onclick="toggleDashboard()">🚛 ค่าขนส่ง</button>
       <button class="dash-toggle-btn" id="debtDashBtn" onclick="toggleDebtDash()" style="background:#92400e;border-color:#92400e;">🏦 หนี้โรงงาน</button>
+      <button class="dash-toggle-btn" id="financeBtn" onclick="switchTab('billing')" style="background:#0f172a;border-color:#0f172a;display:none;">💵 FINANCE ANTS</button>
       <button class="hdr-btn" id="refreshBtn">🔄 รีเฟรช</button>
       <button class="hdr-btn" id="settingsBtn">⚙️ ตั้งค่า</button>
       <span id="userChip" style="display:none;"></span>
@@ -1830,8 +1831,8 @@ function applyRoleRestrictions(){
     if(debtBtn)debtBtn.style.display='none';
     if(setBtn)setBtn.style.display='none';
   }
-  /* BILLING tab: admin only */
-  ['htab-billing','mtab-billing'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=_canSeeBilledPaid()?'':'none';});
+  /* BILLING tab + FINANCE button: admin only */
+  ['htab-billing','mtab-billing','financeBtn'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=_canSeeBilledPaid()?'':'none';});
   /* PRICE UPDATE tab: admin only */
   const priceTabVisible=_canSeeFees()&&Object.keys(OGM_PRICE_LATEST).length>0;
   ['htab-price','mtab-price'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=priceTabVisible?'':'none';});
@@ -1899,25 +1900,7 @@ function renderStatsMain(){
   const notLoadedList=FLAT.filter(d=>!isLoaded(d.inv));
   const plannedVsl=notLoadedList.filter(d=>VESSEL_PLAN[d.inv.toUpperCase()]).length;
   const notPlanned=notLoadedList.filter(d=>!VESSEL_PLAN[d.inv.toUpperCase()]).length;
-  /* bank balance cards (admin only) */
-  let bankCards='';
-  if(_canSeeBilledPaid()&&BANK_BAL.length){
-    const fmB=n=>n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
-    const total=BANK_BAL.reduce((s,b)=>s+b.balance,0);
-    const updDate=BANK_BAL[0]?.updatedAt?new Date(BANK_BAL[0].updatedAt).toLocaleDateString('th-TH',{day:'2-digit',month:'short'}):'';
-    const colMap={SCB:'#2563eb',KBANK:'#16a34a',BBL:'#7c3aed'};
-    bankCards=BANK_BAL.map(b=>`<div class="sc" style="border-left-color:${colMap[b.bank]||'#64748b'}!important">
-      <div class="lbl2">🏦 ${b.bank}</div>
-      <div class="val" style="color:${colMap[b.bank]||'#64748b'}!important;font-size:13px;">${fmB(b.balance)}</div>
-      <div class="sub2">อัปเดต ${updDate}</div>
-    </div>`).join('');
-    bankCards+=`<div class="sc" style="border-left-color:#0f172a!important">
-      <div class="lbl2">💵 รวม 3 แบงค์</div>
-      <div class="val" style="color:#0f172a!important;font-size:13px;">${fmB(total)}</div>
-      <div class="sub2">บาท</div>
-    </div>`;
-  }
-  document.getElementById('sBar').innerHTML=kc('📋 อินวอยซ์ทั้งหมด',ti,'รายการ','#6366f1',null)+kc('✅ ปล่อยเอกสารแล้ว',rel,relC+' ตู้','#10b981',null)+kc('⏳ คงค้าง',pCnt,'ตู้ยังไม่ครบ','#f59e0b','pending')+kc('🔖 รอปล่อยเอกสาร',cDone,'อินวอยซ์','#8b5cf6','ctr-done')+kc('🚢 แพลนขึ้นเรือ',plannedVsl,'รายการ','#0ea5e9','planned-vessel')+kc('📭 ยังไม่จัดเรือ',notPlanned,'รายการ','#ef4444','not-loaded')+bankCards;
+  document.getElementById('sBar').innerHTML=kc('📋 อินวอยซ์ทั้งหมด',ti,'รายการ','#6366f1',null)+kc('✅ ปล่อยเอกสารแล้ว',rel,relC+' ตู้','#10b981',null)+kc('⏳ คงค้าง',pCnt,'ตู้ยังไม่ครบ','#f59e0b','pending')+kc('🔖 รอปล่อยเอกสาร',cDone,'อินวอยซ์','#8b5cf6','ctr-done')+kc('🚢 แพลนขึ้นเรือ',plannedVsl,'รายการ','#0ea5e9','planned-vessel')+kc('📭 ยังไม่จัดเรือ',notPlanned,'รายการ','#ef4444','not-loaded');
   const pb=document.getElementById('pBadge');if(pb)pb.textContent=(pCnt+cDone)||'';
   const mb=document.getElementById('mBadge');if(mb){const t=pCnt+cDone;mb.textContent=t||'';mb.style.display=t?'inline':'none';}
 }
