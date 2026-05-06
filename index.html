@@ -3241,17 +3241,24 @@ function renderBilling(){
   const fmRM=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2})+' RM':null;
   const fmTHB=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2})+' ฿':null;
 
-  /* base: อินวอยซ์ที่ออกเรือแล้ว */
+  const trInvSet=new Set(TR_DATA.filter(d=>d.status!=='nodata').map(d=>normInv(d.inv)));
+
+  /* base 1: ออกเรือแล้ว */
   const sailed=FLAT.filter(d=>isLoaded(d.inv)&&d.month!=='-').sort((a,b)=>-mSort(a.month,b.month));
+  /* base 2: ยังไม่ออกเรือ แต่มีค่าขนส่งแล้ว */
+  const pendTr=FLAT.filter(d=>!isLoaded(d.inv)&&d.month!=='-'&&(trInvSet.has(normInv(d.inv))||isPrePaidTr(d.inv))).sort((a,b)=>-mSort(a.month,b.month));
 
-  const unpaidCnt =sailed.filter(d=>!BILLED_ANTS.has(normInv(d.inv))).length;
-  const billedCnt =sailed.filter(d=>BILLED_ANTS.has(normInv(d.inv))&&!PAID_ANTS.has(normInv(d.inv))).length;
-  const paidCnt   =sailed.filter(d=>PAID_ANTS.has(normInv(d.inv))).length;
+  const unpaidCnt  =sailed.filter(d=>!BILLED_ANTS.has(normInv(d.inv))).length;
+  const billedCnt  =sailed.filter(d=>BILLED_ANTS.has(normInv(d.inv))&&!PAID_ANTS.has(normInv(d.inv))).length;
+  const paidCnt    =sailed.filter(d=>PAID_ANTS.has(normInv(d.inv))).length;
 
+  const isPendTrFilter=BILL_FILTER==='pend_tr';
+  const baseList=isPendTrFilter?pendTr:sailed;
   const filtered=
-    BILL_FILTER==='unpaid'?sailed.filter(d=>!BILLED_ANTS.has(normInv(d.inv))):
-    BILL_FILTER==='billed'?sailed.filter(d=>BILLED_ANTS.has(normInv(d.inv))&&!PAID_ANTS.has(normInv(d.inv))):
-    BILL_FILTER==='paid'  ?sailed.filter(d=>PAID_ANTS.has(normInv(d.inv))):
+    BILL_FILTER==='unpaid'  ?sailed.filter(d=>!BILLED_ANTS.has(normInv(d.inv))):
+    BILL_FILTER==='billed'  ?sailed.filter(d=>BILLED_ANTS.has(normInv(d.inv))&&!PAID_ANTS.has(normInv(d.inv))):
+    BILL_FILTER==='paid'    ?sailed.filter(d=>PAID_ANTS.has(normInv(d.inv))):
+    BILL_FILTER==='pend_tr' ?pendTr:
     sailed;
 
   /* filter tabs */
@@ -3262,11 +3269,14 @@ function renderBilling(){
 
   let html=`<div style="margin-bottom:16px;">
     <div style="font-size:16px;font-weight:900;color:#0a1628;margin-bottom:12px;">💼 แดชบอร์ดวางบิล</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      ${ftab('all','📋','ทั้งหมด',sailed.length,'#6366f1','#6366f1')}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+      ${ftab('all','📋','ออกเรือแล้ว (ทั้งหมด)',sailed.length,'#6366f1','#6366f1')}
       ${ftab('unpaid','⏳','ยังไม่วางบิล',unpaidCnt,'#b45309','#b45309')}
       ${ftab('billed','🧾','วางบิลแล้ว',billedCnt,'#0369a1','#0369a1')}
       ${ftab('paid','💰','รับเงินแล้ว',paidCnt,'#16a34a','#16a34a')}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      ${ftab('pend_tr','🚛','ขนส่งจ่ายแล้ว รอออกเรือ',pendTr.length,'#7c3aed','#7c3aed')}
     </div>
   </div>`;
 
@@ -3290,12 +3300,14 @@ function renderBilling(){
     /* ค่าเรือ */
     const fees=_canSeeFees()?FEES[k]:null;
     const ocf=fees?.ocf||0, tlx=fees?.tlx||0;
-    const feesCell=_canSeeFees()
-      ?(ocf+tlx>0
-        ?`<div style="color:#16a34a;font-weight:700;font-size:11px;">✔ จ่ายแล้ว</div>
-           <div style="font-size:10px;color:#475569;line-height:1.6;">OCF ${fmRM(ocf)||'—'}<br>TLX ${fmRM(tlx)||'—'}</div>`
-        :`<span style="color:#94a3b8;font-size:11px;">ยังไม่มีข้อมูล</span>`)
-      :`<span style="color:#cbd5e1;font-size:10px;">—</span>`;
+    const feesCell=isPendTrFilter
+      ?`<span style="color:#94a3b8;font-size:11px;">🚢 ยังไม่ออกเรือ</span>`
+      :_canSeeFees()
+        ?(ocf+tlx>0
+          ?`<div style="color:#16a34a;font-weight:700;font-size:11px;">✔ จ่ายแล้ว</div>
+             <div style="font-size:10px;color:#475569;line-height:1.6;">OCF ${fmRM(ocf)||'—'}<br>TLX ${fmRM(tlx)||'—'}</div>`
+          :`<span style="color:#94a3b8;font-size:11px;">ยังไม่มีข้อมูล</span>`)
+        :`<span style="color:#cbd5e1;font-size:10px;">—</span>`;
 
     /* ค่าขนส่ง */
     const trEntry=TR_DATA.find(t=>normInv(t.inv)===k);
@@ -3326,8 +3338,11 @@ function renderBilling(){
 
     /* เรือ */
     const vslRow=VESSEL.find(r=>normInv(r.inv)===k);
-    const vslShort=vslRow?vslRow.vessel.replace(/OOCL /i,'').replace(/ \d+[NS]$/i,''):'—';
-    const vslDate=vslRow?vslRow.date:'';
+    const vslPlan=!vslRow?VESSEL_PLAN[d.inv.toUpperCase()]:null;
+    const vslShort=vslRow?vslRow.vessel.replace(/OOCL /i,'').replace(/ \d+[NS]$/i,'')
+                  :vslPlan?'📋 '+vslPlan.vessel.replace(/OOCL /i,'').replace(/ \d+[NS]$/i,'')
+                  :'—';
+    const vslDate=vslRow?vslRow.date:vslPlan?vslPlan.etd:'';
 
     html+=`<tr style="background:${bg};border-top:1px solid #f1f5f9;">
       <td style="padding:9px 14px;">
@@ -3372,7 +3387,8 @@ function renderBilling(){
       <td style="${th}"></td>
       <td style="${th}"></td>
       <td style="${th}text-align:center;">
-        ${_canSeeFees()&&(sumOcf+sumTlx)>0?`<div style="color:#16a34a;font-size:11px;font-weight:800;">${fmRM(sumOcf+sumTlx)||'—'}</div>
+        ${isPendTrFilter?'<span style="color:#94a3b8;font-size:11px;">🚢 รอออกเรือ</span>'
+          :_canSeeFees()&&(sumOcf+sumTlx)>0?`<div style="color:#16a34a;font-size:11px;font-weight:800;">${fmRM(sumOcf+sumTlx)||'—'}</div>
         <div style="font-size:10px;color:#475569;">OCF ${fmRM(sumOcf)||'—'}</div>
         <div style="font-size:10px;color:#475569;">TLX ${fmRM(sumTlx)||'—'}</div>`:'<span style="color:#94a3b8;font-size:11px;">—</span>'}
       </td>
