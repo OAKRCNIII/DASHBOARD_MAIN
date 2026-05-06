@@ -1888,7 +1888,9 @@ function renderStatsMain(){
   const notLoadedList=FLAT.filter(d=>!isLoaded(d.inv));
   const plannedVsl=notLoadedList.filter(d=>VESSEL_PLAN[d.inv.toUpperCase()]).length;
   const notPlanned=notLoadedList.filter(d=>!VESSEL_PLAN[d.inv.toUpperCase()]).length;
-  document.getElementById('sBar').innerHTML=kc('📋 อินวอยซ์ทั้งหมด',ti,'รายการ','#6366f1',null)+kc('✅ ปล่อยเอกสารแล้ว',rel,relC+' ตู้','#10b981',null)+kc('⏳ คงค้าง',pCnt,'ตู้ยังไม่ครบ','#f59e0b','pending')+kc('🔖 รอปล่อยเอกสาร',cDone,'อินวอยซ์','#8b5cf6','ctr-done')+kc('🚢 แพลนขึ้นเรือ',plannedVsl,'รายการ','#0ea5e9','planned-vessel')+kc('📭 ยังไม่จัดเรือ',notPlanned,'รายการ','#ef4444','not-loaded');
+  const readyBill=getReadyToBill();
+  const readyBillCard=readyBill.length>0?kc('💼 รอวางบิล',readyBill.length,'ออกเรือ+ขนส่งครบ','#b45309','ready-bill'):'';
+  document.getElementById('sBar').innerHTML=kc('📋 อินวอยซ์ทั้งหมด',ti,'รายการ','#6366f1',null)+kc('✅ ปล่อยเอกสารแล้ว',rel,relC+' ตู้','#10b981',null)+kc('⏳ คงค้าง',pCnt,'ตู้ยังไม่ครบ','#f59e0b','pending')+kc('🔖 รอปล่อยเอกสาร',cDone,'อินวอยซ์','#8b5cf6','ctr-done')+kc('🚢 แพลนขึ้นเรือ',plannedVsl,'รายการ','#0ea5e9','planned-vessel')+kc('📭 ยังไม่จัดเรือ',notPlanned,'รายการ','#ef4444','not-loaded')+readyBillCard;
   const pb=document.getElementById('pBadge');if(pb)pb.textContent=(pCnt+cDone)||'';
   const mb=document.getElementById('mBadge');if(mb){const t=pCnt+cDone;mb.textContent=t||'';mb.style.display=t?'inline':'none';}
 }
@@ -3110,6 +3112,7 @@ function showStatModal(filter){
   else if(filter==='planned-vessel'){list=FLAT.filter(d=>d.month!=='-'&&!isLoaded(d.inv)&&VESSEL_PLAN[d.inv.toUpperCase()]).sort((a,b)=>mSort(a.month,b.month));title='🚢 แพลนขึ้นเรือแล้ว';color='#0369a1';}
   else if(filter==='not-loaded'){list=FLAT.filter(d=>d.month!=='-'&&!isLoaded(d.inv)&&!VESSEL_PLAN[d.inv.toUpperCase()]).sort((a,b)=>mSort(a.month,b.month));title='⚓ ยังไม่จัดลงเรือ';color='#dc2626';}
   else if(filter==='unassigned-month'){list=FLAT.filter(d=>d.month==='-'&&d.year>=2026).sort((a,b)=>a.inv.localeCompare(b.inv));title='⚠️ ยังไม่จัดเดือน';color='#f97316';}
+  else if(filter==='ready-bill'){list=getReadyToBill();title='💼 รอวางบิล — ออกเรือแล้ว + จ่ายขนส่งแล้ว + ยังไม่วางบิล';color='#b45309';}
   else{list=FLAT.filter(d=>d.month!=='-'&&d.doc_status!=='ปล่อยเอกสารแล้ว'&&(d.total_expected===0||d.total_actual>=d.total_expected));title='🟣 ตู้ครบแล้ว — รอปล่อยเอกสาร';color='#7c3aed';}
   let rows='';
   if(filter==='planned-vessel'){
@@ -3148,6 +3151,35 @@ function showStatModal(filter){
         rows+=`<div class="sm-row" data-id="${d.id}"><span class="sm-pfx" style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd}">${h(d.prefix)}</span><span class="sm-inv">${h(d.inv)}</span><span class="sm-ctr" style="color:#0369a1;flex-shrink:0;">${vp?.bkg||''}</span><span style="font-size:10px;font-weight:700;color:${ctrColor};margin-left:6px;flex-shrink:0;">${ctrTxt}</span>${bb3}${pb3}${pndBadge3}</div>`;
       });
     });
+  }else if(filter==='ready-bill'){
+    /* จัดกลุ่มตามเดือน */
+    const byM={};list.forEach(d=>{if(!byM[d.month])byM[d.month]=[];byM[d.month].push(d);});
+    Object.keys(byM).sort(mSort).forEach(m=>{
+      const mTotal=byM[m].reduce((s,d)=>s+d.total_actual,0);
+      rows+=`<div style="padding:5px 14px;background:#fef3c7;font-size:9px;font-weight:700;color:#92400e;border-bottom:1px solid #fde68a;border-top:1px solid #fde68a;margin-top:4px;">${mLabel(m)} — ${byM[m].length} INV · ${mTotal} ตู้</div>`;
+      byM[m].forEach(d=>{
+        const s=pst(d.prefix);
+        const k=normInv(d.inv);
+        /* ค่าขนส่ง */
+        const trEntry=TR_DATA.find(t=>normInv(t.inv)===k);
+        const trStatus=isPrePaidTr(d.inv)?'✔ pre-paid':trEntry?trEntry.status==='full'?'✔ ครบ':trEntry.status==='partial'?'⚠ บางส่วน':'?':'-';
+        const trColor=trStatus.includes('✔')?'#16a34a':trStatus.includes('⚠')?'#d97706':'#94a3b8';
+        /* เรือ */
+        const vslRow=VESSEL.find(r=>normInv(r.inv)===k);
+        const vslTxt=vslRow?vslRow.vessel.split(' ').slice(0,3).join(' '):'';
+        /* ตู้ */
+        const act=d.total_actual,exp=d.total_expected;
+        const ctrTxt=exp>0?`${act}/${exp} ตู้`:`${act} ตู้`;
+        const ctrColor=exp>0&&act>=exp?'#16a34a':'#64748b';
+        rows+=`<div class="sm-row" data-id="${d.id}" style="gap:6px;flex-wrap:wrap;">
+          <span class="sm-pfx" style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd}">${h(d.prefix)}</span>
+          <span class="sm-inv">${h(d.inv)}</span>
+          ${vslTxt?`<span style="font-size:9px;color:#1e40af;background:#eff6ff;border-radius:4px;padding:1px 6px;flex-shrink:0;">🚢 ${h(vslTxt)}</span>`:''}
+          <span style="font-size:9px;font-weight:700;color:${trColor};flex-shrink:0;">🚛 ${trStatus}</span>
+          <span style="font-size:9px;font-weight:700;color:${ctrColor};flex-shrink:0;">${ctrTxt}</span>
+        </div>`;
+      });
+    });
   }else if(filter==='not-loaded'){const byM={};list.forEach(d=>{if(!byM[d.month])byM[d.month]=[];byM[d.month].push(d);});Object.keys(byM).sort(mSort).forEach(m=>{rows+=`<div style="padding:5px 14px;background:#fef2f2;font-size:9px;font-weight:700;color:#991b1b;border-bottom:1px solid #fecaca;border-top:1px solid #fecaca;margin-top:4px;">${mLabel(m)} (${byM[m].length} รายการ)</div>`;byM[m].forEach(d=>{const s=pst(d.prefix);const bb4=_canSeeBilledPaid()&&BILLED_ANTS.has(normInv(d.inv))?'<span style="font-size:9px;background:#fdf2f8;color:#9d174d;border:1px solid #f9a8d4;border-radius:4px;padding:1px 5px;flex-shrink:0;">🧾 BILLED</span>':'';const pb4=_canSeeBilledPaid()&&PAID_ANTS.has(normInv(d.inv))?'<span style="font-size:9px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:4px;padding:1px 5px;flex-shrink:0;">💰 PAID</span>':'';rows+=`<div class="sm-row" data-id="${d.id}"><span class="sm-pfx" style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd}">${h(d.prefix)}</span><span class="sm-inv">${h(d.inv)}</span><span class="sm-ctr">${d.total_expected>0?d.total_actual+'/'+d.total_expected+' ตู้':'ไม่ระบุ'}</span>${bb4}${pb4}</div>`;});});}
   else{list.forEach(d=>{const s=pst(d.prefix);let ctr,cls;if(d.total_expected===0){ctr='ไม่ระบุ';cls='';}else if(d.total_actual>=d.total_expected){ctr='✔ '+d.total_actual+'/'+d.total_expected;cls='done';}else{ctr=d.total_actual+'/'+d.total_expected;cls='inc';}const pndCnt=PEND_CTRS.filter(c=>c.inv&&normInv(c.inv)===normInv(d.inv)).length;const pndBadge=pndCnt?`<span style="font-size:9px;background:#fef9c3;color:#92400e;border:1px solid #fcd34d;border-radius:4px;padding:1px 5px;flex-shrink:0;margin-left:4px;">⏳ +${pndCnt}</span>`:'';rows+=`<div class="sm-row" data-id="${d.id}"><span class="sm-pfx" style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd}">${h(d.prefix)}</span><span class="sm-inv">${h(d.inv)}</span><span class="sm-ctr ${cls}">${ctr}</span>${pndBadge}</div>`;});}
   document.getElementById('sModalTitle').textContent=title;document.getElementById('sModalTitle').style.color=color;
@@ -3174,6 +3206,19 @@ const PRE_PAID_INV_TR=new Set([
 ]); /* 23 อินวอยซ์ — ม.ค. 2026 ครบทุกตู้ */
 const normStr=s=>String(s||'').replace(/\s+/g,'').toUpperCase();
 function isPrePaidTr(inv){return PRE_PAID_INV_TR.has(normInv(inv));}
+
+function getReadyToBill(){
+  /* อินวอยซ์ที่: ออกเรือแล้ว + จ่ายค่าขนส่งแล้ว + ยังไม่วางบิลลูกค้า */
+  if(!_canSeeBilledPaid())return [];
+  const trInvSet=new Set(TR_DATA.filter(d=>d.status!=='nodata').map(d=>normInv(d.inv)));
+  return FLAT.filter(d=>{
+    if(d.month==='-')return false;
+    const k=normInv(d.inv);
+    return isLoaded(d.inv)                          /* จ่ายค่าเรือ (ออกเรือแล้ว) */
+      && (trInvSet.has(k)||isPrePaidTr(d.inv))      /* จ่ายค่าขนส่งแล้ว */
+      && !BILLED_ANTS.has(k);                       /* ยังไม่วางบิลลูกค้า */
+  }).sort((a,b)=>mSort(a.month,b.month));
+}
 
 /* detectDuplicatesTr: หา record ที่มี normInv+container+truck ซ้ำกัน */
 function detectDuplicatesTr(trMap){
