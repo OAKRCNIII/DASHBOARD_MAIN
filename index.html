@@ -3349,6 +3349,45 @@ function renderBilling(){
     html+=`<tr><td colspan="6" style="padding:40px;text-align:center;color:#94a3b8;font-size:13px;">ไม่มีรายการ</td></tr>`;
   }
 
+  /* ── SUM row ── */
+  if(filtered.length){
+    let sumOcf=0,sumTlx=0,sumTr=0,sumBilled=0,sumPaid=0;
+    let cntFees=0,cntTrFull=0,cntTrPart=0,cntTrNone=0,cntUnbilled=0,cntBilled=0,cntPaid=0;
+    filtered.forEach(d=>{
+      const k=normInv(d.inv);
+      const fees=_canSeeFees()?FEES[k]:null;
+      if(fees&&(fees.ocf||fees.tlx)){sumOcf+=fees.ocf||0;sumTlx+=fees.tlx||0;cntFees++;}
+      const trEntry=TR_DATA.find(t=>normInv(t.inv)===k);
+      if(isPrePaidTr(d.inv)){sumTr+=(trEntry?.totalPaid||0);cntTrFull++;}
+      else if(trEntry&&trEntry.status!=='nodata'){sumTr+=trEntry.totalPaid||0;trEntry.status==='full'?cntTrFull++:cntTrPart++;}
+      else cntTrNone++;
+      const paid=PAID_ANTS.get(k);const billedAmt=BILLED_ANTS.get(k);
+      if(paid){sumPaid+=paid.amount||0;cntPaid++;}
+      else if(billedAmt){sumBilled+=billedAmt||0;cntBilled++;}
+      else cntUnbilled++;
+    });
+    const th='padding:8px 14px;font-size:10px;font-weight:800;color:#0f172a;border-top:2px solid #cbd5e1;background:#f1f5f9;';
+    html+=`<tr>
+      <td style="${th}">รวม ${filtered.length} INV</td>
+      <td style="${th}"></td>
+      <td style="${th}"></td>
+      <td style="${th}text-align:center;">
+        ${_canSeeFees()&&(sumOcf+sumTlx)>0?`<div style="color:#16a34a;font-size:11px;font-weight:800;">${fmRM(sumOcf+sumTlx)||'—'}</div>
+        <div style="font-size:10px;color:#475569;">OCF ${fmRM(sumOcf)||'—'}</div>
+        <div style="font-size:10px;color:#475569;">TLX ${fmRM(sumTlx)||'—'}</div>`:'<span style="color:#94a3b8;font-size:11px;">—</span>'}
+      </td>
+      <td style="${th}text-align:center;">
+        ${sumTr>0?`<div style="color:#0f172a;font-size:11px;font-weight:800;">${fmTHB(sumTr)||'—'}</div>`:''}
+        <div style="font-size:10px;color:#475569;">✔ ${cntTrFull} · ⚠ ${cntTrPart} · ❌ ${cntTrNone}</div>
+      </td>
+      <td style="${th}text-align:center;">
+        ${sumPaid>0?`<div style="color:#16a34a;font-size:11px;font-weight:800;">💰 ${fmTHB(sumPaid)}</div>`:''}
+        ${sumBilled>0?`<div style="color:#1d4ed8;font-size:11px;font-weight:800;">🧾 ${fmTHB(sumBilled)}</div>`:''}
+        <div style="font-size:10px;color:#475569;">⏳ ${cntUnbilled} · 🧾 ${cntBilled} · 💰 ${cntPaid}</div>
+      </td>
+    </tr>`;
+  }
+
   html+=`</tbody></table></div>`;
   wrap.innerHTML=html;
 }
