@@ -3547,7 +3547,7 @@ function showFinanceDetail(i){
   const seg=_finSegs[i];
   if(!seg)return;
   const {bankTotal,bankUpd,suRM,suTHB,pfxMap,shipMap,factoryDebt,shipDebt,unbilledSailed,unbilledPend,fm,fmRM,pst2}=_finData;
-  const colMap={SCB:'#2563eb',KBANK:'#16a34a',BBL:'#7c3aed'};
+  const colMap={SCB:'#7c3aed',KBANK:'#16a34a',BBL:'#2563eb'};
   let body='';
   const thStyle='padding:8px 12px;font-size:10px;font-weight:800;color:#fff;text-align:left;';
   const tdStyle='padding:8px 12px;font-size:11px;border-bottom:1px solid #f1f5f9;';
@@ -5925,7 +5925,7 @@ function showFinanceDetailDash(i){
   if(panel.dataset.open===String(i)){panel.innerHTML='';panel.dataset.open='';return;}
 
   const {bankTotal,bankUpd,suRM,suTHB,pfxMap,shipMap,factoryDebt,shipDebt,unbilledSailed,unbilledPend,unbilledFeesRM,fm,fmRM,pst2}=_finData;
-  const colMap={SCB:'#2563eb',KBANK:'#16a34a',BBL:'#7c3aed'};
+  const colMap={SCB:'#7c3aed',KBANK:'#16a34a',BBL:'#2563eb'};
   const thS='padding:9px 12px;font-size:10px;font-weight:800;color:#fff;text-align:left;';
   const tdS='padding:9px 12px;font-size:11px;border-bottom:1px solid rgba(255,255,255,.06);color:#e2e8f0;';
   let body='';
