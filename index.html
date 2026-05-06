@@ -3249,17 +3249,14 @@ function renderBilling(){
   const pendTr=FLAT.filter(d=>!isLoaded(d.inv)&&d.month!=='-'&&(trInvSet.has(normInv(d.inv))||isPrePaidTr(d.inv))).sort((a,b)=>-mSort(a.month,b.month));
 
   const unpaidCnt  =sailed.filter(d=>!BILLED_ANTS.has(normInv(d.inv))).length;
-  const billedCnt  =sailed.filter(d=>BILLED_ANTS.has(normInv(d.inv))&&!PAID_ANTS.has(normInv(d.inv))).length;
-  const paidCnt    =sailed.filter(d=>PAID_ANTS.has(normInv(d.inv))).length;
 
   const isPendTrFilter=BILL_FILTER==='pend_tr';
-  const baseList=isPendTrFilter?pendTr:sailed;
   const filtered=
-    BILL_FILTER==='unpaid'  ?sailed.filter(d=>!BILLED_ANTS.has(normInv(d.inv))):
-    BILL_FILTER==='billed'  ?sailed.filter(d=>BILLED_ANTS.has(normInv(d.inv))&&!PAID_ANTS.has(normInv(d.inv))):
-    BILL_FILTER==='paid'    ?sailed.filter(d=>PAID_ANTS.has(normInv(d.inv))):
     BILL_FILTER==='pend_tr' ?pendTr:
-    sailed;
+    sailed.filter(d=>!BILLED_ANTS.has(normInv(d.inv)));
+
+  /* ensure default is unpaid */
+  if(BILL_FILTER!=='unpaid'&&BILL_FILTER!=='pend_tr')BILL_FILTER='unpaid';
 
   /* filter tabs */
   const ftab=(f,icon,label,cnt,bg,bdr)=>`<button onclick="BILL_FILTER='${f}';renderBilling();"
@@ -3269,13 +3266,8 @@ function renderBilling(){
 
   let html=`<div style="margin-bottom:16px;">
     <div style="font-size:16px;font-weight:900;color:#0a1628;margin-bottom:12px;">💼 แดชบอร์ดวางบิล</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-      ${ftab('all','📋','ออกเรือแล้ว (ทั้งหมด)',sailed.length,'#6366f1','#6366f1')}
-      ${ftab('unpaid','⏳','ยังไม่วางบิล',unpaidCnt,'#b45309','#b45309')}
-      ${ftab('billed','🧾','วางบิลแล้ว',billedCnt,'#0369a1','#0369a1')}
-      ${ftab('paid','💰','รับเงินแล้ว',paidCnt,'#16a34a','#16a34a')}
-    </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      ${ftab('unpaid','⏳','ยังไม่วางบิล (เรือออกแล้ว)',unpaidCnt,'#b45309','#b45309')}
       ${ftab('pend_tr','🚛','ขนส่งจ่ายแล้ว รอออกเรือ',pendTr.length,'#7c3aed','#7c3aed')}
     </div>
   </div>`;
