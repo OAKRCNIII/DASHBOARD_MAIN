@@ -1897,9 +1897,7 @@ function renderStatsMain(){
   const notLoadedList=FLAT.filter(d=>!isLoaded(d.inv));
   const plannedVsl=notLoadedList.filter(d=>VESSEL_PLAN[d.inv.toUpperCase()]).length;
   const notPlanned=notLoadedList.filter(d=>!VESSEL_PLAN[d.inv.toUpperCase()]).length;
-  const readyBill=getReadyToBill();
-  const readyBillCard=readyBill.length>0?kc('💼 รอวางบิล',readyBill.length,'ออกเรือ+ขนส่งครบ','#b45309','ready-bill'):'';
-  document.getElementById('sBar').innerHTML=kc('📋 อินวอยซ์ทั้งหมด',ti,'รายการ','#6366f1',null)+kc('✅ ปล่อยเอกสารแล้ว',rel,relC+' ตู้','#10b981',null)+kc('⏳ คงค้าง',pCnt,'ตู้ยังไม่ครบ','#f59e0b','pending')+kc('🔖 รอปล่อยเอกสาร',cDone,'อินวอยซ์','#8b5cf6','ctr-done')+kc('🚢 แพลนขึ้นเรือ',plannedVsl,'รายการ','#0ea5e9','planned-vessel')+kc('📭 ยังไม่จัดเรือ',notPlanned,'รายการ','#ef4444','not-loaded')+readyBillCard;
+  document.getElementById('sBar').innerHTML=kc('📋 อินวอยซ์ทั้งหมด',ti,'รายการ','#6366f1',null)+kc('✅ ปล่อยเอกสารแล้ว',rel,relC+' ตู้','#10b981',null)+kc('⏳ คงค้าง',pCnt,'ตู้ยังไม่ครบ','#f59e0b','pending')+kc('🔖 รอปล่อยเอกสาร',cDone,'อินวอยซ์','#8b5cf6','ctr-done')+kc('🚢 แพลนขึ้นเรือ',plannedVsl,'รายการ','#0ea5e9','planned-vessel')+kc('📭 ยังไม่จัดเรือ',notPlanned,'รายการ','#ef4444','not-loaded');
   const pb=document.getElementById('pBadge');if(pb)pb.textContent=(pCnt+cDone)||'';
   const mb=document.getElementById('mBadge');if(mb){const t=pCnt+cDone;mb.textContent=t||'';mb.style.display=t?'inline':'none';}
 }
