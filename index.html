@@ -5992,28 +5992,26 @@ function printReport(){
   }
   const grandTotal = allPfx.reduce((a,p)=>a+pfxTotals[p],0);
 
-  /* ── only months with data ── */
-  const activeMonths = [];
-  for(let m=1;m<=12;m++){ if(mTotals[m]>0) activeMonths.push(m); }
-
-  /* ── build table HTML ── */
+  /* ── build table HTML — ครบ 12 เดือน ── */
   let tHead = `<tr><th>เดือน</th>`;
   allPfx.forEach(p => { tHead += `<th>${p}</th>`; });
   tHead += `<th>รวม</th></tr>`;
 
   let tBody = '';
-  activeMonths.forEach((m,i) => {
+  for(let m=1;m<=12;m++){
     const isHidden = (m===nowM && _rptHideCurrent && isCurYr);
-    const bg = isHidden ? '#fffbeb' : (i%2===0?'#fff':'#f8fafc');
-    const lBorder = isHidden ? 'border-left:4px solid #f59e0b;' : (m===nowM&&!_rptHideCurrent?'border-left:4px solid #3b82f6;':'');
-    tBody += `<tr style="background:${bg};${lBorder}">`;
+    const hasData = mTotals[m] > 0;
+    const bg = isHidden ? '#fffbeb' : (m%2===0?'#f8fafc':'#fff');
+    const lBorder = isHidden ? 'border-left:4px solid #f59e0b;' : '';
+    const opacity = (!hasData && !isHidden) ? 'opacity:.35;' : '';
+    tBody += `<tr style="background:${bg};${lBorder}${opacity}">`;
     tBody += `<td>${MONTH_LABELS[m-1]} <span style="color:#94a3b8;font-size:9px;">${_rptYear}</span>${isHidden?' <span style="color:#f59e0b;font-size:9px;">⏳</span>':''}</td>`;
     allPfx.forEach(p => {
       const v = (pivot[m]&&pivot[m][p])||0;
       tBody += `<td style="color:${v>0?'#0f2a52':'#cbd5e1'};font-weight:${v>0?'700':'400'};">${v>0?v:'—'}</td>`;
     });
-    tBody += `<td style="font-weight:800;color:#1e40af;">${mTotals[m]||'—'}</td></tr>`;
-  });
+    tBody += `<td style="font-weight:800;color:${mTotals[m]>0?'#1e40af':'#cbd5e1'};">${mTotals[m]>0?mTotals[m]:'—'}</td></tr>`;
+  }
 
   /* total row */
   let tFoot = `<tr><td>รวมทั้งปี</td>`;
