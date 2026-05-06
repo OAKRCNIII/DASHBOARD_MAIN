@@ -5810,15 +5810,14 @@ function renderReport(){
     pfxSet.add(pfx);
   });
 
-  /* ── 3. sort prefixes: factory first, then others alphabetically ── */
-  const FACTORY_PFX = ['OGM','ID','JM'];
-  const allPfx = [...pfxSet].sort((a,b) => {
-    const ai = FACTORY_PFX.indexOf(a), bi = FACTORY_PFX.indexOf(b);
-    if(ai !== -1 && bi !== -1) return ai - bi;
-    if(ai !== -1) return -1;
-    if(bi !== -1) return 1;
-    return a.localeCompare(b);
+  /* ── 3. pre-calc totals per prefix (for sort) ── */
+  const _preTotals = {};
+  [...pfxSet].forEach(p => {
+    _preTotals[p] = 0;
+    for(let m = 1; m <= 12; m++) _preTotals[p] += (pivot[m] && pivot[m][p]) || 0;
   });
+  /* sort by total desc (มากสุดซ้าย), tie-break alphabetically */
+  const allPfx = [...pfxSet].sort((a,b) => (_preTotals[b] - _preTotals[a]) || a.localeCompare(b));
 
   /* ── 4. year selector ── */
   const years = [...new Set(FLAT.map(d => d.year ? parseInt(d.year) : (d.month ? parseInt(String(d.month).split('_')[0]) : 0)).filter(y => y > 2000))].sort();
@@ -5849,12 +5848,15 @@ function renderReport(){
       📈 รายงานตู้รายเดือน
       <span style="font-size:13px;font-weight:500;color:#64748b;">จำนวนตู้ที่เข้าโรงงาน แยกตาม prefix</span>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
       <label style="font-size:13px;font-weight:600;color:#475569;">ปี:</label>
       <select onchange="_rptYear=parseInt(this.value);renderReport();"
         style="padding:6px 14px;border:1.5px solid #bfdbfe;border-radius:8px;font-size:14px;font-weight:700;background:#fff;color:#1e40af;cursor:pointer;">
         ${yrOpts}
       </select>
+      <button onclick="printReport()" style="padding:7px 18px;background:linear-gradient(135deg,#dc2626,#ef4444);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(220,38,38,.35);">
+        🖨️ PRINT PDF
+      </button>
     </div>
   </div>`;
 
@@ -5938,6 +5940,57 @@ function renderReport(){
   out += `<div style="margin-top:12px;font-size:11px;color:#94a3b8;text-align:right;">* ข้อมูลจาก ALL_INV · คำนวณจาก total_expected (จำนวนตู้ต่ออินวอยซ์)</div>`;
 
   wrap.innerHTML = out;
+}
+
+function printReport(){
+  const wrap = document.getElementById('reportWrap');
+  if(!wrap || !wrap.innerHTML) return;
+  const MONTH_LABELS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const w = window.open('','_blank','width=1000,height=750');
+  w.document.write(`<!DOCTYPE html><html><head>
+  <meta charset="utf-8">
+  <title>รายงานตู้รายเดือน ${_rptYear}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800;900&display=swap');
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Sarabun',sans-serif;background:#fff;color:#0f2a52;padding:28px 32px;font-size:13px;}
+    h1{font-size:20px;font-weight:900;color:#1e3a8a;margin-bottom:4px;}
+    .sub{font-size:12px;color:#64748b;margin-bottom:20px;}
+    .cards{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;}
+    .card{border-radius:10px;padding:10px 16px;min-width:90px;text-align:center;}
+    .card .label{font-size:11px;font-weight:700;border-radius:5px;padding:1px 8px;display:inline-block;margin-bottom:4px;}
+    .card .num{font-size:24px;font-weight:900;line-height:1;}
+    .card .unit{font-size:10px;color:#94a3b8;margin-top:2px;}
+    .card-total{background:linear-gradient(135deg,#1e3a8a,#3b82f6);color:#fff!important;}
+    .card-total .num{color:#fff;}
+    table{width:100%;border-collapse:collapse;font-size:13px;}
+    thead tr{background:#1e3a8a;}
+    thead th{color:#fff;padding:9px 12px;text-align:center;font-weight:700;white-space:nowrap;}
+    thead th:first-child{text-align:left;border-radius:10px 0 0 0;}
+    thead th:last-child{border-radius:0 10px 0 0;color:#fbbf24;}
+    tbody tr:nth-child(even){background:#f8fafc;}
+    tbody tr.cur-month{background:#eff6ff;border-left:4px solid #3b82f6;}
+    tbody tr.no-data{opacity:.4;}
+    tbody td{padding:9px 12px;text-align:center;border-bottom:1px solid #f1f5f9;}
+    tbody td:first-child{text-align:left;font-weight:700;}
+    tfoot tr{background:linear-gradient(135deg,#dbeafe,#eff6ff);border-top:2px solid #bfdbfe;}
+    tfoot td{padding:11px 12px;text-align:center;font-weight:900;font-size:14px;color:#1e3a8a;}
+    tfoot td:first-child{text-align:left;font-size:13px;}
+    .badge{border-radius:20px;padding:2px 10px;font-size:12px;font-weight:800;display:inline-block;}
+    .footnote{margin-top:10px;font-size:10px;color:#94a3b8;text-align:right;}
+    .print-date{font-size:10px;color:#94a3b8;margin-bottom:14px;}
+    @media print{
+      body{padding:12px 16px;}
+      @page{size:A4 landscape;margin:12mm;}
+    }
+  </style>
+  </head><body>
+  <h1>📈 รายงานตู้รายเดือน — ปี ${_rptYear}</h1>
+  <div class="print-date">พิมพ์เมื่อ: ${new Date().toLocaleString('th-TH')}</div>
+  ${wrap.innerHTML}
+  <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`);
+  w.document.close();
 }
 
 function toggleFinanceDash(){
