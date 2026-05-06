@@ -3425,9 +3425,12 @@ function renderFinance(){
   const suRM=STMT.latestBalance||0;
   const suTHB=suRM*RM_RATE;
 
-  /* 3. Outstanding factory debt (THB) = วางบิลแล้ว ยังไม่รับเงิน */
+  /* 3. Outstanding debt (THB) = วางบิลโรงงาน + ค่าขนส่ง TWI/SHL ค้างชำระ */
   const pfxMap=_buildDebtMap();
-  const outstandingDebt=Object.values(pfxMap).reduce((s,g)=>s+g.total,0);
+  const factoryDebt=Object.values(pfxMap).reduce((s,g)=>s+g.total,0);
+  const shipMap=_buildShippingDebtMap();
+  const shipDebt=Object.values(shipMap).filter(g=>g.total>0).reduce((s,g)=>s+g.total,0);
+  const outstandingDebt=factoryDebt+shipDebt;
 
   /* 4. จ่ายล่วงหน้า รอวางบิล = transport costs ของ invoices ที่ยังไม่ได้บิล */
   const trInvSet=new Set(TR_DATA.filter(d=>d.status!=='nodata').map(d=>normInv(d.inv)));
@@ -3446,7 +3449,7 @@ function renderFinance(){
   const segs=[
     {v:bankTotal,    c:'#16a34a', label:'🏦 เงินในบัญชี 3 แบงค์',     val:fm(bankTotal)+' ฿'},
     {v:suTHB,        c:'#2563eb', label:'💰 เงินฝาก SU',              val:fmRM(suRM)+' = '+fm(suTHB)+' ฿'},
-    {v:outstandingDebt,c:'#f59e0b',label:'📊 ลูกหนี้โรงงาน (OS)',     val:fm(outstandingDebt)+' ฿'},
+    {v:outstandingDebt,c:'#f59e0b',label:'📊 ลูกหนี้โรงงาน (OS)',     val:fm(outstandingDebt)+' ฿', sub:'วางบิล '+fm(factoryDebt)+' · ขนส่ง '+fm(shipDebt)},
     {v:unbilledTrTHB,c:'#7c3aed', label:'📋 จ่ายล่วงหน้า รอวางบิล',  val:fm(unbilledTrTHB)+' ฿'},
   ].filter(s=>s.v>0);
 
@@ -3500,6 +3503,7 @@ function renderFinance(){
       <div style="background:white;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.07);padding:14px 16px;border-left:5px solid ${s.c};display:flex;flex-direction:column;gap:3px;">
         <div style="font-size:12px;font-weight:700;color:#374151;">${s.label}</div>
         <div style="font-size:15px;font-weight:900;color:${s.c};">${s.val}</div>
+        ${s.sub?`<div style="font-size:10px;color:#64748b;">${s.sub}</div>`:''}
         <div style="font-size:10px;color:#94a3b8;">${((s.v/totalTHB)*100).toFixed(1)}% ของทั้งหมด</div>
       </div>`).join('')}
       <div style="background:#0f172a;border-radius:12px;padding:14px 16px;">
