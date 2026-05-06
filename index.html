@@ -626,7 +626,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <div class="hdr-right">
       <button class="dash-toggle-btn" id="dashToggleBtn" onclick="toggleDashboard()">🚛 ค่าขนส่ง</button>
       <button class="dash-toggle-btn" id="debtDashBtn" onclick="toggleDebtDash()" style="background:#92400e;border-color:#92400e;">🏦 หนี้โรงงาน</button>
-      <button class="dash-toggle-btn" id="financeBtn" onclick="switchTab('billing')" style="background:#0f172a;border-color:#0f172a;display:none;">💵 FINANCE ANTS</button>
+      <button class="dash-toggle-btn" id="financeBtn" onclick="switchTab('finance')" style="background:#0f172a;border-color:#0f172a;display:none;">💵 FINANCE ANTS</button>
       <button class="hdr-btn" id="refreshBtn">🔄 รีเฟรช</button>
       <button class="hdr-btn" id="settingsBtn">⚙️ ตั้งค่า</button>
       <span id="userChip" style="display:none;"></span>
@@ -741,6 +741,10 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <!-- BILLING DASHBOARD -->
     <div class="view" id="billingView" style="flex-direction:column;overflow-y:auto;background:#f8fafc;">
       <div id="billingWrap" style="max-width:1200px;margin:0 auto;padding:16px;width:100%;box-sizing:border-box;"></div>
+    </div>
+    <!-- FINANCE ANTS -->
+    <div class="view" id="financeView" style="flex-direction:column;overflow-y:auto;background:#f8fafc;">
+      <div id="financeWrap" style="max-width:900px;margin:0 auto;padding:16px;width:100%;box-sizing:border-box;"></div>
     </div>
     <!-- PRICE UPDATE -->
     <div class="view" id="priceView" style="flex-direction:column;overflow-y:auto;background:#f8fafc;">
@@ -1832,7 +1836,7 @@ function applyRoleRestrictions(){
     if(setBtn)setBtn.style.display='none';
   }
   /* BILLING tab + FINANCE button: admin only */
-  ['htab-billing','mtab-billing','financeBtn'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=_canSeeBilledPaid()?'':'none';});
+  ['htab-billing','mtab-billing','financeBtn','htab-finance','mtab-finance'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=_canSeeBilledPaid()?'':'none';});
   /* PRICE UPDATE tab: admin only */
   const priceTabVisible=_canSeeFees()&&Object.keys(OGM_PRICE_LATEST).length>0;
   ['htab-price','mtab-price'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=priceTabVisible?'':'none';});
@@ -1878,7 +1882,7 @@ const isLoaded=inv=>{
 
 function switchTab(tab){
   curTab=tab;
-  ['main','pending','stock','factory','vessel','billing','price'].forEach(t=>{
+  ['main','pending','stock','factory','vessel','billing','finance','price'].forEach(t=>{
     document.getElementById(t+'View').classList.toggle('active',t===tab);
     const h2=document.getElementById('htab-'+t);if(h2)h2.classList.toggle('active',t===tab);
     const m2=document.getElementById('mtab-'+t);if(m2)m2.classList.toggle('active',t===tab);
@@ -1889,6 +1893,7 @@ function switchTab(tab){
   if(tab==='factory'){renderFactory();renderStatsMain();}
   if(tab==='vessel'){renderVessel();renderStatsVessel();}
   if(tab==='billing'){renderBilling();}
+  if(tab==='finance'){renderFinance();}
   if(tab==='price'){renderPriceLatest();}
 }
 const kc=(l,v,s,c,f)=>`<div class="sc${f?' sc-click':''}"${f?` data-filter="${f}"`:''}style="border-left-color:${c}!important"><div class="lbl2">${l}</div><div class="val" style="color:${c}!important">${v}</div><div class="sub2">${s}${f?' · คลิกดู':''}</div></div>`;
@@ -3235,6 +3240,7 @@ function getReadyToBill(){
 ===================================================== */
 let BILL_FILTER='unpaid'; /* 'all' | 'unpaid' | 'billed' | 'paid' */
 let BANK_BAL=[]; /* [{bank,balance,updatedAt}] */
+let RM_RATE=7.5;  /* อัตราแลกเปลี่ยน RM → THB (user ปรับได้) */
 
 function renderBilling(){
   const wrap=document.getElementById('billingWrap');
@@ -3399,6 +3405,120 @@ function renderBilling(){
   }
 
   html+=`</tbody></table></div>`;
+  wrap.innerHTML=html;
+}
+
+/* =====================================================
+   FINANCE ANTS DASHBOARD
+===================================================== */
+function renderFinance(){
+  const wrap=document.getElementById('financeWrap');
+  if(!_canSeeBilledPaid()){wrap.innerHTML='<div style="padding:40px;text-align:center;color:#94a3b8;">ไม่มีสิทธิ์เข้าถึง</div>';return;}
+  const fm=n=>n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const fmRM=n=>n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2})+' RM';
+
+  /* 1. Bank total (THB) */
+  const bankTotal=BANK_BAL.reduce((s,b)=>s+b.balance,0);
+  const bankUpd=BANK_BAL[0]?.updatedAt?new Date(BANK_BAL[0].updatedAt).toLocaleDateString('th-TH',{day:'2-digit',month:'short'}):'';
+
+  /* 2. SU balance (RM → THB) */
+  const suRM=STMT.latestBalance||0;
+  const suTHB=suRM*RM_RATE;
+
+  /* 3. Outstanding factory debt (THB) = วางบิลแล้ว ยังไม่รับเงิน */
+  const pfxMap=_buildDebtMap();
+  const outstandingDebt=Object.values(pfxMap).reduce((s,g)=>s+g.total,0);
+
+  /* 4. จ่ายล่วงหน้า รอวางบิล = transport costs ของ invoices ที่ยังไม่ได้บิล */
+  const trInvSet=new Set(TR_DATA.filter(d=>d.status!=='nodata').map(d=>normInv(d.inv)));
+  const unbilledAll=[
+    ...FLAT.filter(d=>isLoaded(d.inv)&&d.month!=='-'&&!BILLED_ANTS.has(normInv(d.inv))),
+    ...FLAT.filter(d=>!isLoaded(d.inv)&&d.month!=='-'&&(trInvSet.has(normInv(d.inv))||isPrePaidTr(d.inv)))
+  ];
+  let unbilledTrTHB=0;
+  unbilledAll.forEach(d=>{
+    const k=normInv(d.inv);
+    const tr=TR_DATA.find(t=>normInv(t.inv)===k);
+    unbilledTrTHB+=tr?.totalPaid||0;
+  });
+
+  /* Donut chart */
+  const segs=[
+    {v:bankTotal,    c:'#16a34a', label:'🏦 เงินในบัญชี 3 แบงค์',     val:fm(bankTotal)+' ฿'},
+    {v:suTHB,        c:'#2563eb', label:'💰 เงินฝาก SU',              val:fmRM(suRM)+' = '+fm(suTHB)+' ฿'},
+    {v:outstandingDebt,c:'#f59e0b',label:'📊 ลูกหนี้โรงงาน (OS)',     val:fm(outstandingDebt)+' ฿'},
+    {v:unbilledTrTHB,c:'#7c3aed', label:'📋 จ่ายล่วงหน้า รอวางบิล',  val:fm(unbilledTrTHB)+' ฿'},
+  ].filter(s=>s.v>0);
+
+  function makeDonuts(segs){
+    if(!segs.length)return '<text x="140" y="145" text-anchor="middle" font-size="13" fill="#94a3b8">ไม่มีข้อมูล</text>';
+    const total=segs.reduce((s,g)=>s+g.v,0);
+    const cx=140,cy=140,r=115,ri=68;
+    let ang=-Math.PI/2, paths='';
+    segs.forEach(seg=>{
+      const a=(seg.v/total)*2*Math.PI;
+      const ea=ang+a;
+      const x1=cx+r*Math.cos(ang),y1=cy+r*Math.sin(ang);
+      const x2=cx+r*Math.cos(ea), y2=cy+r*Math.sin(ea);
+      const xi1=cx+ri*Math.cos(ang),yi1=cy+ri*Math.sin(ang);
+      const xi2=cx+ri*Math.cos(ea), yi2=cy+ri*Math.sin(ea);
+      const lg=a>Math.PI?1:0;
+      paths+=`<path d="M${xi1.toFixed(1)},${yi1.toFixed(1)} L${x1.toFixed(1)},${y1.toFixed(1)} A${r},${r} 0 ${lg},1 ${x2.toFixed(1)},${y2.toFixed(1)} L${xi2.toFixed(1)},${yi2.toFixed(1)} A${ri},${ri} 0 ${lg},0 ${xi1.toFixed(1)},${yi1.toFixed(1)} Z" fill="${seg.c}" opacity=".92"/>`;
+      ang=ea;
+    });
+    return paths;
+  }
+  const totalTHB=segs.reduce((s,g)=>s+g.v,0);
+
+  let html=`
+  <div style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <div style="font-size:17px;font-weight:900;color:#0a1628;">💵 FINANCE ANTS</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:11px;color:#64748b;font-weight:600;">อัตรา RM/THB</span>
+      <input id="rmRateInput" type="number" step="0.01" value="${RM_RATE}"
+        style="width:70px;padding:4px 8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;text-align:center;"
+        oninput="RM_RATE=parseFloat(this.value)||RM_RATE;renderFinance();">
+      <span style="font-size:11px;color:#64748b;">฿/RM</span>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;">
+
+    <!-- Donut chart -->
+    <div style="background:white;border-radius:16px;box-shadow:0 2px 14px rgba(0,0,0,.08);padding:20px;flex-shrink:0;">
+      <svg width="280" height="280" viewBox="0 0 280 280">
+        ${makeDonuts(segs)}
+        <text x="140" y="133" text-anchor="middle" font-size="10" fill="#94a3b8" font-weight="600">รวมทั้งหมด</text>
+        <text x="140" y="151" text-anchor="middle" font-size="14" fill="#0f172a" font-weight="800">${fm(totalTHB)}</text>
+        <text x="140" y="165" text-anchor="middle" font-size="10" fill="#64748b">บาท</text>
+      </svg>
+    </div>
+
+    <!-- Legend + cards -->
+    <div style="display:flex;flex-direction:column;gap:10px;flex:1;min-width:220px;">
+      ${segs.map(s=>`
+      <div style="background:white;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.07);padding:14px 16px;border-left:5px solid ${s.c};display:flex;flex-direction:column;gap:3px;">
+        <div style="font-size:12px;font-weight:700;color:#374151;">${s.label}</div>
+        <div style="font-size:15px;font-weight:900;color:${s.c};">${s.val}</div>
+        <div style="font-size:10px;color:#94a3b8;">${((s.v/totalTHB)*100).toFixed(1)}% ของทั้งหมด</div>
+      </div>`).join('')}
+      <div style="background:#0f172a;border-radius:12px;padding:14px 16px;">
+        <div style="font-size:11px;color:#94a3b8;font-weight:600;">รวมทั้งหมด (THB)</div>
+        <div style="font-size:17px;font-weight:900;color:white;margin-top:3px;">${fm(totalTHB)} ฿</div>
+        ${bankUpd?`<div style="font-size:10px;color:#64748b;margin-top:4px;">ยอดแบงค์ล่าสุด: ${bankUpd}</div>`:''}
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail: unbilled invoices count -->
+  <div style="margin-top:16px;background:white;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.07);padding:14px 16px;">
+    <div style="font-size:12px;font-weight:800;color:#7c3aed;margin-bottom:8px;">📋 รายละเอียด จ่ายล่วงหน้า รอวางบิล (${unbilledAll.length} INV)</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:#64748b;">
+      <span>🚢 ออกเรือแล้ว ยังไม่บิล: <strong>${FLAT.filter(d=>isLoaded(d.inv)&&d.month!=='-'&&!BILLED_ANTS.has(normInv(d.inv))).length} INV</strong></span>
+      <span>⏳ รอออกเรือ มีค่าขนส่ง: <strong>${FLAT.filter(d=>!isLoaded(d.inv)&&d.month!=='-'&&(trInvSet.has(normInv(d.inv))||isPrePaidTr(d.inv))).length} INV</strong></span>
+    </div>
+  </div>`;
+
   wrap.innerHTML=html;
 }
 
