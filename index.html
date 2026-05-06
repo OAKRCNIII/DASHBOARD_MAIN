@@ -3440,17 +3440,22 @@ function renderFinance(){
   const unbilledSailed=FLAT.filter(d=>isLoaded(d.inv)&&d.month!=='-'&&!BILLED_ANTS.has(normInv(d.inv)));
   const unbilledPend=FLAT.filter(d=>!isLoaded(d.inv)&&d.month!=='-'&&(trInvSet.has(normInv(d.inv))||isPrePaidTr(d.inv)));
   const unbilledAll=[...unbilledSailed,...unbilledPend];
-  let unbilledTrTHB=0;
+  let unbilledTrTHB=0, unbilledFeesRM=0;
   unbilledAll.forEach(d=>{const k=normInv(d.inv);const tr=TR_DATA.find(t=>normInv(t.inv)===k);unbilledTrTHB+=tr?.totalPaid||0;});
+  /* ค่าเรือ RM เฉพาะออกเรือแล้ว */
+  if(_canSeeFees())unbilledSailed.forEach(d=>{const fees=FEES[normInv(d.inv)];if(fees)unbilledFeesRM+=(fees.ocf||0)+(fees.tlx||0);});
 
   /* store for detail clicks */
-  _finData={bankTotal,bankUpd,suRM,suTHB,pfxMap,shipMap,factoryDebt,shipDebt,unbilledSailed,unbilledPend,fm,fmRM,pst2};
+  _finData={bankTotal,bankUpd,suRM,suTHB,pfxMap,shipMap,factoryDebt,shipDebt,unbilledSailed,unbilledPend,unbilledFeesRM,fm,fmRM,pst2};
 
   const segs=[
     {v:bankTotal,       c:'#16a34a',label:'🏦 เงินในบัญชี 3 แบงค์',   val:fm(bankTotal)+' ฿',                               id:'bank'},
     {v:suTHB,           c:'#2563eb',label:'💰 เงินฝาก SU',            val:fmRM(suRM)+' = '+fm(suTHB)+' ฿',                  id:'su'},
     {v:outstandingDebt, c:'#f59e0b',label:'📊 ลูกหนี้โรงงาน (OS)',   val:fm(outstandingDebt)+' ฿',sub:'วางบิล '+fm(factoryDebt)+' · ขนส่ง '+fm(shipDebt),id:'debt'},
-    {v:unbilledTrTHB,   c:'#7c3aed',label:'📋 จ่ายล่วงหน้า รอวางบิล',val:fm(unbilledTrTHB)+' ฿',sub:unbilledAll.length+' INV ('+unbilledSailed.length+' ออกเรือ · '+unbilledPend.length+' รอออก)',id:'unbilled'},
+    {v:unbilledTrTHB+(unbilledFeesRM*RM_RATE),c:'#7c3aed',label:'📋 จ่ายล่วงหน้า รอวางบิล',
+      val:fm(unbilledTrTHB)+' ฿'+(unbilledFeesRM>0?' + '+fm(unbilledFeesRM)+' RM':''),
+      sub:(unbilledFeesRM>0?'รวมเทียบบาท '+fm(unbilledTrTHB+unbilledFeesRM*RM_RATE)+' ฿ · ':'')+unbilledAll.length+' INV ('+unbilledSailed.length+' ออกเรือ · '+unbilledPend.length+' รอออก)',
+      id:'unbilled'},
   ].filter(s=>s.v>0);
   _finSegs=segs;
 
