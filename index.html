@@ -3411,11 +3411,14 @@ function renderBilling(){
 /* =====================================================
    FINANCE ANTS DASHBOARD
 ===================================================== */
+let _finSegs=[], _finData={};
+
 function renderFinance(){
   const wrap=document.getElementById('financeWrap');
   if(!_canSeeBilledPaid()){wrap.innerHTML='<div style="padding:40px;text-align:center;color:#94a3b8;">ไม่มีสิทธิ์เข้าถึง</div>';return;}
   const fm=n=>n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
   const fmRM=n=>n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2})+' RM';
+  const pst2=p=>{const s=pst(p);return`<span style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd};border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;">${h(p)}</span>`;};
 
   /* 1. Bank total (THB) */
   const bankTotal=BANK_BAL.reduce((s,b)=>s+b.balance,0);
@@ -3425,40 +3428,39 @@ function renderFinance(){
   const suRM=STMT.latestBalance||0;
   const suTHB=suRM*RM_RATE;
 
-  /* 3. Outstanding debt (THB) = วางบิลโรงงาน + ค่าขนส่ง TWI/SHL ค้างชำระ */
+  /* 3. Outstanding debt */
   const pfxMap=_buildDebtMap();
   const factoryDebt=Object.values(pfxMap).reduce((s,g)=>s+g.total,0);
   const shipMap=_buildShippingDebtMap();
   const shipDebt=Object.values(shipMap).filter(g=>g.total>0).reduce((s,g)=>s+g.total,0);
   const outstandingDebt=factoryDebt+shipDebt;
 
-  /* 4. จ่ายล่วงหน้า รอวางบิล = transport costs ของ invoices ที่ยังไม่ได้บิล */
+  /* 4. จ่ายล่วงหน้า รอวางบิล */
   const trInvSet=new Set(TR_DATA.filter(d=>d.status!=='nodata').map(d=>normInv(d.inv)));
-  const unbilledAll=[
-    ...FLAT.filter(d=>isLoaded(d.inv)&&d.month!=='-'&&!BILLED_ANTS.has(normInv(d.inv))),
-    ...FLAT.filter(d=>!isLoaded(d.inv)&&d.month!=='-'&&(trInvSet.has(normInv(d.inv))||isPrePaidTr(d.inv)))
-  ];
+  const unbilledSailed=FLAT.filter(d=>isLoaded(d.inv)&&d.month!=='-'&&!BILLED_ANTS.has(normInv(d.inv)));
+  const unbilledPend=FLAT.filter(d=>!isLoaded(d.inv)&&d.month!=='-'&&(trInvSet.has(normInv(d.inv))||isPrePaidTr(d.inv)));
+  const unbilledAll=[...unbilledSailed,...unbilledPend];
   let unbilledTrTHB=0;
-  unbilledAll.forEach(d=>{
-    const k=normInv(d.inv);
-    const tr=TR_DATA.find(t=>normInv(t.inv)===k);
-    unbilledTrTHB+=tr?.totalPaid||0;
-  });
+  unbilledAll.forEach(d=>{const k=normInv(d.inv);const tr=TR_DATA.find(t=>normInv(t.inv)===k);unbilledTrTHB+=tr?.totalPaid||0;});
 
-  /* Donut chart */
+  /* store for detail clicks */
+  _finData={bankTotal,bankUpd,suRM,suTHB,pfxMap,shipMap,factoryDebt,shipDebt,unbilledSailed,unbilledPend,fm,fmRM,pst2};
+
   const segs=[
-    {v:bankTotal,    c:'#16a34a', label:'🏦 เงินในบัญชี 3 แบงค์',     val:fm(bankTotal)+' ฿'},
-    {v:suTHB,        c:'#2563eb', label:'💰 เงินฝาก SU',              val:fmRM(suRM)+' = '+fm(suTHB)+' ฿'},
-    {v:outstandingDebt,c:'#f59e0b',label:'📊 ลูกหนี้โรงงาน (OS)',     val:fm(outstandingDebt)+' ฿', sub:'วางบิล '+fm(factoryDebt)+' · ขนส่ง '+fm(shipDebt)},
-    {v:unbilledTrTHB,c:'#7c3aed', label:'📋 จ่ายล่วงหน้า รอวางบิล',  val:fm(unbilledTrTHB)+' ฿'},
+    {v:bankTotal,       c:'#16a34a',label:'🏦 เงินในบัญชี 3 แบงค์',   val:fm(bankTotal)+' ฿',                               id:'bank'},
+    {v:suTHB,           c:'#2563eb',label:'💰 เงินฝาก SU',            val:fmRM(suRM)+' = '+fm(suTHB)+' ฿',                  id:'su'},
+    {v:outstandingDebt, c:'#f59e0b',label:'📊 ลูกหนี้โรงงาน (OS)',   val:fm(outstandingDebt)+' ฿',sub:'วางบิล '+fm(factoryDebt)+' · ขนส่ง '+fm(shipDebt),id:'debt'},
+    {v:unbilledTrTHB,   c:'#7c3aed',label:'📋 จ่ายล่วงหน้า รอวางบิล',val:fm(unbilledTrTHB)+' ฿',sub:unbilledAll.length+' INV ('+unbilledSailed.length+' ออกเรือ · '+unbilledPend.length+' รอออก)',id:'unbilled'},
   ].filter(s=>s.v>0);
+  _finSegs=segs;
 
+  /* Donut SVG */
   function makeDonuts(segs){
     if(!segs.length)return '<text x="140" y="145" text-anchor="middle" font-size="13" fill="#94a3b8">ไม่มีข้อมูล</text>';
     const total=segs.reduce((s,g)=>s+g.v,0);
     const cx=140,cy=140,r=115,ri=68;
-    let ang=-Math.PI/2, paths='';
-    segs.forEach(seg=>{
+    let ang=-Math.PI/2,paths='';
+    segs.forEach((seg,i)=>{
       const a=(seg.v/total)*2*Math.PI;
       const ea=ang+a;
       const x1=cx+r*Math.cos(ang),y1=cy+r*Math.sin(ang);
@@ -3466,29 +3468,33 @@ function renderFinance(){
       const xi1=cx+ri*Math.cos(ang),yi1=cy+ri*Math.sin(ang);
       const xi2=cx+ri*Math.cos(ea), yi2=cy+ri*Math.sin(ea);
       const lg=a>Math.PI?1:0;
-      paths+=`<path d="M${xi1.toFixed(1)},${yi1.toFixed(1)} L${x1.toFixed(1)},${y1.toFixed(1)} A${r},${r} 0 ${lg},1 ${x2.toFixed(1)},${y2.toFixed(1)} L${xi2.toFixed(1)},${yi2.toFixed(1)} A${ri},${ri} 0 ${lg},0 ${xi1.toFixed(1)},${yi1.toFixed(1)} Z" fill="${seg.c}" opacity=".92"/>`;
+      paths+=`<path d="M${xi1.toFixed(1)},${yi1.toFixed(1)} L${x1.toFixed(1)},${y1.toFixed(1)} A${r},${r} 0 ${lg},1 ${x2.toFixed(1)},${y2.toFixed(1)} L${xi2.toFixed(1)},${yi2.toFixed(1)} A${ri},${ri} 0 ${lg},0 ${xi1.toFixed(1)},${yi1.toFixed(1)} Z"
+        fill="${seg.c}" opacity=".92" style="cursor:pointer;transition:opacity .15s;"
+        onmouseover="this.style.opacity=1;this.style.transform='scale(1.03)';this.style.transformOrigin='140px 140px';"
+        onmouseout="this.style.opacity='.92';this.style.transform='';"
+        onclick="showFinanceDetail(${i})"/>`;
       ang=ea;
     });
     return paths;
   }
   const totalTHB=segs.reduce((s,g)=>s+g.v,0);
 
-  let html=`
+  wrap.innerHTML=`
   <div style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
     <div style="font-size:17px;font-weight:900;color:#0a1628;">💵 FINANCE ANTS</div>
     <div style="display:flex;align-items:center;gap:8px;">
       <span style="font-size:11px;color:#64748b;font-weight:600;">อัตรา RM/THB</span>
-      <input id="rmRateInput" type="number" step="0.01" value="${RM_RATE}"
+      <input id="rmRateInput" type="text" inputmode="decimal" value="${RM_RATE}"
         style="width:70px;padding:4px 8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;text-align:center;"
-        oninput="RM_RATE=parseFloat(this.value)||RM_RATE;renderFinance();">
+        onchange="const v=parseFloat(this.value.replace(',','.'));if(v>0){RM_RATE=v;renderFinance();}">
       <span style="font-size:11px;color:#64748b;">฿/RM</span>
     </div>
   </div>
 
   <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;">
-
     <!-- Donut chart -->
     <div style="background:white;border-radius:16px;box-shadow:0 2px 14px rgba(0,0,0,.08);padding:20px;flex-shrink:0;">
+      <div style="font-size:10px;color:#94a3b8;text-align:center;margin-bottom:6px;">กดที่ส่วนใดก็ได้เพื่อดูรายละเอียด</div>
       <svg width="280" height="280" viewBox="0 0 280 280">
         ${makeDonuts(segs)}
         <text x="140" y="133" text-anchor="middle" font-size="10" fill="#94a3b8" font-weight="600">รวมทั้งหมด</text>
@@ -3496,15 +3502,14 @@ function renderFinance(){
         <text x="140" y="165" text-anchor="middle" font-size="10" fill="#64748b">บาท</text>
       </svg>
     </div>
-
-    <!-- Legend + cards -->
+    <!-- Summary cards -->
     <div style="display:flex;flex-direction:column;gap:10px;flex:1;min-width:220px;">
-      ${segs.map(s=>`
-      <div style="background:white;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.07);padding:14px 16px;border-left:5px solid ${s.c};display:flex;flex-direction:column;gap:3px;">
+      ${segs.map((s,i)=>`
+      <div onclick="showFinanceDetail(${i})" style="background:white;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.07);padding:14px 16px;border-left:5px solid ${s.c};cursor:pointer;transition:box-shadow .15s;" onmouseover="this.style.boxShadow='0 4px 18px rgba(0,0,0,.13)'" onmouseout="this.style.boxShadow='0 2px 10px rgba(0,0,0,.07)'">
         <div style="font-size:12px;font-weight:700;color:#374151;">${s.label}</div>
         <div style="font-size:15px;font-weight:900;color:${s.c};">${s.val}</div>
         ${s.sub?`<div style="font-size:10px;color:#64748b;">${s.sub}</div>`:''}
-        <div style="font-size:10px;color:#94a3b8;">${((s.v/totalTHB)*100).toFixed(1)}% ของทั้งหมด</div>
+        <div style="font-size:10px;color:#94a3b8;">${((s.v/totalTHB)*100).toFixed(1)}% · <span style="color:${s.c};">คลิกดูรายละเอียด ›</span></div>
       </div>`).join('')}
       <div style="background:#0f172a;border-radius:12px;padding:14px 16px;">
         <div style="font-size:11px;color:#94a3b8;font-weight:600;">รวมทั้งหมด (THB)</div>
@@ -3513,17 +3518,90 @@ function renderFinance(){
       </div>
     </div>
   </div>
+  <!-- Detail panel -->
+  <div id="financeDetail" style="margin-top:16px;"></div>`;
+}
 
-  <!-- Detail: unbilled invoices count -->
-  <div style="margin-top:16px;background:white;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.07);padding:14px 16px;">
-    <div style="font-size:12px;font-weight:800;color:#7c3aed;margin-bottom:8px;">📋 รายละเอียด จ่ายล่วงหน้า รอวางบิล (${unbilledAll.length} INV)</div>
-    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:#64748b;">
-      <span>🚢 ออกเรือแล้ว ยังไม่บิล: <strong>${FLAT.filter(d=>isLoaded(d.inv)&&d.month!=='-'&&!BILLED_ANTS.has(normInv(d.inv))).length} INV</strong></span>
-      <span>⏳ รอออกเรือ มีค่าขนส่ง: <strong>${FLAT.filter(d=>!isLoaded(d.inv)&&d.month!=='-'&&(trInvSet.has(normInv(d.inv))||isPrePaidTr(d.inv))).length} INV</strong></span>
+function showFinanceDetail(i){
+  const seg=_finSegs[i];
+  if(!seg)return;
+  const {bankTotal,bankUpd,suRM,suTHB,pfxMap,shipMap,factoryDebt,shipDebt,unbilledSailed,unbilledPend,fm,fmRM,pst2}=_finData;
+  const colMap={SCB:'#2563eb',KBANK:'#16a34a',BBL:'#7c3aed'};
+  let body='';
+  const thStyle='padding:8px 12px;font-size:10px;font-weight:800;color:#fff;text-align:left;';
+  const tdStyle='padding:8px 12px;font-size:11px;border-bottom:1px solid #f1f5f9;';
+
+  if(seg.id==='bank'){
+    body=`<table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr style="background:#166534;"><th style="${thStyle}">แบงค์</th><th style="${thStyle}text-align:right;">ยอดคงเหลือ</th></tr></thead><tbody>`;
+    BANK_BAL.forEach(b=>{
+      body+=`<tr><td style="${tdStyle}"><span style="background:${colMap[b.bank]||'#64748b'};color:white;border-radius:4px;padding:1px 8px;font-size:10px;font-weight:700;">${h(b.bank)}</span></td>
+        <td style="${tdStyle}text-align:right;font-weight:800;color:${colMap[b.bank]||'#374151'};">${fm(b.balance)} ฿</td></tr>`;
+    });
+    body+=`<tr style="background:#f0fdf4;"><td style="${tdStyle}font-weight:800;">รวม</td><td style="${tdStyle}text-align:right;font-weight:900;color:#16a34a;">${fm(bankTotal)} ฿</td></tr>`;
+    body+=`</tbody></table><div style="font-size:10px;color:#94a3b8;margin-top:8px;">อัปเดตล่าสุด: ${bankUpd}</div>`;
+  }
+  else if(seg.id==='su'){
+    body=`<div style="display:flex;flex-direction:column;gap:8px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:#64748b;">ยอดคงเหลือ SU (RM)</span><strong>${fmRM(suRM)}</strong></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:#64748b;">อัตราแลกเปลี่ยน</span><strong>${RM_RATE} ฿/RM</strong></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;border-top:1px solid #e2e8f0;padding-top:8px;"><span style="font-weight:700;">= ยอดเทียบบาท</span><strong style="color:#2563eb;">${fm(suTHB)} ฿</strong></div>
+      <div style="font-size:10px;color:#94a3b8;">ข้อมูลจาก SU Statement เล่มล่าสุด #${STMT.latestNo||'-'} วันที่ ${STMT.latestDate||'-'}</div>
+    </div>`;
+  }
+  else if(seg.id==='debt'){
+    body=`<div style="display:flex;flex-direction:column;gap:12px;">`;
+    /* factory debt */
+    const pfxs=Object.keys(pfxMap).filter(p=>pfxMap[p].total>0).sort();
+    if(pfxs.length){
+      body+=`<table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="background:#92400e;"><th style="${thStyle}">โรงงาน</th><th style="${thStyle}text-align:center;">INV</th><th style="${thStyle}text-align:right;">ยอด (฿)</th></tr></thead><tbody>`;
+      pfxs.forEach(p=>{const g=pfxMap[p];body+=`<tr><td style="${tdStyle}">${pst2(p)}</td><td style="${tdStyle}text-align:center;color:#92400e;">${g.invs.length}</td><td style="${tdStyle}text-align:right;font-weight:700;font-family:monospace;">${fm(g.total)}</td></tr>`;});
+      body+=`<tr style="background:#fef3c7;"><td style="${tdStyle}font-weight:800;">รวมวางบิลโรงงาน</td><td></td><td style="${tdStyle}text-align:right;font-weight:900;color:#b45309;">${fm(factoryDebt)}</td></tr>`;
+      body+=`</tbody></table>`;
+    }
+    /* shipping debt */
+    const spfxs=Object.keys(shipMap).filter(p=>shipMap[p].total>0).sort();
+    if(spfxs.length){
+      body+=`<table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="background:#1e40af;"><th style="${thStyle}">ค่าขนส่ง</th><th style="${thStyle}text-align:center;">เดือน</th><th style="${thStyle}text-align:right;">ยอด (฿)</th></tr></thead><tbody>`;
+      spfxs.forEach(p=>{const g=shipMap[p];body+=`<tr><td style="${tdStyle}">${pst2(p)}</td><td style="${tdStyle}text-align:center;color:#1e40af;">${g.months.filter(m=>!m.isPaid).length} เดือน</td><td style="${tdStyle}text-align:right;font-weight:700;font-family:monospace;">${fm(g.total)}</td></tr>`;});
+      body+=`<tr style="background:#eff6ff;"><td style="${tdStyle}font-weight:800;">รวมค่าขนส่งค้างชำระ</td><td></td><td style="${tdStyle}text-align:right;font-weight:900;color:#1d4ed8;">${fm(shipDebt)}</td></tr>`;
+      body+=`</tbody></table>`;
+    }
+    body+=`<div style="background:#fef3c7;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;font-weight:900;font-size:13px;"><span>💰 รวม OS ทั้งหมด</span><span style="color:#92400e;">${fm(factoryDebt+shipDebt)} ฿</span></div></div>`;
+  }
+  else if(seg.id==='unbilled'){
+    const renderList=(list,title,icon)=>{
+      if(!list.length)return'';
+      let rows=`<div style="font-size:11px;font-weight:800;color:#7c3aed;margin:10px 0 4px;">${icon} ${title} (${list.length} INV)</div>
+        <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="background:#7c3aed;"><th style="${thStyle}">อินวอยซ์</th><th style="${thStyle}text-align:center;">เดือน</th><th style="${thStyle}text-align:right;">ค่าขนส่งจ่าย</th></tr></thead><tbody>`;
+      list.forEach(d=>{
+        const k=normInv(d.inv);const tr=TR_DATA.find(t=>normInv(t.inv)===k);
+        rows+=`<tr><td style="${tdStyle}">${pst2(d.prefix)} <span style="font-weight:600;">${h(d.inv)}</span></td>
+          <td style="${tdStyle}text-align:center;color:#64748b;">${mLabel(d.month)}</td>
+          <td style="${tdStyle}text-align:right;font-weight:700;color:#7c3aed;">${tr?.totalPaid?fm(tr.totalPaid)+' ฿':'—'}</td></tr>`;
+      });
+      rows+=`</tbody></table>`;
+      return rows;
+    };
+    body=renderList(unbilledSailed,'ออกเรือแล้ว ยังไม่วางบิล','🚢')+renderList(unbilledPend,'รอออกเรือ มีค่าขนส่ง','⏳');
+  }
+
+  const panel=document.getElementById('financeDetail');
+  /* toggle ถ้าคลิกซ้ำ */
+  if(panel.dataset.open===String(i)){panel.innerHTML='';panel.dataset.open='';return;}
+  panel.dataset.open=String(i);
+  panel.innerHTML=`<div style="background:white;border-radius:14px;box-shadow:0 2px 14px rgba(0,0,0,.1);overflow:hidden;border-top:4px solid ${seg.c};">
+    <div style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;background:#fafafa;border-bottom:1px solid #f1f5f9;">
+      <span style="font-size:13px;font-weight:800;color:${seg.c};">${seg.label}</span>
+      <button onclick="document.getElementById('financeDetail').innerHTML='';document.getElementById('financeDetail').dataset.open='';"
+        style="border:none;background:none;font-size:16px;color:#94a3b8;cursor:pointer;padding:0 4px;">✕</button>
     </div>
+    <div style="padding:14px 16px;">${body}</div>
   </div>`;
-
-  wrap.innerHTML=html;
+  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 /* detectDuplicatesTr: หา record ที่มี normInv+container+truck ซ้ำกัน */
