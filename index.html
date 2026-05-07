@@ -1863,9 +1863,56 @@ function applyRoleRestrictions(){
   ['htab-price','mtab-price'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=priceTabVisible?'':'none';});
 }
 let MANUAL_PAID=new Set(JSON.parse(localStorage.getItem('manual_paid_ocf')||'[]'));
+
+/* ── Supabase helpers for manual_paid ── */
+const _sbHeaders={
+  'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,
+  'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'
+};
+async function _mpUpsert(invKey){
+  try{
+    await fetch(`${SB_URL}/rest/v1/manual_paid`,{
+      method:'POST',headers:_sbHeaders,
+      body:JSON.stringify({invoice_no:invKey,paid_at:new Date().toISOString()})
+    });
+  }catch(e){console.warn('manual_paid upsert fail',e);}
+}
+async function _mpDelete(invKey){
+  try{
+    await fetch(`${SB_URL}/rest/v1/manual_paid?invoice_no=eq.${encodeURIComponent(invKey)}`,{
+      method:'DELETE',headers:_sbHeaders
+    });
+  }catch(e){console.warn('manual_paid delete fail',e);}
+}
+async function loadManualPaidFromSupabase(){
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/manual_paid?select=invoice_no`,{
+      headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,'Accept':'application/json'}
+    });
+    if(!r.ok)return;
+    const data=await r.json();
+    /* merge Supabase + localStorage → localStorage wins (เพิ่งกดในเครื่องนี้) */
+    data.forEach(row=>{MANUAL_PAID.add(row.invoice_no.toUpperCase());});
+    localStorage.setItem('manual_paid_ocf',JSON.stringify([...MANUAL_PAID]));
+    console.log(`✅ manual_paid loaded: ${MANUAL_PAID.size} รายการ`);
+  }catch(e){console.warn('loadManualPaid fail',e);}
+}
+async function pushLocalManualPaidToSupabase(){
+  /* ดัน localStorage ทั้งหมดขึ้น Supabase ครั้งเดียว (ใช้ตอน init) */
+  if(!MANUAL_PAID.size)return;
+  try{
+    const payload=[...MANUAL_PAID].map(inv=>({invoice_no:inv,paid_at:new Date().toISOString()}));
+    await fetch(`${SB_URL}/rest/v1/manual_paid`,{
+      method:'POST',headers:_sbHeaders,body:JSON.stringify(payload)
+    });
+    console.log(`✅ push manual_paid → Supabase: ${payload.length} รายการ`);
+  }catch(e){console.warn('pushLocalManualPaid fail',e);}
+}
+
 function toggleManualPaid(invKey){
   const k=invKey.toUpperCase();
-  if(MANUAL_PAID.has(k))MANUAL_PAID.delete(k);else MANUAL_PAID.add(k);
+  if(MANUAL_PAID.has(k)){MANUAL_PAID.delete(k);_mpDelete(k);}
+  else{MANUAL_PAID.add(k);_mpUpsert(k);}
   localStorage.setItem('manual_paid_ocf',JSON.stringify([...MANUAL_PAID]));
   renderVessel();
 }
@@ -6763,6 +6810,9 @@ async function initApp(){
   document.getElementById('permBox').style.display='none';
   document.getElementById('errBox').style.display='none';
   setLoad('📡 กำลังโหลดข้อมูลจาก Supabase...');
+  /* sync manual_paid: ดัน localStorage ขึ้นก่อน แล้วดึงกลับมา merge */
+  await pushLocalManualPaidToSupabase();
+  await loadManualPaidFromSupabase();
   try{const data=await loadData();showDashboard(data);}
   catch(e){showErr(e.message||'โหลดไม่สำเร็จ');}
 }
