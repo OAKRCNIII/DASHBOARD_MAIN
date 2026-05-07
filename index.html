@@ -904,10 +904,28 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
       <input type="date" id="shipPaidDateInput" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid #bfdbfe;border-radius:8px;font-size:13px;font-family:inherit;color:#1e40af;outline:none;">
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;">
         <button onclick="closeShipPaidModal()" style="padding:8px 18px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:12px;font-weight:700;cursor:pointer;">ยกเลิก</button>
-        <button id="shipPaidSaveBtn" onclick="confirmShipPaid()" style="padding:8px 18px;border-radius:8px;border:none;background:#1e40af;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">✅ บันทึก</button>
+        <button id="shipPaidSaveBtn" onclick="requirePin(confirmShipPaid)" style="padding:8px 18px;border-radius:8px;border:none;background:#1e40af;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">✅ บันทึก</button>
       </div>
       <div id="shipPaidUnpaidWrap" style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;display:none;">
-        <button onclick="markShipUnpaid()" style="width:100%;padding:7px;border-radius:8px;border:1.5px solid #fca5a5;background:#fff1f2;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;">🔴 ยกเลิก — โรงงานยังไม่ได้จ่าย</button>
+        <button onclick="requirePin(markShipUnpaid)" style="width:100%;padding:7px;border-radius:8px;border:1.5px solid #fca5a5;background:#fff1f2;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;">🔴 ยกเลิก — โรงงานยังไม่ได้จ่าย</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIN MODAL -->
+  <div id="pinModalBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9200;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:20px;padding:28px 24px;min-width:280px;max-width:320px;width:90vw;box-shadow:0 12px 50px rgba(0,0,0,.3);text-align:center;">
+      <div style="font-size:28px;margin-bottom:8px;">🔐</div>
+      <div style="font-size:15px;font-weight:900;color:#1e3a8a;margin-bottom:4px;">ใส่รหัสผ่าน</div>
+      <div id="pinModalLabel" style="font-size:11px;color:#64748b;margin-bottom:16px;">กรุณาใส่รหัสเพื่อยืนยัน</div>
+      <input id="pinInput" type="password" inputmode="numeric" maxlength="6"
+        placeholder="• • • • • •"
+        style="width:100%;box-sizing:border-box;padding:12px;border:2px solid #bfdbfe;border-radius:10px;font-size:20px;text-align:center;letter-spacing:6px;outline:none;font-family:inherit;color:#1e3a8a;"
+        onkeydown="if(event.key==='Enter')_pinConfirm()">
+      <div id="pinError" style="color:#dc2626;font-size:11px;font-weight:700;margin-top:8px;min-height:16px;"></div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button onclick="_pinCancel()" style="flex:1;padding:10px;border-radius:10px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:13px;font-weight:700;cursor:pointer;">ยกเลิก</button>
+        <button onclick="_pinConfirm()" style="flex:1;padding:10px;border-radius:10px;border:none;background:#1e3a8a;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">✅ ยืนยัน</button>
       </div>
     </div>
   </div>
@@ -6574,6 +6592,35 @@ function openShipPaidModal(pfx,month,evt,label,total){
   document.getElementById('shipPaidModalBg').style.display='flex';
 }
 function closeShipPaidModal(){document.getElementById('shipPaidModalBg').style.display='none';}
+
+/* ── PIN GATE ── */
+let _pinCallback=null;
+const _PIN='625465';
+function requirePin(callback,label=''){
+  _pinCallback=callback;
+  document.getElementById('pinInput').value='';
+  document.getElementById('pinError').textContent='';
+  document.getElementById('pinModalLabel').textContent=label||'กรุณาใส่รหัสเพื่อยืนยัน';
+  const bg=document.getElementById('pinModalBg');
+  bg.style.display='flex';
+  setTimeout(()=>document.getElementById('pinInput').focus(),80);
+}
+function _pinConfirm(){
+  const val=document.getElementById('pinInput').value;
+  if(val===_PIN){
+    document.getElementById('pinModalBg').style.display='none';
+    if(_pinCallback){const cb=_pinCallback;_pinCallback=null;cb();}
+  } else {
+    const inp=document.getElementById('pinInput');
+    document.getElementById('pinError').textContent='❌ รหัสไม่ถูกต้อง';
+    inp.value='';inp.style.borderColor='#fca5a5';
+    setTimeout(()=>{inp.style.borderColor='#bfdbfe';},600);
+  }
+}
+function _pinCancel(){
+  document.getElementById('pinModalBg').style.display='none';
+  _pinCallback=null;
+}
 async function confirmShipPaid(){
   const date=document.getElementById('shipPaidDateInput').value;
   if(!date){alert('กรุณาเลือกวันที่');return;}
