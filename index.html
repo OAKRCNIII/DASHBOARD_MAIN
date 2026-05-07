@@ -1863,6 +1863,8 @@ function applyRoleRestrictions(){
   ['htab-price','mtab-price'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=priceTabVisible?'':'none';});
 }
 let MANUAL_PAID=new Set(JSON.parse(localStorage.getItem('manual_paid_ocf')||'[]'));
+/* prefix ที่ค่าขนส่งอยู่ใน OS เท่านั้น (ไม่นับซ้ำใน prepaid donut) */
+const OS_TR_PFX=new Set(['TWI','SHL']);
 
 /* ── Supabase helpers for manual_paid ── */
 const _sbHeaders={
@@ -6145,8 +6147,13 @@ function renderFinanceDash(){
   const unbilledSailed=FLAT.filter(d=>isLoaded(d.inv)&&d.month!=='-'&&!BILLED_ANTS.has(normInv(d.inv)));
   const unbilledPend=FLAT.filter(d=>!isLoaded(d.inv)&&d.month!=='-'&&(trInvSet.has(normInv(d.inv))||isPrePaidTr(d.inv)));
   const unbilledAll=[...unbilledSailed,...unbilledPend];
+  /* TWI/SHL ค่าขนส่ง → อยู่ใน OS เท่านั้น ไม่นับซ้ำใน prepaid */
   let unbilledTrTHB=0,unbilledFeesRM=0;
-  unbilledAll.forEach(d=>{const k=normInv(d.inv);const tr=TR_DATA.find(t=>normInv(t.inv)===k);unbilledTrTHB+=tr?.totalPaid||0;});
+  unbilledAll.forEach(d=>{
+    if(OS_TR_PFX.has(getPfx(d.inv)))return; /* skip — นับใน shipDebt (OS) แล้ว */
+    const k=normInv(d.inv);const tr=TR_DATA.find(t=>normInv(t.inv)===k);
+    unbilledTrTHB+=tr?.totalPaid||0;
+  });
   if(_canSeeFees())unbilledSailed.forEach(d=>{const fees=FEES[normInv(d.inv)];if(fees)unbilledFeesRM+=(fees.ocf||0)+(fees.tlx||0);});
   const unbilledTotal=unbilledTrTHB+unbilledFeesRM*RM_RATE;
 
@@ -6314,13 +6321,19 @@ function showFinanceDetailDash(i){
         <table style="width:100%;border-collapse:collapse;">
         <thead><tr style="background:${seg.cDark};"><th style="${thS}">อินวอยซ์</th><th style="${thS}text-align:center;">เดือน</th><th style="${thS}text-align:right;">ค่าขนส่ง (฿)</th>${showFees?`<th style="${thS}text-align:right;">ค่าเรือ (RM)</th>`:''}</tr></thead><tbody>`;
       list.forEach(d=>{
-        const k=normInv(d.inv);const tr=TR_DATA.find(t=>normInv(t.inv)===k);const trA=tr?.totalPaid||0;sumTr+=trA;
+        const k=normInv(d.inv);const tr=TR_DATA.find(t=>normInv(t.inv)===k);
+        const isOSTr=OS_TR_PFX.has(getPfx(d.inv)); /* TWI/SHL → ค่าขนส่งอยู่ใน OS */
+        const trA=isOSTr?0:(tr?.totalPaid||0);
+        sumTr+=trA;
         let fc='';
         if(showFees){const fees=_canSeeFees()?FEES[k]:null;const ocf=fees?.ocf||0,tlx=fees?.tlx||0;sumOcf+=ocf;sumTlx+=tlx;
           fc=`<td style="${tdS}text-align:right;font-size:10px;color:#7dd3fc;">${(ocf+tlx)>0?`<div style="font-weight:700;">${fm(ocf+tlx)} RM</div><div style="color:rgba(255,255,255,.4);">OCF ${fm(ocf)} · TLX ${fm(tlx)}</div><div style="color:#38bdf8;">${fm((ocf+tlx)*RM_RATE)} ฿</div>`:'<span style="color:rgba(255,255,255,.2);">ยังไม่มี</span>'}</td>`;}
+        const trCell=isOSTr
+          ?`<span style="font-size:10px;background:rgba(251,146,60,.2);color:#fb923c;border-radius:6px;padding:2px 8px;font-weight:700;">📊 รวมใน OS แล้ว</span>`
+          :(trA?fm(trA)+' ฿':'—');
         r+=`<tr style="background:rgba(255,255,255,.03);"><td style="${tdS}">${pst2(d.prefix)} <span style="font-weight:600;">${h(d.inv)}</span></td>
           <td style="${tdS}text-align:center;color:rgba(255,255,255,.4);">${mLabel(d.month)}</td>
-          <td style="${tdS}text-align:right;font-weight:700;color:${seg.c};">${trA?fm(trA)+' ฿':'—'}</td>${fc}</tr>`;
+          <td style="${tdS}text-align:right;font-weight:700;color:${isOSTr?'#fb923c':seg.c};">${trCell}</td>${fc}</tr>`;
       });
       const sumFc=showFees?`<td style="${tdS}text-align:right;font-weight:800;color:#7dd3fc;">${(sumOcf+sumTlx)>0?fm(sumOcf+sumTlx)+' RM<br><span style="font-size:9px;color:#38bdf8;">= '+fm((sumOcf+sumTlx)*RM_RATE)+' ฿</span>':'—'}</td>`:'';
       r+=`<tr style="background:rgba(255,255,255,.08);"><td style="${tdS}font-weight:800;color:white;" colspan="2">รวม</td><td style="${tdS}text-align:right;font-weight:900;color:${seg.c};">${fm(sumTr)} ฿</td>${sumFc}</tr>`;
