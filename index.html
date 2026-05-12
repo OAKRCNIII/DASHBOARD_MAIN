@@ -529,9 +529,11 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <div class="login-logo">🔐</div>
     <div class="login-title">Logistics Dashboard</div>
     <div class="login-sub">กรุณาเข้าสู่ระบบ</div>
-    <input class="login-inp" id="loginUser" placeholder="ชื่อผู้ใช้" autocomplete="username">
-    <input class="login-inp" id="loginPass" type="password" placeholder="รหัสผ่าน" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
-    <button class="login-btn" onclick="doLogin()">เข้าสู่ระบบ</button>
+    <form onsubmit="doLogin();return false;" autocomplete="on">
+      <input class="login-inp" id="loginUser" type="text" placeholder="ชื่อผู้ใช้" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()">
+      <input class="login-inp" id="loginPass" type="password" placeholder="รหัสผ่าน" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      <button class="login-btn" type="submit">เข้าสู่ระบบ</button>
+    </form>
     <div class="login-err" id="loginErr"></div>
   </div>
 </div>
