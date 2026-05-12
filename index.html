@@ -931,6 +931,27 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     </div>
   </div>
 
+  <!-- OCF MANUAL PAID MODAL -->
+  <div id="ocfPaidModalBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9100;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:20px;padding:24px 22px;min-width:300px;max-width:360px;width:92vw;box-shadow:0 12px 50px rgba(0,0,0,.3);">
+      <div id="ocfPaidTitle" style="font-size:15px;font-weight:900;color:#065f46;margin-bottom:6px;">💰 บันทึกชำระ OCF</div>
+      <div id="ocfPaidInvLabel" style="font-size:12px;color:#475569;background:#f1f5f9;border-radius:8px;padding:5px 10px;margin-bottom:14px;font-family:monospace;font-weight:700;"></div>
+      <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">ยอดที่ชำระ (บาท) <span style="color:#dc2626;">*</span></label>
+      <input id="ocfPaidAmt" type="number" step="0.01" placeholder="0.00"
+        style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #d1fae5;border-radius:10px;font-size:16px;font-weight:700;color:#065f46;outline:none;margin-bottom:6px;"
+        oninput="document.getElementById('ocfPaidErr').textContent=''"
+        onkeydown="if(event.key==='Enter')requirePin(confirmOcfPaid)">
+      <div id="ocfPaidErr" style="font-size:11px;color:#dc2626;min-height:16px;margin-bottom:10px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button onclick="closeOcfPaidModal()" style="padding:8px 16px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:12px;font-weight:700;cursor:pointer;">ยกเลิก</button>
+        <button onclick="requirePin(confirmOcfPaid)" style="padding:8px 18px;border-radius:8px;border:none;background:#065f46;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">✅ บันทึก</button>
+      </div>
+      <div id="ocfUnpaidBtn" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
+        <button onclick="requirePin(confirmOcfUnpaid)" style="width:100%;padding:7px;border-radius:8px;border:1.5px solid #fca5a5;background:#fff1f2;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;">🔴 ยกเลิก — ยังไม่ได้ชำระ</button>
+      </div>
+    </div>
+  </div>
+
   <!-- PIN MODAL -->
   <div id="pinModalBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9200;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:20px;padding:28px 24px;min-width:280px;max-width:320px;width:90vw;box-shadow:0 12px 50px rgba(0,0,0,.3);text-align:center;">
@@ -1900,6 +1921,7 @@ function applyRoleRestrictions(){
   ['htab-price','mtab-price'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=priceTabVisible?'':'none';});
 }
 let MANUAL_PAID=new Set(JSON.parse(localStorage.getItem('manual_paid_ocf')||'[]'));
+let MANUAL_PAID_AMT=new Map(Object.entries(JSON.parse(localStorage.getItem('manual_paid_amt')||'{}')));
 /* prefix ที่ค่าขนส่งอยู่ใน OS เท่านั้น (ไม่นับซ้ำใน prepaid donut) */
 const OS_TR_PFX=new Set(['TWI','SHL']);
 
@@ -1908,11 +1930,11 @@ const _sbHeaders={
   'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,
   'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'
 };
-async function _mpUpsert(invKey){
+async function _mpUpsert(invKey, amtThb){
   try{
     await fetch(`${SB_URL}/rest/v1/manual_paid`,{
       method:'POST',headers:_sbHeaders,
-      body:JSON.stringify({invoice_no:invKey,paid_at:new Date().toISOString()})
+      body:JSON.stringify({invoice_no:invKey,paid_at:new Date().toISOString(),amount_thb:amtThb||0})
     });
   }catch(e){console.warn('manual_paid upsert fail',e);}
 }
@@ -1925,14 +1947,18 @@ async function _mpDelete(invKey){
 }
 async function loadManualPaidFromSupabase(){
   try{
-    const r=await fetch(`${SB_URL}/rest/v1/manual_paid?select=invoice_no`,{
+    const r=await fetch(`${SB_URL}/rest/v1/manual_paid?select=invoice_no,amount_thb`,{
       headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,'Accept':'application/json'}
     });
     if(!r.ok)return;
     const data=await r.json();
-    /* merge Supabase + localStorage → localStorage wins (เพิ่งกดในเครื่องนี้) */
-    data.forEach(row=>{MANUAL_PAID.add(row.invoice_no.toUpperCase());});
+    data.forEach(row=>{
+      const k=row.invoice_no.toUpperCase();
+      MANUAL_PAID.add(k);
+      if(row.amount_thb) MANUAL_PAID_AMT.set(k,row.amount_thb);
+    });
     localStorage.setItem('manual_paid_ocf',JSON.stringify([...MANUAL_PAID]));
+    localStorage.setItem('manual_paid_amt',JSON.stringify(Object.fromEntries(MANUAL_PAID_AMT)));
     console.log(`✅ manual_paid loaded: ${MANUAL_PAID.size} รายการ`);
   }catch(e){console.warn('loadManualPaid fail',e);}
 }
@@ -1940,7 +1966,7 @@ async function pushLocalManualPaidToSupabase(){
   /* ดัน localStorage ทั้งหมดขึ้น Supabase ครั้งเดียว (ใช้ตอน init) */
   if(!MANUAL_PAID.size)return;
   try{
-    const payload=[...MANUAL_PAID].map(inv=>({invoice_no:inv,paid_at:new Date().toISOString()}));
+    const payload=[...MANUAL_PAID].map(inv=>({invoice_no:inv,paid_at:new Date().toISOString(),amount_thb:MANUAL_PAID_AMT.get(inv)||0}));
     await fetch(`${SB_URL}/rest/v1/manual_paid`,{
       method:'POST',headers:_sbHeaders,body:JSON.stringify(payload)
     });
@@ -1948,11 +1974,46 @@ async function pushLocalManualPaidToSupabase(){
   }catch(e){console.warn('pushLocalManualPaid fail',e);}
 }
 
-function toggleManualPaid(invKey){
-  const k=invKey.toUpperCase();
-  if(MANUAL_PAID.has(k)){MANUAL_PAID.delete(k);_mpDelete(k);}
-  else{MANUAL_PAID.add(k);_mpUpsert(k);}
+function toggleManualPaid(invKey){ openOcfPaidModal(invKey); }
+
+/* ── OCF Manual Paid Modal ── */
+let _ocfInv=null;
+function openOcfPaidModal(invKey){
+  _ocfInv=invKey.toUpperCase();
+  const already=MANUAL_PAID.has(_ocfInv);
+  document.getElementById('ocfPaidTitle').textContent=already?'✏️ แก้ไขการชำระ OCF':'💰 บันทึกชำระ OCF';
+  document.getElementById('ocfPaidInvLabel').textContent=invKey;
+  const cur=MANUAL_PAID_AMT.get(_ocfInv)||'';
+  document.getElementById('ocfPaidAmt').value=cur?cur:'';
+  document.getElementById('ocfUnpaidBtn').style.display=already?'':'none';
+  document.getElementById('ocfPaidModalBg').style.display='flex';
+  setTimeout(()=>document.getElementById('ocfPaidAmt').focus(),100);
+}
+function closeOcfPaidModal(){
+  document.getElementById('ocfPaidModalBg').style.display='none';
+  _ocfInv=null;
+}
+function _saveLocalMp(){
   localStorage.setItem('manual_paid_ocf',JSON.stringify([...MANUAL_PAID]));
+  localStorage.setItem('manual_paid_amt',JSON.stringify(Object.fromEntries(MANUAL_PAID_AMT)));
+}
+function confirmOcfPaid(){
+  const amt=parseFloat(document.getElementById('ocfPaidAmt').value)||0;
+  if(!amt){document.getElementById('ocfPaidErr').textContent='กรุณากรอกยอดเงิน';return;}
+  document.getElementById('ocfPaidErr').textContent='';
+  MANUAL_PAID.add(_ocfInv);
+  MANUAL_PAID_AMT.set(_ocfInv,amt);
+  _mpUpsert(_ocfInv,amt);
+  _saveLocalMp();
+  closeOcfPaidModal();
+  renderVessel();
+}
+function confirmOcfUnpaid(){
+  MANUAL_PAID.delete(_ocfInv);
+  MANUAL_PAID_AMT.delete(_ocfInv);
+  _mpDelete(_ocfInv);
+  _saveLocalMp();
+  closeOcfPaidModal();
   renderVessel();
 }
 let curTab='main',SM=null,SP=null,SI=null,activePV=null,midMode='group',mainMode='month',SF=null,YEAR_FILTER=null;
@@ -2513,12 +2574,15 @@ function renderVessel(){
         };
         const ocfBd=mkBd(f.ocfEntries);
         const tlxBd=mkBd(f.tlxEntries);
-        const isManualPaid=MANUAL_PAID.has(normInv(r.inv).toUpperCase())||MANUAL_PAID.has(r.inv.toUpperCase());
+        const mpKey=normInv(r.inv).toUpperCase();
+        const isManualPaid=MANUAL_PAID.has(mpKey)||MANUAL_PAID.has(r.inv.toUpperCase());
+        const mpAmt=MANUAL_PAID_AMT.get(mpKey)||MANUAL_PAID_AMT.get(r.inv.toUpperCase())||0;
+        const mpAmtStr=mpAmt?`<br><span style="font-size:9px;color:#059669;font-weight:700;">${mpAmt.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2})} ฿</span>`:'';
         const ocfCell=oa>0
           ?`<span style="color:#16a34a;font-weight:700;">${fm(oa)}</span>${!ocfBd&&f.ocfNo?`<br><span style="font-size:9px;color:#94a3b8;">#${h(f.ocfNo)}</span>`:''}${ocfBd}`
           :iP?'<span style="color:#7c3aed;font-size:10px;">✓ จ่ายแล้ว</span>'
-          :isManualPaid?`<span style="color:#059669;font-size:10px;cursor:pointer;" onclick="toggleManualPaid('${r.inv.replace(/'/g,"\\'")}')">✓ จ่ายแล้ว <span style="font-size:8px;opacity:.6;">(manual)</span></span>`
-          :`<span style="color:#dc2626;font-size:10px;cursor:pointer;text-decoration:underline dotted;" title="คลิกเพื่อทำเครื่องหมายว่าจ่ายแล้ว" onclick="toggleManualPaid('${r.inv.replace(/'/g,"\\'")}')">ยังไม่จ่าย</span>`;
+          :isManualPaid?`<span style="color:#059669;font-size:10px;cursor:pointer;" onclick="toggleManualPaid('${r.inv.replace(/'/g,"\\'")}')">✓ จ่ายแล้ว${mpAmtStr}<span style="font-size:8px;opacity:.6;display:block;">(manual) แก้ไข</span></span>`
+          :`<span style="color:#dc2626;font-size:10px;cursor:pointer;text-decoration:underline dotted;" title="คลิกเพื่อบันทึกการชำระ" onclick="toggleManualPaid('${r.inv.replace(/'/g,"\\'")}')">ยังไม่จ่าย</span>`;
         const tlxCell=ta>0
           ?`<span style="color:#2563eb;font-weight:700;">${fm(ta)}</span>${!tlxBd&&f.tlxNo?`<br><span style="font-size:9px;color:#94a3b8;">#${h(f.tlxNo)}</span>`:''}${tlxBd}`
           :iP?'<span style="color:#7c3aed;font-size:10px;">✓</span>':'<span style="color:#94a3b8;font-size:10px;">-</span>';
