@@ -69,13 +69,16 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
 .header{background:linear-gradient(100deg,#0a1628 0%,#12284d 50%,#0e3460 100%);color:white;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;border-bottom:1px solid rgba(14,165,233,.25);box-shadow:0 2px 20px rgba(0,0,0,.35);}
 .hdr-left h1{font-size:15px;font-weight:800;letter-spacing:-.2px;}
 .hdr-left .sub{font-size:10px;opacity:.55;margin-top:2px;letter-spacing:.2px;}
-.hdr-right{display:flex;align-items:center;gap:6px;}
-.hdr-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:white;border-radius:8px;padding:5px 11px;font-size:11px;cursor:pointer;font-weight:700;transition:all .15s;}
+.hdr-right{display:flex;align-items:center;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-shrink:1;min-width:0;}
+.hdr-right::-webkit-scrollbar{display:none;}
+.hdr-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:white;border-radius:8px;padding:5px 11px;font-size:11px;cursor:pointer;font-weight:700;transition:all .15s;white-space:nowrap;flex-shrink:0;}
 .hdr-btn:hover{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.38);}
+.dash-toggle-btn{white-space:nowrap;flex-shrink:0;}
 
 /* ===== TABS ===== */
-.htabs{display:flex;gap:4px;padding:7px 12px;background:white;border-bottom:2px solid #e8edf5;flex-shrink:0;}
-.htab{background:#f1f5f9;border:none;color:#64748b;border-radius:8px;padding:5px 13px;cursor:pointer;font-size:11px;font-weight:700;transition:all .15s;white-space:nowrap;}
+.htabs{display:flex;gap:4px;padding:7px 12px;background:white;border-bottom:2px solid #e8edf5;flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.htabs::-webkit-scrollbar{display:none;}
+.htab{background:#f1f5f9;border:none;color:#64748b;border-radius:8px;padding:5px 13px;cursor:pointer;font-size:11px;font-weight:700;transition:all .15s;white-space:nowrap;flex-shrink:0;}
 .htab:hover{background:#e2e8f0;color:#1a202c;}
 .htab.active{background:linear-gradient(135deg,#0a1628,#1a3a6b);color:white;box-shadow:0 2px 8px rgba(10,22,40,.22);}
 .htab-badge{background:rgba(255,255,255,.25);border-radius:10px;padding:1px 6px;font-size:9px;margin-left:3px;}
@@ -458,6 +461,13 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
 .bill-chip-ctrl{padding:3px 9px;border-radius:16px;border:1.5px solid #cbd5e1;background:#f8fafc;color:#64748b;font-size:10px;font-weight:700;cursor:pointer;}
 .bill-chip-ctrl:hover{background:#e2e8f0;}
 /* ===== RESPONSIVE ===== */
+/* Z Fold / medium tablet portrait (600–900px) */
+@media(max-width:900px) and (min-width:601px){
+  .hdr-btn{padding:4px 8px;font-size:10px;}
+  .dash-toggle-btn{padding:4px 8px!important;font-size:10px!important;}
+  .hdr-left h1{font-size:13px!important;}
+  #logoutBtn{padding:4px 8px!important;font-size:10px!important;}
+}
 @media(max-width:600px){
   .htabs{display:none;}
   .mob-tabs{display:flex;}
