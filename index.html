@@ -1932,10 +1932,16 @@ const _sbHeaders={
 };
 async function _mpUpsert(invKey, amtThb){
   try{
-    await fetch(`${SB_URL}/rest/v1/manual_paid`,{
-      method:'POST',headers:_sbHeaders,
-      body:JSON.stringify({invoice_no:invKey,paid_at:new Date().toISOString(),amount_thb:amtThb||0})
-    });
+    // ลอง upsert พร้อม amount_thb ก่อน (ถ้า column มีแล้ว)
+    const body={invoice_no:invKey,paid_at:new Date().toISOString(),amount_thb:amtThb||0};
+    const r=await fetch(`${SB_URL}/rest/v1/manual_paid`,{method:'POST',headers:_sbHeaders,body:JSON.stringify(body)});
+    if(!r.ok){
+      // ถ้า fail (column ยังไม่มี) → ส่งแค่ invoice_no + paid_at
+      await fetch(`${SB_URL}/rest/v1/manual_paid`,{
+        method:'POST',headers:_sbHeaders,
+        body:JSON.stringify({invoice_no:invKey,paid_at:new Date().toISOString()})
+      });
+    }
   }catch(e){console.warn('manual_paid upsert fail',e);}
 }
 async function _mpDelete(invKey){
