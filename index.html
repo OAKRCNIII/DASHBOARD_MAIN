@@ -2459,30 +2459,21 @@ function goToPriceInv(nk){
     },80);
   },60);
 }
-function renderPriceLatest(){
-  const wrap=document.getElementById('priceWrap');
-  if(!_canSeeFees()){wrap.innerHTML='<div class="placeholder"><div class="ico">🔒</div><p>เฉพาะ Admin</p></div>';return;}
-  if(!Object.keys(OGM_PRICE_LATEST).length){wrap.innerHTML='<div class="placeholder"><div class="ico">📄</div><p>ยังไม่โหลดไฟล์ราคา — กรุณาตั้งค่าไฟล์ราคา OGM/ID/JM</p></div>';return;}
-  const fm=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0}):'-';
-  const s=pst;
-  /* helper: หาช่วงวันที่เข้าโรงงานจาก FLAT สำหรับ invoice นี้ */
-  function getDateRange(inv){
-    const nk=normInv(inv);
-    const rec=FLAT.find(d=>normInv(d.inv)===nk);
-    if(!rec||!rec.details||!rec.details.length)return null;
-    const MONTHS=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-    /* parse date string → Date (รองรับทุก format ที่ XLSX อาจส่งมา) */
-    function parseDt(s){
-      if(!s)return null;
-      s=String(s).trim();
-      /* dd/mm/yyyy หรือ dd-mm-yyyy */
-      const p=s.split(/[\/\-]/);
-      if(p.length>=3){
-        const d=parseInt(p[0]),m=parseInt(p[1]),y=parseInt(p[2]);
-        if(!isNaN(d)&&!isNaN(m)&&!isNaN(y)&&m>=1&&m<=12&&d>=1&&d<=31)
-          return new Date(y<100?2000+y:y,m-1,d);
-        /* yyyy-mm-dd (ISO) */
-        const y2=parseInt(p[0]),m2=parseInt(p[1]),d2=parseInt(p[2]);
+/* ── global helper: หาช่วงวันที่เข้าโรงงานจาก FLAT สำหรับ invoice ── */
+function getDateRange(inv){
+  const nk=normInv(inv);
+  const rec=FLAT.find(d=>normInv(d.inv)===nk);
+  if(!rec||!rec.details||!rec.details.length)return null;
+  const MONTHS=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  function parseDt(s){
+    if(!s)return null;
+    s=String(s).trim();
+    const p=s.split(/[\/\-]/);
+    if(p.length>=3){
+      const d=parseInt(p[0]),m=parseInt(p[1]),y=parseInt(p[2]);
+      if(!isNaN(d)&&!isNaN(m)&&!isNaN(y)&&m>=1&&m<=12&&d>=1&&d<=31)
+        return new Date(y<100?2000+y:y,m-1,d);
+      const y2=parseInt(p[0]),m2=parseInt(p[1]),d2=parseInt(p[2]);
         if(y2>1000&&!isNaN(m2)&&!isNaN(d2))return new Date(y2,m2-1,d2);
       }
       /* fallback: ให้ JS parse เอง (รองรับ "Tue Mar 10 2026", "10 Mar 2026" ฯลฯ) */
@@ -2496,7 +2487,12 @@ function renderPriceLatest(){
     if(first.getMonth()===last.getMonth()&&first.getFullYear()===last.getFullYear())
       return first.getDate()+'-'+last.getDate()+' '+MONTHS[first.getMonth()];
     return fmtDt(first)+' – '+fmtDt(last);
-  }
+}
+function renderPriceLatest(){
+  const wrap=document.getElementById('priceWrap');
+  if(!_canSeeFees()){wrap.innerHTML='<div class="placeholder"><div class="ico">🔒</div><p>เฉพาะ Admin</p></div>';return;}
+  if(!Object.keys(OGM_PRICE_LATEST).length){wrap.innerHTML='<div class="placeholder"><div class="ico">📄</div><p>ยังไม่โหลดไฟล์ราคา — กรุณาตั้งค่าไฟล์ราคา OGM/ID/JM</p></div>';return;}
+  const fm=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0}):'-';
   /* badge color helper */
   function pfxBadge(pfx){const c=pst(pfx);return `<span style="background:${c.bg};color:${c.tx};border:1px solid ${c.bd};border-radius:6px;padding:2px 10px;font-size:13px;font-weight:800;">${h(pfx)}</span>`;}
   const SIMPLE_ORDER=['SHL','TWI','BSW','AD','INV'];
