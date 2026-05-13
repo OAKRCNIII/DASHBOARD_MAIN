@@ -964,6 +964,27 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     </div>
   </div>
 
+  <!-- ADVANCE PAYMENT MODAL -->
+  <div id="advModalBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9150;align-items:center;justify-content:center;" onclick="if(event.target===this)closeAdvModal()">
+    <div style="background:#fff;border-radius:18px;padding:22px 20px;width:min(360px,92vw);box-shadow:0 12px 50px rgba(0,0,0,.3);">
+      <div style="font-size:15px;font-weight:800;color:#3b0764;margin-bottom:4px;">💰 เบิกล่วงหน้า</div>
+      <div id="advModalCoName" style="font-size:12px;color:#64748b;margin-bottom:14px;"></div>
+      <label style="font-size:11px;font-weight:700;color:#475569;">ยอดเบิกล่วงหน้า (บาท)</label>
+      <input id="advAmt" type="number" step="0.01" min="0" placeholder="0.00"
+        style="width:100%;box-sizing:border-box;margin:6px 0 4px;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:16px;font-weight:700;"
+        onkeydown="if(event.key==='Enter')saveAdvModal()">
+      <label style="font-size:11px;font-weight:700;color:#475569;margin-top:8px;display:block;">โน๊ต (ไม่บังคับ)</label>
+      <input id="advNote" type="text" placeholder="เช่น โอนมา 1/5/2569"
+        style="width:100%;box-sizing:border-box;margin:6px 0 14px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;"
+        onkeydown="if(event.key==='Enter')saveAdvModal()">
+      <div style="display:flex;gap:8px;">
+        <button onclick="clearAdvModal()" style="flex:1;padding:9px;border-radius:10px;border:1.5px solid #fecaca;background:#fff;color:#dc2626;font-weight:700;cursor:pointer;">🗑️ ล้าง</button>
+        <button onclick="closeAdvModal()" style="flex:1;padding:9px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;color:#64748b;font-weight:700;cursor:pointer;">ยกเลิก</button>
+        <button onclick="saveAdvModal()" style="flex:2;padding:9px;border-radius:10px;border:none;background:#7c3aed;color:#fff;font-weight:700;cursor:pointer;">✅ บันทึก</button>
+      </div>
+    </div>
+  </div>
+
   <!-- PIN MODAL -->
   <div id="pinModalBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9200;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:20px;padding:28px 24px;min-width:280px;max-width:320px;width:90vw;box-shadow:0 12px 50px rgba(0,0,0,.3);text-align:center;">
@@ -5206,6 +5227,33 @@ function trPrintAlReport(){
 /* ===== TRANSPORT COMPANY VIEW ===== */
 let _trCoOpen=null; // currently expanded company key
 
+/* ── Advance payments (เบิกล่วงหน้า) — stored in localStorage ── */
+let TR_ADVANCE=JSON.parse(localStorage.getItem('tr_advance')||'{}');
+let _advCo=null;
+function openAdvModal(coKey){
+  _advCo=coKey;
+  const adv=TR_ADVANCE[coKey]||{};
+  document.getElementById('advModalCoName').textContent='🚛 '+coKey;
+  document.getElementById('advAmt').value=adv.amount||'';
+  document.getElementById('advNote').value=adv.note||'';
+  document.getElementById('advModalBg').style.display='flex';
+  setTimeout(()=>document.getElementById('advAmt').focus(),100);
+}
+function closeAdvModal(){document.getElementById('advModalBg').style.display='none';_advCo=null;}
+function saveAdvModal(){
+  const amt=parseFloat(document.getElementById('advAmt').value)||0;
+  const note=document.getElementById('advNote').value.trim();
+  if(amt>0){TR_ADVANCE[_advCo]={amount:amt,note,date:new Date().toLocaleDateString('th-TH')};}
+  else{delete TR_ADVANCE[_advCo];}
+  localStorage.setItem('tr_advance',JSON.stringify(TR_ADVANCE));
+  closeAdvModal();renderTrCoView();
+}
+function clearAdvModal(){
+  delete TR_ADVANCE[_advCo];
+  localStorage.setItem('tr_advance',JSON.stringify(TR_ADVANCE));
+  closeAdvModal();renderTrCoView();
+}
+
 
 function renderTrCoView(){
   const wrap=document.getElementById('trCoWrap');
@@ -5250,12 +5298,27 @@ function renderTrCoView(){
   coKeys.forEach(ck=>{
     const c=cos[ck];
     const moCount=Object.keys(c.months).length;
+    const adv=TR_ADVANCE[ck];
+    const remaining=adv?(adv.amount-c.amount):null;
+    const advHtml=adv?`<div style="margin-top:7px;padding:6px 8px;border-radius:8px;background:${remaining>=0?'#f0fdf4':'#fef2f2'};border:1px solid ${remaining>=0?'#bbf7d0':'#fecaca'};">
+      <div style="font-size:9px;font-weight:700;color:#64748b;margin-bottom:2px;">💰 เบิกล่วงหน้า ${adv.note?`· ${he(adv.note)}`:''}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:10px;color:#94a3b8;">วางบิลไปแล้ว ${fmtAmt(c.amount)}</span>
+        <span style="font-size:13px;font-weight:800;color:${remaining>=0?'#15803d':'#dc2626'};">${remaining>=0?'คงเหลือ':'เกิน'} ${fmtAmt(Math.abs(remaining))}</span>
+      </div>
+    </div>`:'';;
     cardsHtml+=`<div class="co-card" onclick="trToggleCoDetail('${he(ck)}')">
-      <div class="cc-name"><span>🚛 ${he(ck)}</span><span style="font-size:11px;font-weight:400;color:#7c3aed;">${moCount} เดือน</span></div>
+      <div class="cc-name"><span>🚛 ${he(ck)}</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:11px;font-weight:400;color:#7c3aed;">${moCount} เดือน</span>
+          <button onclick="event.stopPropagation();openAdvModal('${he(ck)}')" style="padding:2px 7px;border-radius:6px;border:1px solid #e2e8f0;background:#f8fafc;color:#7c3aed;font-size:10px;cursor:pointer;" title="บันทึกเบิกล่วงหน้า">📝</button>
+        </div>
+      </div>
       <div class="cc-stats">
         <div class="cc-stat"><span class="sv">${c.ctr}</span><span class="sl">ตู้ทั้งหมด</span></div>
         <div class="cc-stat"><span class="sv cc-amt">${fmtAmt(c.amount)}</span><span class="sl">บาท</span></div>
       </div>
+      ${advHtml}
     </div>`;
   });
   cardsHtml+='</div>';
