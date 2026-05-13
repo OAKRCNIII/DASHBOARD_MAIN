@@ -4579,17 +4579,13 @@ function trPrintByFactoryReport(){
       const adv=TR_ADVANCE[co];
       const advDeducted=adv?(adv.deductions||[]).reduce((s,d)=>s+(d.amount||0),0):0;
       const advRemaining=adv?(adv.amount-advDeducted):0;
-      const advNoteRow=adv&&adv.amount>0?`<tr>
-          <td colspan="4" style="background:#faf5ff;border:1px solid #e9d5ff;padding:5px 10px;font-size:11px;color:#7c3aed;">
-            💰 เบิกล่วงหน้าไป <b>${fm(adv.amount)}</b> บาท${adv.note?` · ${he2(adv.note)}`:''}
-            ${advDeducted>0?` &nbsp;·&nbsp; ตัดไปแล้ว <b>${fm(advDeducted)}</b> &nbsp;·&nbsp; <b style="color:${advRemaining>=0?'#15803d':'#dc2626'};">คงเหลือ ${fm(Math.abs(advRemaining))} บาท${advRemaining<0?' (เกิน)':''}</b>`:''}
-          </td>
-        </tr>`:'';
+      const advInline=adv&&adv.amount>0?` &nbsp;<span style="font-size:11px;font-weight:400;opacity:.85;">💰 เบิกล่วงหน้าไป ${fm(adv.amount)} บาท${adv.note?` · ${he2(adv.note)}`:''}`+
+        (advDeducted>0?` · คงเหลือ <b>${fm(Math.abs(advRemaining))} บาท${advRemaining<0?' (เกิน)':''}</b>`:'')+`</span>`:'';
       coSections+=`<tr class="co-hdr-row">
-          <td colspan="2" style="background:${grp.light};color:${grp.color};">🚛 ${he2(co)}</td>
+          <td colspan="2" style="background:${grp.light};color:${grp.color};">🚛 ${he2(co)}${advInline}</td>
           <td class="r" style="background:${grp.light};color:${grp.color};">${coData.tot.ctr} ตู้</td>
           <td class="r" style="background:${grp.light};color:${grp.color};">${fm(coData.tot.amount)}</td>
-        </tr>${advNoteRow}${rows}
+        </tr>${rows}
         <tr class="tot-sum-row">
           <td colspan="2" style="text-align:right;">รวม ${he2(co)}</td>
           <td class="r">${coData.tot.ctr} ตู้</td>
