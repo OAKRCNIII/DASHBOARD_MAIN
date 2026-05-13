@@ -5258,11 +5258,37 @@ function trPrintAlReport(){
 /* ===== TRANSPORT COMPANY VIEW ===== */
 let _trCoOpen=null; // currently expanded company key
 
-/* ── Advance payments (เบิกล่วงหน้า) — stored in localStorage ── */
-let TR_ADVANCE=JSON.parse(localStorage.getItem('tr_advance')||'{}');
+/* ── Advance payments (เบิกล่วงหน้า) — stored in Supabase ── */
+/* TR_ADVANCE: {coKey:{_sbId,amount,note,deductions:[{_sbId,billNo,amount}]}} */
+let TR_ADVANCE={};
 let _advCo=null;
 const _advFm=n=>n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
-function _advSave(){localStorage.setItem('tr_advance',JSON.stringify(TR_ADVANCE));}
+const _advH={'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,'Content-Type':'application/json'};
+
+async function loadAdvanceData(){
+  try{
+    const hdrs={'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,'Accept':'application/json'};
+    const [r1,r2]=await Promise.all([
+      fetch(`${SB_URL}/rest/v1/advance_payments?select=*&order=id.asc`,{headers:hdrs}),
+      fetch(`${SB_URL}/rest/v1/advance_deductions?select=*&order=id.asc`,{headers:hdrs})
+    ]);
+    if(!r1.ok||!r2.ok){console.warn('loadAdvanceData: fetch failed');return;}
+    const payments=await r1.json();
+    const deductions=await r2.json();
+    TR_ADVANCE={};
+    payments.forEach(p=>{
+      TR_ADVANCE[p.company_key]={_sbId:p.id,amount:Number(p.amount),note:p.note||'',deductions:[]};
+    });
+    deductions.forEach(d=>{
+      const p=payments.find(x=>x.id===d.advance_id);
+      if(p&&TR_ADVANCE[p.company_key]){
+        TR_ADVANCE[p.company_key].deductions.push({_sbId:d.id,billNo:d.bill_no,amount:Number(d.amount)});
+      }
+    });
+    console.log(`✅ advance_payments loaded: ${payments.length} รายการ`);
+  }catch(e){console.warn('loadAdvanceData error',e);}
+}
+
 function openAdvModal(coKey){
   _advCo=coKey;
   const adv=TR_ADVANCE[coKey]||{amount:0,note:'',deductions:[]};
@@ -5308,33 +5334,96 @@ function renderAdvDeductList(){
   html+='</tbody></table>';
   list.innerHTML=html;
 }
-function addAdvDeduction(){
+
+async function _ensureAdvPayment(coKey){
+  /* สร้าง advance_payments header ถ้ายังไม่มี แล้วคืน id */
+  const adv=TR_ADVANCE[coKey];
+  if(adv&&adv._sbId)return adv._sbId;
+  const r=await fetch(`${SB_URL}/rest/v1/advance_payments`,{
+    method:'POST',
+    headers:{..._advH,'Prefer':'return=representation'},
+    body:JSON.stringify({company_key:coKey,amount:(adv&&adv.amount)||0,note:(adv&&adv.note)||''})
+  });
+  if(!r.ok)throw new Error('advance_payments insert failed: '+r.status);
+  const rows=await r.json();
+  const newId=rows[0].id;
+  if(!TR_ADVANCE[coKey])TR_ADVANCE[coKey]={amount:0,note:'',deductions:[]};
+  TR_ADVANCE[coKey]._sbId=newId;
+  return newId;
+}
+
+async function addAdvDeduction(){
   const bill=document.getElementById('advNewBill').value.trim();
   const amt=parseFloat(document.getElementById('advNewAmt').value)||0;
   if(!bill||!amt)return;
-  if(!TR_ADVANCE[_advCo])TR_ADVANCE[_advCo]={amount:0,note:'',deductions:[]};
-  if(!TR_ADVANCE[_advCo].deductions)TR_ADVANCE[_advCo].deductions=[];
-  TR_ADVANCE[_advCo].deductions.push({billNo:bill,amount:amt});
-  document.getElementById('advNewBill').value='';document.getElementById('advNewAmt').value='';
-  _advSave();renderAdvDeductList();renderAdvSummary();
-  document.getElementById('advNewBill').focus();
+  try{
+    const advId=await _ensureAdvPayment(_advCo);
+    const r=await fetch(`${SB_URL}/rest/v1/advance_deductions`,{
+      method:'POST',
+      headers:{..._advH,'Prefer':'return=representation'},
+      body:JSON.stringify({advance_id:advId,bill_no:bill,amount:amt})
+    });
+    if(!r.ok)throw new Error('deductions insert failed: '+r.status);
+    const rows=await r.json();
+    TR_ADVANCE[_advCo].deductions.push({_sbId:rows[0].id,billNo:bill,amount:amt});
+    document.getElementById('advNewBill').value='';document.getElementById('advNewAmt').value='';
+    renderAdvDeductList();renderAdvSummary();
+    document.getElementById('advNewBill').focus();
+  }catch(e){alert('บันทึกไม่สำเร็จ: '+e.message);}
 }
-function removeAdvDeduction(idx){
-  if(!TR_ADVANCE[_advCo])return;
-  TR_ADVANCE[_advCo].deductions.splice(idx,1);
-  _advSave();renderAdvDeductList();renderAdvSummary();
+
+async function removeAdvDeduction(idx){
+  const adv=TR_ADVANCE[_advCo];
+  if(!adv)return;
+  const d=adv.deductions[idx];
+  if(!d)return;
+  try{
+    if(d._sbId){
+      await fetch(`${SB_URL}/rest/v1/advance_deductions?id=eq.${d._sbId}`,{method:'DELETE',headers:_advH});
+    }
+    adv.deductions.splice(idx,1);
+    renderAdvDeductList();renderAdvSummary();
+  }catch(e){alert('ลบไม่สำเร็จ: '+e.message);}
 }
-function saveAdvModal(){
+
+async function saveAdvModal(){
   const amt=parseFloat(document.getElementById('advAmt').value)||0;
   const note=document.getElementById('advNote').value.trim();
-  if(!TR_ADVANCE[_advCo])TR_ADVANCE[_advCo]={deductions:[]};
-  TR_ADVANCE[_advCo].amount=amt;TR_ADVANCE[_advCo].note=note;
-  if(amt<=0&&!(TR_ADVANCE[_advCo].deductions||[]).length)delete TR_ADVANCE[_advCo];
-  _advSave();closeAdvModal();renderTrCoView();
+  try{
+    const hasDeductions=(TR_ADVANCE[_advCo]?.deductions||[]).length>0;
+    if(amt<=0&&!hasDeductions){
+      /* ลบทิ้งถ้าว่างเปล่า */
+      if(TR_ADVANCE[_advCo]?._sbId){
+        await fetch(`${SB_URL}/rest/v1/advance_payments?id=eq.${TR_ADVANCE[_advCo]._sbId}`,{method:'DELETE',headers:_advH});
+      }
+      delete TR_ADVANCE[_advCo];
+    } else {
+      if(!TR_ADVANCE[_advCo])TR_ADVANCE[_advCo]={deductions:[]};
+      TR_ADVANCE[_advCo].amount=amt;TR_ADVANCE[_advCo].note=note;
+      if(TR_ADVANCE[_advCo]._sbId){
+        await fetch(`${SB_URL}/rest/v1/advance_payments?id=eq.${TR_ADVANCE[_advCo]._sbId}`,{
+          method:'PATCH',headers:_advH,body:JSON.stringify({amount:amt,note:note})
+        });
+      } else {
+        const r=await fetch(`${SB_URL}/rest/v1/advance_payments`,{
+          method:'POST',headers:{..._advH,'Prefer':'return=representation'},
+          body:JSON.stringify({company_key:_advCo,amount:amt,note:note})
+        });
+        if(r.ok){const rows=await r.json();TR_ADVANCE[_advCo]._sbId=rows[0].id;}
+      }
+    }
+    closeAdvModal();renderTrCoView();
+  }catch(e){alert('บันทึกไม่สำเร็จ: '+e.message);}
 }
-function clearAdvModal(){
-  delete TR_ADVANCE[_advCo];
-  _advSave();closeAdvModal();renderTrCoView();
+
+async function clearAdvModal(){
+  try{
+    if(TR_ADVANCE[_advCo]?._sbId){
+      await fetch(`${SB_URL}/rest/v1/advance_payments?id=eq.${TR_ADVANCE[_advCo]._sbId}`,{method:'DELETE',headers:_advH});
+    }
+    delete TR_ADVANCE[_advCo];
+    closeAdvModal();renderTrCoView();
+  }catch(e){alert('ลบไม่สำเร็จ: '+e.message);}
 }
 
 
@@ -7190,6 +7279,7 @@ async function initApp(){
   /* sync manual_paid: ดัน localStorage ขึ้นก่อน แล้วดึงกลับมา merge */
   await pushLocalManualPaidToSupabase();
   await loadManualPaidFromSupabase();
+  await loadAdvanceData();
   try{const data=await loadData();showDashboard(data);}
   catch(e){showErr(e.message||'โหลดไม่สำเร็จ');}
 }
