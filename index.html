@@ -2557,40 +2557,57 @@ function renderPriceLatest(){
 }
 function closePriceHistModal(){document.getElementById('priceHistModalBg').style.display='none';}
 function showPriceHistory(pfx){
-  const hist=(OGM_PRICE_HISTORY[pfx]||[]);
-  const rows=hist.slice(-10).reverse(); /* 10 ล่าสุด เรียงใหม่ล่าสุดก่อน */
+  const hist=OGM_PRICE_HISTORY[pfx]||[];
   const c=pst(pfx);
   const fm=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0}):'-';
-  /* badge */
   document.getElementById('priceHistBadge').innerHTML=`<span style="background:${c.bg};color:${c.tx};border:1px solid ${c.bd};border-radius:6px;padding:2px 10px;font-size:13px;font-weight:800;">${h(pfx)}</span>`;
   document.getElementById('priceHistTitle').textContent='ประวัติราคา 10 รายการล่าสุด';
   let body='';
-  if(!rows.length){body='<div style="text-align:center;color:#94a3b8;padding:20px;">ไม่มีข้อมูล</div>';}
+  if(!hist.length){body='<div style="text-align:center;color:#94a3b8;padding:20px;">ไม่มีข้อมูล</div>';}
   else{
-    rows.forEach((item,idx)=>{
-      const {inv,entry}=item;
-      const dr=getDateRange(inv);
-      const isLatest=idx===0;
-      body+=`<div style="border:1px solid ${isLatest?c.bd:'#e2e8f0'};border-radius:10px;padding:12px 14px;margin-bottom:8px;background:${isLatest?c.bg:'#fafafa'};">`;
-      body+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">`;
-      if(isLatest)body+=`<span style="background:#15803d;color:#fff;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700;">ล่าสุด</span>`;
-      body+=`<span style="font-size:13px;font-weight:700;color:#1a202c;">${h(inv)}</span>`;
-      if(dr)body+=`<span style="font-size:10px;color:#7c3aed;background:#f5f3ff;border-radius:4px;padding:2px 8px;">📅 ${h(dr)}</span>`;
-      body+=`</div>`;
-      if(entry.type==='factory'){
-        const facs=Object.keys(entry).filter(k=>k!=='type'&&k!=='sheetPrefix');
-        body+=`<div style="display:flex;flex-wrap:wrap;gap:8px;">`;
-        facs.forEach(f=>{body+=`<div style="background:#fff;border:1px solid #e2e8f0;border-radius:7px;padding:6px 12px;"><div style="font-size:10px;color:#64748b;font-weight:600;">${h(f)}</div><div style="font-size:15px;font-weight:800;color:#15803d;">${fm(entry[f])} <span style="font-size:9px;color:#94a3b8;">฿/ตู้</span></div></div>`;});
-        body+=`</div>`;
-      }else if(entry.type==='tiered'){
-        body+=`<div style="font-size:11px;color:#475569;">`;
-        (entry.tiers||[]).forEach(t=>{body+=`<span style="margin-right:10px;">ตู้ ${t.from}-${t.to}: <b>${fm(t.price)}</b> ฿</span>`;});
-        body+=`</div>`;
-      }else{
-        body+=`<span style="font-size:15px;font-weight:800;color:#15803d;">${fm(entry.price)} <span style="font-size:9px;color:#94a3b8;">฿/ตู้</span></span>`;
-      }
-      body+=`</div>`;
-    });
+    const recent=hist.slice(-10); /* 10 ล่าสุด ตามลำดับตาราง (เก่า→ใหม่) */
+    const isFactory=recent.some(x=>x.entry.type==='factory');
+    if(isFactory){
+      /* รวบรวมชื่อโรงงานทุกตัวที่มีใน 10 rows */
+      const facSet=[];
+      recent.forEach(({entry})=>{Object.keys(entry).filter(k=>k!=='type'&&k!=='sheetPrefix').forEach(f=>{if(!facSet.includes(f))facSet.push(f);});});
+      facSet.forEach(fac=>{
+        body+=`<div style="margin-bottom:14px;">`;
+        body+=`<div style="font-size:12px;font-weight:800;color:#334155;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid ${c.bd};">🏭 ${h(fac)}</div>`;
+        body+=`<table style="width:100%;border-collapse:collapse;font-size:12px;">`;
+        body+=`<thead><tr style="background:#f8fafc;"><th style="text-align:left;padding:5px 8px;color:#64748b;font-weight:600;">อินวอยซ์</th><th style="text-align:center;padding:5px 8px;color:#64748b;font-weight:600;">ช่วงเวลา</th><th style="text-align:right;padding:5px 8px;color:#64748b;font-weight:600;">ราคา/ตู้ (฿)</th></tr></thead><tbody>`;
+        [...recent].reverse().forEach(({inv,entry},idx)=>{
+          const price=entry[fac]||0;
+          const dr=getDateRange(inv);
+          const isLatest=idx===0;
+          const rowBg=isLatest?c.bg:'transparent';
+          body+=`<tr style="background:${rowBg};border-bottom:1px solid #f1f5f9;">`;
+          body+=`<td style="padding:5px 8px;font-weight:${isLatest?'700':'400'};color:#1a202c;">${h(inv)}${isLatest?` <span style="background:#15803d;color:#fff;border-radius:3px;padding:0 5px;font-size:9px;font-weight:700;">ล่าสุด</span>`:''}`;
+          body+=`</td><td style="padding:5px 8px;text-align:center;color:#7c3aed;font-size:10px;">${dr?`📅 ${h(dr)}`:'-'}</td>`;
+          body+=`<td style="padding:5px 8px;text-align:right;font-weight:${isLatest?'800':'600'};color:${price>0?'#15803d':'#94a3b8'};">${price>0?fm(price):'-'}</td>`;
+          body+=`</tr>`;
+        });
+        body+=`</tbody></table></div>`;
+      });
+    }else{
+      /* simple / tiered — เรียงตามลำดับ */
+      body+=`<table style="width:100%;border-collapse:collapse;font-size:12px;">`;
+      body+=`<thead><tr style="background:#f8fafc;"><th style="text-align:left;padding:5px 8px;color:#64748b;font-weight:600;">อินวอยซ์</th><th style="text-align:center;padding:5px 8px;color:#64748b;font-weight:600;">ช่วงเวลา</th><th style="text-align:right;padding:5px 8px;color:#64748b;font-weight:600;">ราคา</th></tr></thead><tbody>`;
+      [...recent].reverse().forEach(({inv,entry},idx)=>{
+        const dr=getDateRange(inv);
+        const isLatest=idx===0;
+        body+=`<tr style="background:${isLatest?c.bg:'transparent'};border-bottom:1px solid #f1f5f9;">`;
+        body+=`<td style="padding:5px 8px;font-weight:${isLatest?'700':'400'};color:#1a202c;">${h(inv)}${isLatest?` <span style="background:#15803d;color:#fff;border-radius:3px;padding:0 5px;font-size:9px;font-weight:700;">ล่าสุด</span>`:''}`;
+        body+=`</td><td style="padding:5px 8px;text-align:center;color:#7c3aed;font-size:10px;">${dr?`📅 ${h(dr)}`:'-'}</td>`;
+        if(entry.type==='simple'){
+          body+=`<td style="padding:5px 8px;text-align:right;font-weight:${isLatest?'800':'600'};color:#15803d;">${fm(entry.price)} ฿/ตู้</td>`;
+        }else if(entry.type==='tiered'){
+          body+=`<td style="padding:5px 8px;text-align:right;font-size:10px;color:#475569;">${(entry.tiers||[]).map(t=>`${t.from}-${t.to}ตู้: ${fm(t.price)}`).join(' / ')}</td>`;
+        }
+        body+=`</tr>`;
+      });
+      body+=`</tbody></table>`;
+    }
   }
   document.getElementById('priceHistBody').innerHTML=body;
   document.getElementById('priceHistModalBg').style.display='flex';
