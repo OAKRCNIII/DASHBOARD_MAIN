@@ -931,6 +931,18 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     </div>
   </div>
 
+  <!-- PRICE HISTORY MODAL -->
+  <div id="priceHistModalBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9050;align-items:center;justify-content:center;" onclick="if(event.target===this)closePriceHistModal()">
+    <div style="background:#fff;border-radius:18px;padding:22px 20px;width:min(560px,95vw);max-height:85vh;overflow-y:auto;box-shadow:0 12px 50px rgba(0,0,0,.3);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <span id="priceHistBadge"></span>
+        <span id="priceHistTitle" style="font-size:15px;font-weight:800;color:#0f2a52;"></span>
+        <button onclick="closePriceHistModal()" style="margin-left:auto;background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;line-height:1;">×</button>
+      </div>
+      <div id="priceHistBody"></div>
+    </div>
+  </div>
+
   <!-- OCF MANUAL PAID MODAL -->
   <div id="ocfPaidModalBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9100;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:20px;padding:24px 22px;min-width:300px;max-width:360px;width:92vw;box-shadow:0 12px 50px rgba(0,0,0,.3);">
@@ -1803,8 +1815,8 @@ async function loadData(){
     rates:puByDate[ds],
   }));
 
-  /* ── 13. Build OGM_PRICE_MAP + OGM_PRICE_LATEST จาก ogm_prices table ── */
-  const ogmPriceMap={};const ogmPriceLatest={};
+  /* ── 13. Build OGM_PRICE_MAP + OGM_PRICE_LATEST + OGM_PRICE_HISTORY จาก ogm_prices table ── */
+  const ogmPriceMap={};const ogmPriceLatest={};const ogmPriceHistory={};
   ogmPriceRows.forEach(r=>{
     const nk=normInv(r.invoice_no);
     const sh=r.sheet_name||'';
@@ -1820,11 +1832,13 @@ async function loadData(){
     }
     ogmPriceMap[nk]=entry;
     ogmPriceLatest[sh]={inv:r.invoice_no,entry};
+    if(!ogmPriceHistory[sh])ogmPriceHistory[sh]=[];
+    ogmPriceHistory[sh].push({inv:r.invoice_no,entry});
   });
 
   return{byMonth,flat,stock,vessel,fees:feesMap,stmtInfo,pendCtrs,dbMap,
     trMatched,billInfoTr,dupesTr,
-    ogmPriceMap,ogmPriceLatest,
+    ogmPriceMap,ogmPriceLatest,ogmPriceHistory,
     vesselPlan,vesselPlanFloat,billedAnts,paidAnts,
     priceUpdateTable,unpaidTr:[],
     bankBal:(bankBalRows||[]).map(r=>({bank:r.bank,balance:parseFloat(r.balance)||0,updatedAt:r.updated_at||''}))};
@@ -1837,6 +1851,7 @@ let OLD_INV=new Set(); /* normInv → อินวอยซ์เก่าที
 let DB_MAP={}; /* raw database map — ใช้สำหรับ transport matching */
 let OGM_PRICE_MAP={}; /* normInv → { กนกทอง, นาเมืองเพชร, นาวาพารา } prices */
 let OGM_PRICE_LATEST={}; /* prefix → {inv, entry} ราคาล่าสุด (row ล่างสุด) ต่อ sheet */
+let OGM_PRICE_HISTORY={}; /* prefix → [{inv, entry}, ...] ทุก row เรียงตาม id */
 /* lookup: 1) exact  2) prefix match (TWI63→TWI63/...)  3) dash-insensitive (ID-MK-09-2026≈ID-MK09-2026) */
 function findPriceEntry(inv){
   const nk=normInv(inv);
@@ -2498,10 +2513,8 @@ function renderPriceLatest(){
       const c=pst(pfx);
       const nk=normInv(inv);
       const hasData=FLAT.some(x=>normInv(x.inv)===nk);
-      const clickStyle=hasData?`cursor:pointer;transition:box-shadow .15s,transform .15s;`:``;
-      const clickAttr=hasData?`onclick="goToPriceInv('${nk.replace(/'/g,"\\'")}')" onmouseenter="this.style.boxShadow='0 4px 14px rgba(0,0,0,.12)';this.style.transform='translateY(-2px)'" onmouseleave="this.style.boxShadow='';this.style.transform=''"`:`` ;
-      out+=`<div style="background:#fff;border:1px solid ${c.bd};border-radius:10px;padding:12px 14px;${clickStyle}" ${clickAttr}>`;
-      out+=`<div style="margin-bottom:6px;">${pfxBadge(pfx)}${hasData?`<span style="float:right;font-size:10px;color:#94a3b8;margin-top:2px;" title="คลิกดูอินวอยซ์">🔍</span>`:``}</div>`;
+      out+=`<div style="background:#fff;border:1px solid ${c.bd};border-radius:10px;padding:12px 14px;cursor:pointer;transition:box-shadow .15s,transform .15s;" onclick="showPriceHistory('${pfx}')" onmouseenter="this.style.boxShadow='0 4px 14px rgba(0,0,0,.12)';this.style.transform='translateY(-2px)'" onmouseleave="this.style.boxShadow='';this.style.transform=''">`;
+      out+=`<div style="margin-bottom:6px;">${pfxBadge(pfx)}<span style="float:right;font-size:10px;color:#94a3b8;margin-top:2px;" title="คลิกดูประวัติ">📋</span></div>`;
       out+=`<div style="font-size:11px;font-weight:700;color:#1a202c;margin-bottom:4px;word-break:break-all;">${h(inv)}</div>`;
       if(entry.type==='simple'){
         out+=`<div style="font-size:18px;font-weight:800;color:#16a34a;">${fm(entry.price)} <span style="font-size:10px;font-weight:400;color:#64748b;">฿/ตู้</span></div>`;
@@ -2522,15 +2535,12 @@ function renderPriceLatest(){
     const dr=getDateRange(inv);
     const c=pst(pfx);
     const factories=Object.keys(entry).filter(k=>k!=='type'&&k!=='sheetPrefix');
-    const nk=normInv(inv);
-    const hasData=FLAT.some(x=>normInv(x.inv)===nk);
-    const clickAttr=hasData?`onclick="goToPriceInv('${nk.replace(/'/g,"\\'")}')" style="background:#fff;border:1px solid ${c.bd};border-radius:10px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s,transform .15s;" onmouseenter="this.style.boxShadow='0 4px 14px rgba(0,0,0,.12)';this.style.transform='translateY(-2px)'" onmouseleave="this.style.boxShadow='';this.style.transform=''"`:`style="background:#fff;border:1px solid ${c.bd};border-radius:10px;padding:14px 16px;margin-bottom:10px;"`;
-    out+=`<div ${clickAttr}>`;
+    out+=`<div style="background:#fff;border:1px solid ${c.bd};border-radius:10px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s,transform .15s;" onclick="showPriceHistory('${pfx}')" onmouseenter="this.style.boxShadow='0 4px 14px rgba(0,0,0,.12)';this.style.transform='translateY(-2px)'" onmouseleave="this.style.boxShadow='';this.style.transform=''">`;
     out+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">`;
     out+=pfxBadge(pfx);
     out+=`<span style="font-size:12px;font-weight:700;color:#1a202c;">${h(inv)}</span>`;
     if(dr)out+=`<span style="font-size:10px;color:#7c3aed;background:#f5f3ff;border-radius:4px;padding:2px 8px;">📅 ${h(dr)}</span>`;
-    if(hasData)out+=`<span style="margin-left:auto;font-size:10px;color:#64748b;" title="คลิกดูอินวอยซ์">🔍 ดูอินวอยซ์</span>`;
+    out+=`<span style="margin-left:auto;font-size:10px;color:#94a3b8;" title="คลิกดูประวัติราคา">📋 ประวัติ</span>`;
     out+=`</div>`;
     out+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;">`;
     factories.forEach(fac=>{
@@ -2544,6 +2554,46 @@ function renderPriceLatest(){
   });
   if(!simpleKeys.length&&!factKeys.length){out='<div class="placeholder"><div class="ico">📭</div><p>ยังไม่มีข้อมูลราคา</p></div>';}
   wrap.innerHTML=out;
+}
+function closePriceHistModal(){document.getElementById('priceHistModalBg').style.display='none';}
+function showPriceHistory(pfx){
+  const hist=(OGM_PRICE_HISTORY[pfx]||[]);
+  const rows=hist.slice(-10).reverse(); /* 10 ล่าสุด เรียงใหม่ล่าสุดก่อน */
+  const c=pst(pfx);
+  const fm=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0}):'-';
+  /* badge */
+  document.getElementById('priceHistBadge').innerHTML=`<span style="background:${c.bg};color:${c.tx};border:1px solid ${c.bd};border-radius:6px;padding:2px 10px;font-size:13px;font-weight:800;">${h(pfx)}</span>`;
+  document.getElementById('priceHistTitle').textContent='ประวัติราคา 10 รายการล่าสุด';
+  let body='';
+  if(!rows.length){body='<div style="text-align:center;color:#94a3b8;padding:20px;">ไม่มีข้อมูล</div>';}
+  else{
+    rows.forEach((item,idx)=>{
+      const {inv,entry}=item;
+      const dr=getDateRange(inv);
+      const isLatest=idx===0;
+      body+=`<div style="border:1px solid ${isLatest?c.bd:'#e2e8f0'};border-radius:10px;padding:12px 14px;margin-bottom:8px;background:${isLatest?c.bg:'#fafafa'};">`;
+      body+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">`;
+      if(isLatest)body+=`<span style="background:#15803d;color:#fff;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700;">ล่าสุด</span>`;
+      body+=`<span style="font-size:13px;font-weight:700;color:#1a202c;">${h(inv)}</span>`;
+      if(dr)body+=`<span style="font-size:10px;color:#7c3aed;background:#f5f3ff;border-radius:4px;padding:2px 8px;">📅 ${h(dr)}</span>`;
+      body+=`</div>`;
+      if(entry.type==='factory'){
+        const facs=Object.keys(entry).filter(k=>k!=='type'&&k!=='sheetPrefix');
+        body+=`<div style="display:flex;flex-wrap:wrap;gap:8px;">`;
+        facs.forEach(f=>{body+=`<div style="background:#fff;border:1px solid #e2e8f0;border-radius:7px;padding:6px 12px;"><div style="font-size:10px;color:#64748b;font-weight:600;">${h(f)}</div><div style="font-size:15px;font-weight:800;color:#15803d;">${fm(entry[f])} <span style="font-size:9px;color:#94a3b8;">฿/ตู้</span></div></div>`;});
+        body+=`</div>`;
+      }else if(entry.type==='tiered'){
+        body+=`<div style="font-size:11px;color:#475569;">`;
+        (entry.tiers||[]).forEach(t=>{body+=`<span style="margin-right:10px;">ตู้ ${t.from}-${t.to}: <b>${fm(t.price)}</b> ฿</span>`;});
+        body+=`</div>`;
+      }else{
+        body+=`<span style="font-size:15px;font-weight:800;color:#15803d;">${fm(entry.price)} <span style="font-size:9px;color:#94a3b8;">฿/ตู้</span></span>`;
+      }
+      body+=`</div>`;
+    });
+  }
+  document.getElementById('priceHistBody').innerHTML=body;
+  document.getElementById('priceHistModalBg').style.display='flex';
 }
 let _vslFilter='';let _VSL_GROUPS=[];
 let _vslViewMode='list'; /* 'list' | 'cal' */
@@ -6921,7 +6971,7 @@ function showSetup(err){
   updateFolderUI();
 }
 function showDashboard(data){
-  FLAT=data.flat;BY_MONTH=data.byMonth;STOCK=data.stock;VESSEL=data.vessel||[];FEES=data.fees||{};STMT=data.stmtInfo||{};TR_DATA=(data.trMatched||[]).filter(d=>d.month!=='-'); /* กรองอินวอยซ์เก่าปี 2025 (ไม่ระบุ) ออกจากทุก transport view */BILL_INFO_TR=data.billInfoTr||{ogm:'-',all:'-'};TR_DUPES=data.dupesTr||[];PEND_CTRS=data.pendCtrs||[];DB_MAP=data.dbMap||{};OGM_PRICE_MAP=data.ogmPriceMap||{};OGM_PRICE_LATEST=data.ogmPriceLatest||{};VESSEL_PLAN=data.vesselPlan||{};VESSEL_PLAN_FLOAT=data.vesselPlanFloat||{};BILLED_ANTS=data.billedAnts||new Map();PAID_ANTS=data.paidAnts||new Map();BANK_BAL=data.bankBal||[];BILL_ANTS_META=(BILLED_ANTS._meta)||{week:0,year:0};PRICE_UPDATE_TABLE=data.priceUpdateTable||[];TR_UNPAID=data.unpaidTr||[];
+  FLAT=data.flat;BY_MONTH=data.byMonth;STOCK=data.stock;VESSEL=data.vessel||[];FEES=data.fees||{};STMT=data.stmtInfo||{};TR_DATA=(data.trMatched||[]).filter(d=>d.month!=='-'); /* กรองอินวอยซ์เก่าปี 2025 (ไม่ระบุ) ออกจากทุก transport view */BILL_INFO_TR=data.billInfoTr||{ogm:'-',all:'-'};TR_DUPES=data.dupesTr||[];PEND_CTRS=data.pendCtrs||[];DB_MAP=data.dbMap||{};OGM_PRICE_MAP=data.ogmPriceMap||{};OGM_PRICE_LATEST=data.ogmPriceLatest||{};OGM_PRICE_HISTORY=data.ogmPriceHistory||{};VESSEL_PLAN=data.vesselPlan||{};VESSEL_PLAN_FLOAT=data.vesselPlanFloat||{};BILLED_ANTS=data.billedAnts||new Map();PAID_ANTS=data.paidAnts||new Map();BANK_BAL=data.bankBal||[];BILL_ANTS_META=(BILLED_ANTS._meta)||{week:0,year:0};PRICE_UPDATE_TABLE=data.priceUpdateTable||[];TR_UNPAID=data.unpaidTr||[];
   hideLoad();document.getElementById('app').style.display='flex';
   const now=new Date();document.getElementById('lastUpd').textContent='☁️ Supabase · '+pad(now.getHours())+':'+pad(now.getMinutes());
   renderTabs();renderStatsMain();const m=Object.keys(BY_MONTH).sort()[0];if(m)selMonth(m);
