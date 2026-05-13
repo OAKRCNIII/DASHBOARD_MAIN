@@ -2564,27 +2564,30 @@ function showPriceHistory(pfx){
     const recent=hist.slice(-10); /* 10 ล่าสุด ตามลำดับตาราง (เก่า→ใหม่) */
     const isFactory=recent.some(x=>x.entry.type==='factory');
     if(isFactory){
-      /* รวบรวมชื่อโรงงานทุกตัวที่มีใน 10 rows */
+      /* รวบรวมชื่อโรงงานทุกตัวที่มีใน 10 rows (ตามลำดับที่พบ) */
       const facSet=[];
       recent.forEach(({entry})=>{Object.keys(entry).filter(k=>k!=='type'&&k!=='sheetPrefix').forEach(f=>{if(!facSet.includes(f))facSet.push(f);});});
-      facSet.forEach(fac=>{
-        body+=`<div style="margin-bottom:14px;">`;
-        body+=`<div style="font-size:12px;font-weight:800;color:#334155;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid ${c.bd};">🏭 ${h(fac)}</div>`;
-        body+=`<table style="width:100%;border-collapse:collapse;font-size:12px;">`;
-        body+=`<thead><tr style="background:#f8fafc;"><th style="text-align:left;padding:5px 8px;color:#64748b;font-weight:600;">อินวอยซ์</th><th style="text-align:center;padding:5px 8px;color:#64748b;font-weight:600;">ช่วงเวลา</th><th style="text-align:right;padding:5px 8px;color:#64748b;font-weight:600;">ราคา/ตู้ (฿)</th></tr></thead><tbody>`;
-        [...recent].reverse().forEach(({inv,entry},idx)=>{
-          const price=entry[fac]||0;
-          const dr=getDateRange(inv);
-          const isLatest=idx===0;
-          const rowBg=isLatest?c.bg:'transparent';
-          body+=`<tr style="background:${rowBg};border-bottom:1px solid #f1f5f9;">`;
-          body+=`<td style="padding:5px 8px;font-weight:${isLatest?'700':'400'};color:#1a202c;">${h(inv)}${isLatest?` <span style="background:#15803d;color:#fff;border-radius:3px;padding:0 5px;font-size:9px;font-weight:700;">ล่าสุด</span>`:''}`;
-          body+=`</td><td style="padding:5px 8px;text-align:center;color:#7c3aed;font-size:10px;">${dr?`📅 ${h(dr)}`:'-'}</td>`;
-          body+=`<td style="padding:5px 8px;text-align:right;font-weight:${isLatest?'800':'600'};color:${price>0?'#15803d':'#94a3b8'};">${price>0?fm(price):'-'}</td>`;
-          body+=`</tr>`;
+      /* header */
+      body+=`<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:360px;">`;
+      body+=`<thead><tr style="background:#f8fafc;">`;
+      body+=`<th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600;white-space:nowrap;">อินวอยซ์</th>`;
+      body+=`<th style="text-align:center;padding:6px 8px;color:#64748b;font-weight:600;white-space:nowrap;">ช่วงเวลา</th>`;
+      facSet.forEach(f=>{body+=`<th style="text-align:right;padding:6px 8px;color:#64748b;font-weight:600;white-space:nowrap;">${h(f)}</th>`;});
+      body+=`</tr></thead><tbody>`;
+      /* rows: ล่าสุดก่อน */
+      [...recent].reverse().forEach(({inv,entry},idx)=>{
+        const dr=getDateRange(inv);
+        const isLatest=idx===0;
+        body+=`<tr style="background:${isLatest?c.bg:'transparent'};border-bottom:1px solid #f1f5f9;">`;
+        body+=`<td style="padding:6px 8px;font-weight:${isLatest?'700':'400'};color:#1a202c;white-space:nowrap;">${h(inv)}${isLatest?` <span style="background:#15803d;color:#fff;border-radius:3px;padding:0 5px;font-size:9px;font-weight:700;">ล่าสุด</span>`:''}`;
+        body+=`</td><td style="padding:6px 8px;text-align:center;color:#7c3aed;font-size:10px;white-space:nowrap;">${dr?`📅 ${h(dr)}`:'-'}</td>`;
+        facSet.forEach(f=>{
+          const price=entry[f]||0;
+          body+=`<td style="padding:6px 8px;text-align:right;font-weight:${isLatest?'800':'500'};color:${price>0?'#15803d':'#cbd5e0'};">${price>0?fm(price):'-'}</td>`;
         });
-        body+=`</tbody></table></div>`;
+        body+=`</tr>`;
       });
+      body+=`</tbody></table></div>`;
     }else{
       /* simple / tiered — เรียงตามลำดับ */
       body+=`<table style="width:100%;border-collapse:collapse;font-size:12px;">`;
