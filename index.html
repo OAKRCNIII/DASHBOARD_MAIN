@@ -5377,10 +5377,18 @@ function renderTrCoView(){
     const c=cos[ck];
     const moCount=Object.keys(c.months).length;
     const adv=TR_ADVANCE[ck];
-    const advHtml=adv&&adv.amount>0?`<div style="margin-top:7px;padding:5px 10px;border-radius:8px;background:#faf5ff;border:1px solid #e9d5ff;display:flex;align-items:center;gap:6px;">
-      <span style="font-size:13px;">💰</span>
-      <span style="font-size:12px;font-weight:700;color:#7c3aed;">เบิกล่วงหน้าไป ${fmtAmt(adv.amount)} บาท</span>
-      ${adv.note?`<span style="font-size:10px;color:#94a3b8;">· ${he(adv.note)}</span>`:''}
+    const advDeducted=adv?(adv.deductions||[]).reduce((s,d)=>s+(d.amount||0),0):0;
+    const advRemaining=adv?(adv.amount-advDeducted):0;
+    const advHtml=adv&&adv.amount>0?`<div style="margin-top:7px;padding:7px 10px;border-radius:8px;background:#faf5ff;border:1px solid #e9d5ff;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:13px;">💰</span>
+        <span style="font-size:12px;font-weight:700;color:#7c3aed;">เบิกล่วงหน้าไป ${fmtAmt(adv.amount)} บาท</span>
+        ${adv.note?`<span style="font-size:10px;color:#94a3b8;">· ${he(adv.note)}</span>`:''}
+      </div>
+      ${advDeducted>0?`<div style="margin-top:4px;padding-top:4px;border-top:1px solid #e9d5ff;display:flex;align-items:center;gap:6px;">
+        <span style="font-size:11px;color:#64748b;">ตัดไปแล้ว ${fmtAmt(advDeducted)} ·</span>
+        <span style="font-size:12px;font-weight:800;color:${advRemaining>=0?'#15803d':'#dc2626'};">คงเหลือ ${fmtAmt(Math.abs(advRemaining))} บาท${advRemaining<0?' (เกิน)':''}</span>
+      </div>`:''}
     </div>`:'';;
     cardsHtml+=`<div class="co-card" onclick="trToggleCoDetail('${he(ck)}')">
       <div class="cc-name"><span>🚛 ${he(ck)}</span>
