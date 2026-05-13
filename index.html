@@ -2462,7 +2462,8 @@ function goToPriceInv(nk){
 /* ── global helper: หาช่วงวันที่เข้าโรงงานจาก FLAT สำหรับ invoice ── */
 function getDateRange(inv){
   const nk=normInv(inv);
-  const rec=FLAT.find(d=>normInv(d.inv)===nk);
+  let rec=FLAT.find(d=>normInv(d.inv)===nk);
+  if(!rec){const nkF=nk.replace(/[-_\/]/g,'');rec=FLAT.find(d=>normInv(d.inv).replace(/[-_\/]/g,'')===nkF);}
   if(!rec||!rec.details||!rec.details.length)return null;
   const MONTHS=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
   function parseDt(s){
