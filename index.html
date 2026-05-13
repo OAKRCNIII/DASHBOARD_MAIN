@@ -5377,13 +5377,10 @@ function renderTrCoView(){
     const c=cos[ck];
     const moCount=Object.keys(c.months).length;
     const adv=TR_ADVANCE[ck];
-    const remaining=adv?(adv.amount-c.amount):null;
-    const advHtml=adv?`<div style="margin-top:7px;padding:6px 8px;border-radius:8px;background:${remaining>=0?'#f0fdf4':'#fef2f2'};border:1px solid ${remaining>=0?'#bbf7d0':'#fecaca'};">
-      <div style="font-size:9px;font-weight:700;color:#64748b;margin-bottom:2px;">💰 เบิกล่วงหน้า ${adv.note?`· ${he(adv.note)}`:''}</div>
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-size:10px;color:#94a3b8;">วางบิลไปแล้ว ${fmtAmt(c.amount)}</span>
-        <span style="font-size:13px;font-weight:800;color:${remaining>=0?'#15803d':'#dc2626'};">${remaining>=0?'คงเหลือ':'เกิน'} ${fmtAmt(Math.abs(remaining))}</span>
-      </div>
+    const advHtml=adv&&adv.amount>0?`<div style="margin-top:7px;padding:5px 10px;border-radius:8px;background:#faf5ff;border:1px solid #e9d5ff;display:flex;align-items:center;gap:6px;">
+      <span style="font-size:13px;">💰</span>
+      <span style="font-size:12px;font-weight:700;color:#7c3aed;">เบิกล่วงหน้าไป ${fmtAmt(adv.amount)} บาท</span>
+      ${adv.note?`<span style="font-size:10px;color:#94a3b8;">· ${he(adv.note)}</span>`:''}
     </div>`:'';;
     cardsHtml+=`<div class="co-card" onclick="trToggleCoDetail('${he(ck)}')">
       <div class="cc-name"><span>🚛 ${he(ck)}</span>
