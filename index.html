@@ -2558,7 +2558,7 @@ function renderMobileVesselView(){
     ...Object.values(planMap).sort((a,b)=>(pD(b.date)||new Date(0))-(pD(a.date)||new Date(0)))
   ];
   const upcoming=all.filter(g=>{const d=pD(g.date);return d&&d>=today;})
-    .sort((a,b)=>(pD(a.date)||new Date(0))-(pD(b.date)||new Date(0)));/* ใกล้สุดขึ้นก่อน */
+    .sort((a,b)=>(pD(b.date)||new Date(0))-(pD(a.date)||new Date(0)));/* ใหม่สุด (ETD ไกลสุด) ขึ้นก่อน */
   const past=all.filter(g=>!g.planned&&(!(pD(g.date))||pD(g.date)<today))
     .sort((a,b)=>(pD(b.date)||new Date(0))-(pD(a.date)||new Date(0))).slice(0,20);
 
