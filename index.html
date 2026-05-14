@@ -248,12 +248,22 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
 .ftbl tbody tr:hover td{background:#f0f9ff;}
 .finv-badge{display:inline-block;font-size:9px;font-weight:800;padding:1px 6px;border-radius:5px;margin-right:6px;}
 
-/* ===== MOBILE BOTTOM TABS ===== */
-.mob-tabs{display:none;position:fixed;bottom:0;left:0;right:0;background:white;border-top:1px solid #e2e8f0;z-index:100;padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 -4px 20px rgba(0,0,0,.08);}
-.mob-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px 6px;cursor:pointer;color:#94a3b8;font-size:9px;font-weight:700;gap:2px;transition:all .15s;}
+/* ===== MOBILE BOTTOM TABS (iOS style) ===== */
+.mob-tabs{display:none;position:fixed;bottom:0;left:0;right:0;z-index:100;padding-bottom:env(safe-area-inset-bottom,0px);background:rgba(255,255,255,.88);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid rgba(0,0,0,.08);box-shadow:0 -1px 0 rgba(0,0,0,.05);}
+.mob-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:9px 4px 6px;cursor:pointer;color:#aab4be;font-size:9.5px;font-weight:600;gap:3px;transition:color .15s;-webkit-tap-highlight-color:transparent;user-select:none;}
 .mob-tab.active{color:#0ea5e9;}
-.mob-tab-icon{font-size:20px;line-height:1;}
-.mob-badge{background:#ef4444;color:white;border-radius:8px;padding:0 4px;font-size:9px;font-weight:800;min-width:14px;text-align:center;margin-left:2px;}
+.mob-tab.active .mob-tab-icon{transform:scale(1.08);transition:transform .15s;}
+.mob-tab-icon{font-size:22px;line-height:1;position:relative;transition:transform .15s;}
+.mob-badge{position:absolute;top:-5px;right:-8px;background:#ef4444;color:white;border-radius:9px;padding:1px 5px;font-size:8.5px;font-weight:900;min-width:14px;text-align:center;border:1.5px solid white;line-height:1.3;}
+/* ===== MOBILE HOME CARDS ===== */
+.mhome-stat{border-radius:16px;padding:16px 14px;cursor:pointer;position:relative;overflow:hidden;min-height:90px;display:flex;flex-direction:column;justify-content:flex-end;-webkit-tap-highlight-color:transparent;}
+.mhome-stat-val{font-size:30px;font-weight:900;line-height:1;}
+.mhome-stat-lbl{font-size:11px;font-weight:700;margin-top:4px;}
+.mhome-stat-sub{font-size:9px;margin-top:2px;opacity:.75;}
+.mhome-stat-ico{position:absolute;right:12px;top:10px;font-size:32px;opacity:.25;}
+.mhome-inv-card{margin:6px 16px;background:#fff;border:1.5px solid #e8edf5;border-radius:16px;padding:13px 15px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.05);-webkit-tap-highlight-color:transparent;transition:transform .1s;}
+.mhome-inv-card:active{transform:scale(.98);}
+.mhome-section-hdr{padding:14px 16px 6px;font-size:12px;font-weight:800;color:#374151;letter-spacing:.2px;}
 
 /* ===== DEBT DASHBOARD ===== */
 #debtDash{display:none;flex-direction:column;flex:1;overflow:hidden;background:#fefce8;}
@@ -471,10 +481,10 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
 @media(max-width:600px){
   .htabs{display:none;}
   .mob-tabs{display:flex;}
-  #app{padding-bottom:calc(56px + env(safe-area-inset-bottom,0px));}
-  .stats-bar{gap:6px;padding:6px 10px;}
-  .sc{padding:5px 10px;min-width:85px;}
-  .sc .val{font-size:15px;}
+  #app{padding-bottom:calc(62px + env(safe-area-inset-bottom,0px));}
+  .stats-bar{gap:6px;padding:6px 10px;flex-wrap:nowrap;overflow-x:auto;}
+  .sc{padding:7px 11px;min-width:90px;flex-shrink:0;border-radius:12px!important;}
+  .sc .val{font-size:18px!important;}
   .main-view{flex-direction:column;}
   .month-tabs{width:100%;flex-direction:row;height:44px;padding:0;overflow-x:auto;overflow-y:hidden;}
   .mtab{padding:0 12px;white-space:nowrap;border-left:none;border-bottom:3px solid transparent;height:44px;display:flex;align-items:center;}
@@ -491,6 +501,15 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
   .stock-lbody{grid-template-columns:1fr;}
   .factory-topbar{flex-direction:column;}
   .fdate-bar{width:100%;}
+  /* pending cards — bigger touch targets */
+  .pv-card{border-radius:14px!important;padding:13px 14px!important;margin-bottom:8px!important;}
+  .pv-inv{font-size:15px!important;font-weight:900!important;}
+  .pv-cust{font-size:11px!important;}
+  .prog-bg{height:7px!important;border-radius:6px!important;}
+  .pv-badge{font-size:10px!important;padding:2px 9px!important;border-radius:7px!important;}
+  /* header compact */
+  .header{padding:8px 14px!important;}
+  .hdr-left h1{font-size:14px!important;}
 }
 /* ===== LOGIN ===== */
 #loginScreen{position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f 0%,#0f2a52 100%);display:none;align-items:center;justify-content:center;z-index:99999;}
@@ -773,17 +792,17 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <div class="view" id="reportView" style="flex-direction:column;overflow-y:auto;background:#f0f4ff;">
       <div id="reportWrap" style="max-width:1200px;margin:0 auto;padding:20px;width:100%;box-sizing:border-box;"></div>
     </div>
+    <!-- MOBILE HOME VIEW (mobile only) -->
+    <div class="view" id="mhomeView" style="flex-direction:column;overflow-y:auto;background:#f4f6fb;">
+      <div id="mhomeWrap"></div>
+    </div>
   </div>
-  <!-- Mobile tabs -->
+  <!-- Mobile tabs (4 tabs iOS style) -->
   <div class="mob-tabs">
-    <div class="mob-tab active" id="mtab-main" onclick="switchTab('main')"><div class="mob-tab-icon">📊</div>รายเดือน</div>
-    <div class="mob-tab" id="mtab-pending" onclick="switchTab('pending')"><div class="mob-tab-icon">⏳<span class="mob-badge" id="mBadge" style="display:none;"></span></div>คงค้าง</div>
-    <div class="mob-tab" id="mtab-stock" onclick="switchTab('stock')"><div class="mob-tab-icon">📦</div>STOCK</div>
-    <div class="mob-tab" id="mtab-factory" onclick="switchTab('factory')"><div class="mob-tab-icon">🏭</div>โรงงาน</div>
-    <div class="mob-tab" id="mtab-vessel" onclick="switchTab('vessel')"><div class="mob-tab-icon">🚢</div>เรือ</div>
-    <div class="mob-tab" id="mtab-billing" onclick="switchTab('billing')" style="display:none;"><div class="mob-tab-icon">💼</div>ยังไม่บิล</div>
-    <div class="mob-tab" id="mtab-price" onclick="switchTab('price')" style="display:none;"><div class="mob-tab-icon">💰</div>ราคา</div>
-    <div class="mob-tab" id="mtab-report" onclick="switchTab('report')"><div class="mob-tab-icon">📈</div>รายงาน</div>
+    <div class="mob-tab active" id="mtab-mhome" onclick="switchTab('mhome')"><div class="mob-tab-icon">🏠</div>หน้าหลัก</div>
+    <div class="mob-tab" id="mtab-pending" onclick="switchTab('pending')"><div class="mob-tab-icon" style="position:relative;">⏳<span class="mob-badge" id="mBadge" style="display:none;"></span></div>คงค้าง</div>
+    <div class="mob-tab" id="mtab-main" onclick="switchTab('main')"><div class="mob-tab-icon">📋</div>รายเดือน</div>
+    <div class="mob-tab" id="mtab-finance" onclick="switchTab('finance')"><div class="mob-tab-icon">🚛</div>ขนส่ง</div>
   </div>
   </div><!-- end #mainDash -->
 
@@ -2118,8 +2137,9 @@ const isLoaded=inv=>{
 
 function switchTab(tab){
   curTab=tab;
-  ['main','pending','stock','factory','vessel','billing','finance','price','report'].forEach(t=>{
-    document.getElementById(t+'View').classList.toggle('active',t===tab);
+  const allViews=['main','pending','stock','factory','vessel','billing','finance','price','report','mhome'];
+  allViews.forEach(t=>{
+    const v=document.getElementById(t+'View');if(v)v.classList.toggle('active',t===tab);
     const h2=document.getElementById('htab-'+t);if(h2)h2.classList.toggle('active',t===tab);
     const m2=document.getElementById('mtab-'+t);if(m2)m2.classList.toggle('active',t===tab);
   });
@@ -2132,7 +2152,98 @@ function switchTab(tab){
   if(tab==='finance'){renderFinance();}
   if(tab==='price'){renderPriceLatest();}
   if(tab==='report'){renderReport();}
+  if(tab==='mhome'){renderMobileHome();renderStatsMain();}
 }
+/* ── MOBILE HOME VIEW ── */
+function renderMobileHome(){
+  const el=document.getElementById('mhomeWrap');if(!el)return;
+  const h2=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  /* calc stats */
+  const pending=FLAT.filter(d=>d.month!=='-'&&d.doc_status!=='ปล่อยเอกสารแล้ว');
+  const missing=pending.filter(d=>d.total_expected>0&&d.total_actual<d.total_expected&&mNum(d.month)!==1);
+  const missingCtrs=missing.reduce((s,d)=>s+Math.max(0,d.total_expected-d.total_actual),0);
+  const containerDone=pending.filter(d=>d.total_expected===0||d.total_actual>=d.total_expected).length;
+  const readyBill=_canSeeBilledPaid()?getReadyToBill().length:0;
+  /* top pending invoices */
+  const topPend=[...missing].sort((a,b)=>mSort(b.month,a.month)).slice(0,8);
+  /* date */
+  const today=new Date();
+  const ds=today.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short'});
+  let html=`
+  <div style="background:linear-gradient(160deg,#0a1628 0%,#1a3a6b 100%);padding:20px 18px 18px;padding-top:calc(20px + env(safe-area-inset-top,0px));">
+    <div style="font-size:10px;color:rgba(255,255,255,.55);font-weight:600;letter-spacing:.5px;text-transform:uppercase;">${ds}</div>
+    <div style="font-size:20px;font-weight:900;color:#fff;margin-top:3px;letter-spacing:-.3px;">🚢 ANTS Dashboard</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">${pending.length} อินวอยซ์คงค้าง</div>
+  </div>
+  <div style="padding:14px 16px 4px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="mhome-stat" onclick="switchTab('pending')" style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1.5px solid #fde68a;">
+      <span class="mhome-stat-ico">⏳</span>
+      <div class="mhome-stat-val" style="color:#92400e;">${missing.length}</div>
+      <div class="mhome-stat-lbl" style="color:#b45309;">ตู้ยังไม่ครบ</div>
+      <div class="mhome-stat-sub" style="color:#d97706;">อินวอยซ์ · แตะเพื่อดู</div>
+    </div>
+    <div class="mhome-stat" onclick="showStatModal('done')" style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border:1.5px solid #c4b5fd;">
+      <span class="mhome-stat-ico">✅</span>
+      <div class="mhome-stat-val" style="color:#5b21b6;">${containerDone}</div>
+      <div class="mhome-stat-lbl" style="color:#6d28d9;">ตู้ครบแล้ว</div>
+      <div class="mhome-stat-sub" style="color:#7c3aed;">รอปล่อยเอกสาร</div>
+    </div>
+    <div class="mhome-stat" style="background:linear-gradient(135deg,#fef2f2,#fff1f2);border:1.5px solid #fecaca;cursor:default;">
+      <span class="mhome-stat-ico">📦</span>
+      <div class="mhome-stat-val" style="color:#991b1b;">${missingCtrs}</div>
+      <div class="mhome-stat-lbl" style="color:#b91c1c;">ตู้ขาดรวม</div>
+      <div class="mhome-stat-sub" style="color:#dc2626;">ทุกอินวอยซ์</div>
+    </div>
+    ${_canSeeBilledPaid()&&readyBill>0?`<div class="mhome-stat" onclick="switchTab('billing')" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #bbf7d0;">
+      <span class="mhome-stat-ico">💼</span>
+      <div class="mhome-stat-val" style="color:#166534;">${readyBill}</div>
+      <div class="mhome-stat-lbl" style="color:#15803d;">รอวางบิล</div>
+      <div class="mhome-stat-sub" style="color:#16a34a;">แตะเพื่อดู</div>
+    </div>`:`<div class="mhome-stat" onclick="switchTab('main')" style="background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border:1.5px solid #bae6fd;">
+      <span class="mhome-stat-ico">📋</span>
+      <div class="mhome-stat-val" style="color:#0c4a6e;">${FLAT.filter(d=>d.month!=='-').length}</div>
+      <div class="mhome-stat-lbl" style="color:#0369a1;">อินวอยซ์ทั้งหมด</div>
+      <div class="mhome-stat-sub" style="color:#0ea5e9;">แตะเพื่อดูรายเดือน</div>
+    </div>`}
+  </div>
+  <div class="mhome-section-hdr">⏳ คงค้างล่าสุด</div>`;
+
+  if(!topPend.length){
+    html+=`<div style="margin:20px 16px;text-align:center;padding:24px;background:#fff;border-radius:16px;border:1.5px dashed #e2e8f0;"><div style="font-size:28px;margin-bottom:6px;">✅</div><div style="font-size:13px;font-weight:700;color:#374151;">ไม่มีอินวอยซ์คงค้าง</div><div style="font-size:11px;color:#94a3b8;margin-top:4px;">ทุกตู้เข้าครบหมดแล้ว</div></div>`;
+  } else {
+    topPend.forEach(d=>{
+      const pndCnt=PEND_CTRS.filter(c=>c.inv&&normInv(c.inv)===normInv(d.inv)).length;
+      const confirmed=d.total_actual-pndCnt,left=Math.max(0,d.total_expected-d.total_actual);
+      const pct=d.total_expected>0?Math.round(confirmed/d.total_expected*100):0;
+      const pendPct=pndCnt>0?Math.min(Math.round(pndCnt/d.total_expected*100),100-pct):0;
+      const s=pst(d.prefix);
+      const bc=confirmed===0?'#ef4444':(pct<50?'#f97316':pct<80?'#eab308':'#22c55e');
+      html+=`<div class="mhome-inv-card" onclick="switchTab('pending');setTimeout(()=>selPending(${d.id}),80)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
+          <span style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd};border-radius:7px;padding:2px 9px;font-size:10px;font-weight:800;">${h2(d.prefix)}</span>
+          <span style="font-size:13px;font-weight:800;color:#111827;flex:1;">${h2(d.inv)}</span>
+          <span style="font-size:10px;color:#94a3b8;white-space:nowrap;">${mLabel(d.month)}</span>
+        </div>
+        ${d.customer&&d.customer!=='-'?`<div style="font-size:10px;color:#6b7280;margin-bottom:6px;">🏭 ${h2(d.customer)}</div>`:''}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+          <span style="font-size:12px;font-weight:800;color:${s.tx};">${confirmed}/${d.total_expected} ตู้</span>
+          <span style="display:flex;align-items:center;gap:5px;">
+            ${pndCnt>0?`<span style="font-size:9.5px;color:${s.tx};background:${s.bg};border:1px solid ${s.bd};border-radius:4px;padding:1px 5px;">⏳+${pndCnt}</span>`:''}
+            ${left>0?`<span style="font-size:10px;color:#dc2626;font-weight:700;">ขาด ${left} ตู้</span>`:''}
+          </span>
+        </div>
+        <div style="background:#e5e7eb;border-radius:6px;height:7px;overflow:hidden;display:flex;">
+          <div style="width:${pct}%;background:${bc};height:100%;"></div>
+          <div style="width:${pendPct}%;background:${bc};opacity:0.35;height:100%;"></div>
+        </div>
+      </div>`;
+    });
+    if(missing.length>8)html+=`<div onclick="switchTab('pending')" style="margin:4px 16px 8px;padding:12px;text-align:center;color:#0ea5e9;font-size:12px;font-weight:700;cursor:pointer;background:#f0f9ff;border-radius:12px;border:1px solid #bae6fd;">ดูทั้งหมด ${missing.length} รายการ →</div>`;
+  }
+  html+=`<div style="height:24px;"></div>`;
+  el.innerHTML=html;
+}
+
 const kc=(l,v,s,c,f)=>`<div class="sc${f?' sc-click':''}"${f?` data-filter="${f}"`:''}style="border-left-color:${c}!important"><div class="lbl2">${l}</div><div class="val" style="color:${c}!important">${v}</div><div class="sub2">${s}${f?' · คลิกดู':''}</div></div>`;
 function renderStatsMain(){
   /* กรองอินวอยซ์เก่าปี 2025 (month='-') ออกจาก stats ทั้งหมด */
@@ -7233,6 +7344,8 @@ function showDashboard(data){
   const now=new Date();document.getElementById('lastUpd').textContent='☁️ Supabase · '+pad(now.getHours())+':'+pad(now.getMinutes());
   renderTabs();renderStatsMain();const m=Object.keys(BY_MONTH).sort()[0];if(m)selMonth(m);
   applyRoleRestrictions();
+  /* บนมือถือให้เริ่มที่หน้าหลัก */
+  if(window.innerWidth<=600)switchTab('mhome');
 }
 async function updateFolderUI(){
   const box=document.getElementById('folderBox');const nm=document.getElementById('folderName');const sub=document.getElementById('folderSub');const empty=document.getElementById('folderEmpty');const hint=document.getElementById('folderHint');
