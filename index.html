@@ -2644,9 +2644,16 @@ function renderMobileVesselView(){
       if(pln.length){const v=pln.reduce((s,x)=>s+x.vol,0);parts.push(`${pln[0].rows.length} INV${v?` · ${v} ตู้`:''}`);}
       if(flt.length){const v=flt.reduce((s,x)=>s+x.vol,0);parts.push(`ลอย ${flt.reduce((s,x)=>s+x.rows.length,0)} BKG · ${v} ตู้`);}
       summaryTxt=parts.join(' / ');
+    } else if(g.hasMixed){
+      /* mixed card — แสดงแค่ plan/float เพราะ จัดแล้ว ซ้ำกัน */
+      const flt=(g.planSections||[]).filter(s=>s.isFloat);
+      const pln=(g.planSections||[]).filter(s=>!s.isFloat);
+      const parts=[];
+      if(pln.length){const v=pln.reduce((s,x)=>s+x.vol,0);parts.push(`แผน ${pln[0].rows.length} INV · ${v} ตู้`);}
+      if(flt.length){const v=flt.reduce((s,x)=>s+x.vol,0);parts.push(`ลอย ${flt.reduce((s,x)=>s+x.rows.length,0)} BKG · ${v} ตู้`);}
+      summaryTxt=parts.join(' / ')||`${g.rows.length} INV · ${confirmVol} ตู้`;
     } else {
       summaryTxt=`${g.rows.length} INV · ${confirmVol} ตู้`;
-      if(planVolTotal>0)summaryTxt+=` (+${planVolTotal} แผน/ลอย)`;
     }
 
     let out=`<div style="background:${bg};border-radius:14px;margin-bottom:10px;overflow:hidden;${shadow}border:${bdr};${isPlanOnly?'opacity:.88;':''}">`;
@@ -2662,12 +2669,11 @@ function renderMobileVesselView(){
     out+=`<div style="font-size:20px;color:#cbd5e0;flex-shrink:0;">${isOpen?'▾':'›'}</div>`;
     out+=`</div>`;
 
-    /* expanded detail — confirmed section + plan sections แยกกัน */
+    /* expanded detail — แสดง plan/float sections เท่านั้น (ซ่อน จัดแล้ว เมื่อ mixed เพราะข้อมูลซ้ำ) */
     if(isOpen){
       out+=`<div style="border-top:1px solid rgba(0,0,0,.06);">`;
-      /* ── จัดแล้ว ── */
-      if(g.rows&&g.rows.length){
-        if(hasPlanSec)out+=`<div style="padding:6px 14px 2px;font-size:10px;font-weight:800;color:#166534;letter-spacing:.5px;text-transform:uppercase;">✅ จัดแล้ว · ${confirmVol} ตู้</div>`;
+      /* ── จัดแล้ว — แสดงเฉพาะเมื่อไม่มี plan sections (pure confirmed card) ── */
+      if(g.rows&&g.rows.length&&!g.hasMixed){
         out+=`<div style="padding:0 14px 8px;">${renderRows(g.rows,'#16a34a')}</div>`;
       }
       /* ── plan sections (แผน / ลอย) ── */
