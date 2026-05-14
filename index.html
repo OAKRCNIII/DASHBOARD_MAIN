@@ -441,6 +441,33 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
 .dash-toggle-btn:hover{background:rgba(255,255,255,.22);}
 .dash-toggle-btn.tr-active{background:linear-gradient(135deg,#059669,#10b981);border-color:#059669;color:white;box-shadow:0 2px 10px rgba(5,150,105,.4);}
 
+/* ===== TRANSPORT DASHBOARD — MOBILE ===== */
+@media(max-width:960px){
+  #trDash .stats-bar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:8px 12px;}
+  #trDash .stats-bar::-webkit-scrollbar{display:none;}
+  #trDash .sc{min-width:88px;padding:6px 10px;flex-shrink:0;}
+  #trDash .sc .val{font-size:15px;}
+  /* Filter bar — horizontal scroll */
+  #trDash .filter-bar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:7px 10px;gap:5px;}
+  #trDash .filter-bar::-webkit-scrollbar{display:none;}
+  #trDash .search-wrap{display:none;}  /* ซ่อน search บนมือถือ — ใช้ filter แทน */
+  /* View toggle — horizontal scroll */
+  #trDash .view-toggle{margin-left:0;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:5px;width:100%;border-top:1px solid #f1f5f9;padding-top:7px;margin-top:4px;}
+  #trDash .view-toggle::-webkit-scrollbar{display:none;}
+  #trDash .vtab{font-size:10px;padding:4px 10px;flex-shrink:0;white-space:nowrap;}
+  /* Prefix bar — horizontal scroll */
+  #trDash .prefix-bar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:5px 10px 6px;}
+  #trDash .prefix-bar::-webkit-scrollbar{display:none;}
+  /* Table — scrollable */
+  #trDash .tbl-wrap{overflow:auto;padding:8px 8px 80px;}
+  #trDash .inv-tbl th,#trDash .inv-tbl td{font-size:10px;padding:7px 8px;white-space:nowrap;}
+  /* Month grid — single column */
+  #trDash .month-grid{grid-template-columns:1fr;}
+  #trDash .month-wrap{padding:8px 10px 80px;}
+  /* AL modal full screen on mobile */
+  .tr-al-modal{width:100%!important;max-width:100%!important;height:100dvh!important;border-radius:0!important;}
+}
+
 /* ===== TRANSPORT COMPANY CARDS ===== */
 .co-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:16px;}
 .co-card{background:white;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.08);padding:14px 16px;border-left:4px solid #7c3aed;cursor:pointer;transition:all .15s;}
@@ -2209,7 +2236,19 @@ function switchTab(tab){
   if(tab==='report'){renderReport();}
   if(tab==='mhome'){renderMobileHome();renderStatsMain();}
   if(tab==='mmonth'){renderMobileMonthView();}
-  if(tab==='mtr'){renderMobileTrView();}
+  if(tab==='mtr'){
+    /* แสดง transport dashboard (trDash) แทน mtrView */
+    _showTransport=true;
+    document.getElementById('mainDash').style.display='none';
+    document.getElementById('trDash').style.display='flex';
+    const dd=document.getElementById('debtDash');if(dd)dd.style.display='none';
+    TR_FILTER='all';TR_PREFIX='all';TR_SEARCH='';TR_OPEN.clear();
+    const si=document.getElementById('trSearchInp');if(si)si.value='';
+    /* default เปิด month view ก่อน — อ่านง่ายบนมือถือ */
+    TR_VIEW='month';
+    document.querySelectorAll('#trDash .vtab').forEach(b=>b.classList.toggle('active',b.dataset.v==='month'));
+    renderTransport();
+  }
 }
 /* ── MOBILE HOME VIEW ── */
 function renderMobileHome(){
