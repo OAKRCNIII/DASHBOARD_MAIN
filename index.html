@@ -2528,14 +2528,28 @@ function renderMobileVesselView(){
 
   /* ── 2. VESSEL_PLAN ที่ยังไม่ออก (ETD ในอนาคต, ยังไม่อยู่ใน VESSEL) ── */
   const loadedInvs=new Set(VESSEL.map(r=>normInv(r.inv)));
-  const planMap={};/* vessel|||etd → {vessel,date,rows:[{inv,vol}],planned:true} */
+  /* สร้าง map inv → total_expected จาก FLAT */
+  const flatVolMap={};FLAT.forEach(d=>{flatVolMap[normInv(d.inv)]=d.total_expected||0;});
+  const planMap={};/* vessel|||etd → {vessel,date,rows:[{inv,vol}],vol,planned:true} */
   Object.entries(VESSEL_PLAN).forEach(([invUp,vp])=>{
     if(!vp.etd||!vp.vessel)return;
-    if(loadedInvs.has(normInv(invUp)))return;/* ออกไปแล้ว ข้าม */
-    const d=pD(vp.etd);if(!d||d<today)return;/* ผ่านไปแล้วหรือไม่มีวันที่ ข้าม */
+    if(loadedInvs.has(normInv(invUp)))return;
+    const d=pD(vp.etd);if(!d||d<today)return;
     const k=vp.vessel+'|||'+vp.etd;
     if(!planMap[k])planMap[k]={vessel:vp.vessel,date:vp.etd,rows:[],vol:0,planned:true};
-    planMap[k].rows.push({inv:invUp,vol:0});/* vol ไม่รู้ล่วงหน้า */
+    const v=flatVolMap[normInv(invUp)]||0;
+    planMap[k].rows.push({inv:invUp,vol:v});
+    planMap[k].vol+=v;
+  });
+  /* ── 3. VESSEL_PLAN_FLOAT (ลอย / LOY) ── */
+  Object.values(VESSEL_PLAN_FLOAT).forEach(fp=>{
+    if(!fp.etd||!fp.vessel)return;
+    const d=pD(fp.etd);if(!d||d<today)return;
+    const k=fp.vessel+'|||'+fp.etd+'|||FLOAT';
+    const totalVol=fp.bkgs.reduce((s,b)=>s+(b.vol||0),0);
+    /* แสดงเป็น row ๆ ต่อ BKG */
+    const rows=fp.bkgs.map(b=>({inv:`LOY (${b.bkg||'-'})`,vol:b.vol||0,isFloat:true}));
+    planMap[k]={vessel:fp.vessel,date:fp.etd,rows,vol:totalVol,planned:true,isFloat:true};
   });
 
   /* ── รวม + เรียงวันที่ ── */
@@ -2562,7 +2576,8 @@ function renderMobileVesselView(){
       else if(diff===1)chip='<span style="background:#84cc16;color:#fff;border-radius:6px;padding:1px 8px;font-size:10px;font-weight:800;">พรุ่งนี้</span>';
       else if(diff>1)chip=`<span style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:6px;padding:1px 8px;font-size:10px;font-weight:700;">อีก ${diff} วัน</span>`;
     } else {
-      chip=`<span style="background:#fef9c3;color:#92400e;border:1px solid #fde68a;border-radius:6px;padding:1px 8px;font-size:10px;font-weight:800;">แผน${diff>0?` · อีก ${diff} วัน`:''}</span>`;
+      const planLabel=g.isFloat?'ลอย':'แผน';
+      chip=`<span style="background:${g.isFloat?'#f0f9ff':'#fef9c3'};color:${g.isFloat?'#0369a1':'#92400e'};border:1px solid ${g.isFloat?'#bae6fd':'#fde68a'};border-radius:6px;padding:1px 8px;font-size:10px;font-weight:800;">${planLabel}${diff>0?` · อีก ${diff} วัน`:''}</span>`;
     }
 
     /* สไตล์: แพลน = กรอบประ สีจาง, จริง = กรอบทึบ */
@@ -2574,11 +2589,14 @@ function renderMobileVesselView(){
     let out=`<div style="background:${bg};border-radius:14px;margin-bottom:10px;overflow:hidden;${shadow}border:${bdr};${opacity}">`;
     out+=`<div onclick="toggleMVesselGroup(${idx})" style="padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;-webkit-tap-highlight-color:transparent;">`;
     out+=`<div style="flex:1;min-width:0;">`;
-    out+=`<div style="font-size:13px;font-weight:${isPlan?700:900};color:${isPlan?'#475569':'#0f172a'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${isPlan?'🗓️':'🚢'} ${esc(g.vessel)}</div>`;
+    const ico=!isPlan?'🚢':g.isFloat?'🌊':'🗓️';
+    out+=`<div style="font-size:13px;font-weight:${isPlan?700:900};color:${isPlan?'#475569':'#0f172a'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ico} ${esc(g.vessel)}</div>`;
     out+=`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;">`;
     out+=`<span style="font-size:12px;color:${isPlan?'#94a3b8':(isUp?'#0369a1':'#64748b')};font-weight:700;">📅 ${esc(g.date)}</span>`;
+    const volTxt=g.vol>0?` · ${g.vol} ตู้`:'';
+    const invLabel=g.isFloat?`ลอย ${g.rows.length} BKG`:`${g.rows.length} INV`;
     if(!isPlan)out+=`<span style="font-size:11px;color:#94a3b8;">${g.rows.length} INV · ${g.vol} ตู้</span>`;
-    else out+=`<span style="font-size:11px;color:#94a3b8;">${g.rows.length} INV (แผน)</span>`;
+    else out+=`<span style="font-size:11px;color:#94a3b8;">${invLabel}${volTxt}</span>`;
     if(chip)out+=chip;
     out+=`</div></div>`;
     out+=`<div style="font-size:20px;color:#cbd5e0;flex-shrink:0;">${isOpen?'▾':'›'}</div>`;
@@ -2594,7 +2612,8 @@ function renderMobileVesselView(){
         out+=`<span style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd};border-radius:5px;padding:1px 7px;font-size:10px;font-weight:800;white-space:nowrap;">${esc(getPfx(r.inv))}</span>`;
         out+=`<span style="font-size:13px;font-weight:700;color:#111827;">${esc(r.inv)}</span>`;
         out+=`</div>`;
-        if(!isPlan&&r.vol)out+=`<span style="font-size:13px;font-weight:800;color:#16a34a;white-space:nowrap;">${r.vol} ตู้</span>`;
+        if(r.vol>0)out+=`<span style="font-size:13px;font-weight:800;color:${isPlan?'#92400e':'#16a34a'};white-space:nowrap;">${r.vol} ตู้</span>`;
+        else if(isPlan)out+=`<span style="font-size:11px;color:#94a3b8;">—</span>`;
         out+=`</div>`;
       });
       out+=`</div>`;
