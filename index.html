@@ -873,6 +873,16 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
       <!-- Company cards -->
       <div id="mtrCoCards" style="flex:1;overflow-y:auto;padding:10px 14px;"></div>
     </div>
+    <!-- MOBILE VESSEL VIEW (ปฏิทินเรือ — mobile only) -->
+    <div class="view" id="mVesselView" style="flex-direction:column;overflow-y:hidden;background:#f0f4fa;">
+      <!-- Header -->
+      <div style="padding:12px 16px 10px;background:linear-gradient(100deg,#0a1628,#12284d);flex-shrink:0;">
+        <div style="font-size:16px;font-weight:900;color:#fff;letter-spacing:-.2px;">🚢 ปฏิทินเรือ</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:2px;">กดที่การ์ดเพื่อดูรายการอินวอยซ์</div>
+      </div>
+      <!-- Vessel list (timeline) -->
+      <div id="mVesselWrap" style="flex:1;overflow-y:auto;padding:12px 14px 80px;"></div>
+    </div>
   </div>
   </div><!-- end #mainDash -->
   <!-- Mobile tabs (iOS style — moved outside mainDash so visible in all views) -->
@@ -881,8 +891,9 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <div class="mob-tab" id="mtab-pending" onclick="switchTab('pending')"><div class="mob-tab-icon" style="position:relative;">⏳<span class="mob-badge" id="mBadge" style="display:none;"></span></div>คงค้าง</div>
     <div class="mob-tab" id="mtab-mmonth" onclick="switchTab('mmonth')"><div class="mob-tab-icon">📋</div>รายเดือน</div>
     <div class="mob-tab" id="mtab-mtr" onclick="switchTab('mtr')"><div class="mob-tab-icon">🚛</div>ขนส่ง</div>
+    <div class="mob-tab" id="mtab-mvessel" onclick="switchTab('mvessel')"><div class="mob-tab-icon">🚢</div>เรือ</div>
     <!-- Tab เพิ่มเติมสำหรับ Z Fold 6 unfolded -->
-    <div class="mob-tab mob-tab-fold" id="mtab-vessel" onclick="switchTab('vessel')" style="display:none;"><div class="mob-tab-icon">🚢</div>เรือ</div>
+    <div class="mob-tab mob-tab-fold" id="mtab-vessel" onclick="switchTab('vessel')" style="display:none;"><div class="mob-tab-icon">📋</div>เรือ(ครบ)</div>
     <div class="mob-tab mob-tab-fold" id="mtab-factory" onclick="switchTab('factory')" style="display:none;"><div class="mob-tab-icon">🏭</div>โรงงาน</div>
   </div>
 
@@ -2227,7 +2238,7 @@ function switchTab(tab){
     document.getElementById('mainDash').style.display='flex';
     document.getElementById('trDash').style.display='none';
   }
-  const allViews=['main','pending','stock','factory','vessel','billing','finance','price','report','mhome','mmonth','mtr'];
+  const allViews=['main','pending','stock','factory','vessel','billing','finance','price','report','mhome','mmonth','mtr','mvessel'];
   allViews.forEach(t=>{
     const v=document.getElementById(t+'View');if(v)v.classList.toggle('active',t===tab);
     const h2=document.getElementById('htab-'+t);if(h2)h2.classList.toggle('active',t===tab);
@@ -2244,6 +2255,7 @@ function switchTab(tab){
   if(tab==='report'){renderReport();}
   if(tab==='mhome'){renderMobileHome();renderStatsMain();}
   if(tab==='mmonth'){renderMobileMonthView();}
+  if(tab==='mvessel'){renderMobileVesselView();}
   if(tab==='mtr'){
     /* แสดง transport dashboard (trDash) แทน mtrView */
     _showTransport=true;
@@ -2488,6 +2500,90 @@ function renderMobileTrView(){
 function selMtrMonth(m){
   _mtrMonthSel=m;
   renderMobileTrView();
+}
+
+/* ── MOBILE VESSEL VIEW ── */
+let _mVesselOpen=new Set();
+function toggleMVesselGroup(key){
+  if(_mVesselOpen.has(key))_mVesselOpen.delete(key);
+  else{_mVesselOpen.clear();_mVesselOpen.add(key);}/* เปิดครั้งละ 1 */
+  renderMobileVesselView();
+}
+function renderMobileVesselView(){
+  const el=document.getElementById('mVesselWrap');if(!el)return;
+  if(!VESSEL.length){
+    el.innerHTML='<div style="text-align:center;padding:60px 20px;color:#94a3b8;"><div style="font-size:52px;margin-bottom:12px;">🚢</div><div style="font-size:14px;font-weight:700;color:#475569;">ยังไม่มีข้อมูลเรือ</div><div style="font-size:12px;margin-top:6px;">ตั้งค่า VESSEL_MANAGE.xlsm ก่อน</div></div>';
+    return;
+  }
+  const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const today=new Date();today.setHours(0,0,0,0);
+  const pD=s=>{if(!s||s==='-')return null;const p=s.split('/');if(p.length!==3)return null;const yy=parseInt(p[2]);return new Date(yy<100?2000+yy:yy,parseInt(p[1])-1,parseInt(p[0]));};
+
+  /* group by vessel+date */
+  const groups={};
+  VESSEL.forEach(r=>{
+    const k=r.vessel+'|||'+r.date;
+    if(!groups[k])groups[k]={vessel:r.vessel,date:r.date,rows:[],vol:0};
+    groups[k].rows.push(r);groups[k].vol+=r.vol;
+  });
+  const sorted=Object.values(groups).sort((a,b)=>(pD(b.date)||new Date(0))-(pD(a.date)||new Date(0)));
+  const upcoming=sorted.filter(g=>{const d=pD(g.date);return d&&d>=today;});
+  const past=sorted.filter(g=>{const d=pD(g.date);return !d||d<today;});
+
+  const renderCard=g=>{
+    const gkey=g.vessel+'|||'+g.date;
+    const isOpen=_mVesselOpen.has(gkey);
+    const d=pD(g.date);
+    const isUp=d&&d>=today;
+    const diff=d?Math.round((d-today)/(86400000)):null;
+    let dayChip='';
+    if(diff===0)dayChip='<span style="background:#22c55e;color:#fff;border-radius:6px;padding:1px 8px;font-size:10px;font-weight:800;margin-left:6px;">วันนี้!</span>';
+    else if(diff===1)dayChip='<span style="background:#84cc16;color:#fff;border-radius:6px;padding:1px 8px;font-size:10px;font-weight:800;margin-left:6px;">พรุ่งนี้</span>';
+    else if(diff>1)dayChip=`<span style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:6px;padding:1px 8px;font-size:10px;font-weight:700;margin-left:6px;">อีก ${diff} วัน</span>`;
+    const bdrColor=isUp?(diff<=3?'#22c55e':'#60a5fa'):'#d1d5db';
+    const bgGrad=isUp?(diff<=3?'linear-gradient(135deg,#f0fdf4,#dcfce7)':'linear-gradient(135deg,#eff6ff,#dbeafe)'):'#fff';
+    let out=`<div style="background:${bgGrad};border-radius:14px;margin-bottom:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.07);border-left:4px solid ${bdrColor};">`;
+    /* header row — tappable */
+    out+=`<div onclick="toggleMVesselGroup(${JSON.stringify(gkey)})" style="padding:13px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;-webkit-tap-highlight-color:transparent;">`;
+    out+=`<div style="flex:1;min-width:0;">`;
+    out+=`<div style="font-size:13px;font-weight:900;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">🚢 ${esc(g.vessel)}</div>`;
+    out+=`<div style="display:flex;align-items:center;flex-wrap:wrap;margin-top:4px;gap:0;">`;
+    out+=`<span style="font-size:12px;color:${isUp?'#0369a1':'#64748b'};font-weight:700;">📅 ${esc(g.date)}</span>`;
+    out+=`<span style="font-size:11px;color:#94a3b8;margin-left:8px;">${g.rows.length} INV · ${g.vol} ตู้</span>`;
+    out+=dayChip;
+    out+=`</div></div>`;
+    out+=`<div style="font-size:22px;color:#94a3b8;flex-shrink:0;">${isOpen?'▾':'›'}</div>`;
+    out+=`</div>`;
+    /* invoice list — expanded */
+    if(isOpen){
+      out+=`<div style="border-top:1px solid rgba(0,0,0,.06);background:rgba(255,255,255,.6);padding:6px 14px 12px;">`;
+      g.rows.forEach(r=>{
+        const s=pst(getPfx(r.inv));
+        out+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f1f5f9;">`;
+        out+=`<span style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd};border-radius:5px;padding:1px 8px;font-size:10px;font-weight:800;white-space:nowrap;">${esc(getPfx(r.inv))}</span>`;
+        out+=`<span style="flex:1;font-size:12px;font-weight:700;color:#111827;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(r.inv)}</span>`;
+        out+=`<span style="font-size:11px;color:#64748b;white-space:nowrap;">${esc(r.des)}</span>`;
+        out+=`<span style="font-size:12px;font-weight:800;color:#16a34a;white-space:nowrap;margin-left:4px;">${r.vol}🗳</span>`;
+        out+=`</div>`;
+      });
+      out+=`</div>`;
+    }
+    out+=`</div>`;
+    return out;
+  };
+
+  let html='';
+  if(upcoming.length){
+    html+=`<div style="font-size:10px;font-weight:800;color:#0369a1;letter-spacing:.8px;text-transform:uppercase;margin-bottom:8px;">📅 กำลังจะออก — ${upcoming.length} เที่ยว</div>`;
+    upcoming.forEach(g=>{html+=renderCard(g);});
+  }
+  if(past.length){
+    const showPast=past.slice(0,20);/* แสดงแค่ 20 รอบล่าสุด */
+    html+=`<div style="font-size:10px;font-weight:800;color:#94a3b8;letter-spacing:.8px;text-transform:uppercase;margin:${upcoming.length?'16px':'0'} 0 8px;">── ออกไปแล้ว — ${past.length} เที่ยว</div>`;
+    showPast.forEach(g=>{html+=renderCard(g);});
+    if(past.length>20)html+=`<div style="text-align:center;font-size:11px;color:#94a3b8;padding:8px 0;">แสดง 20 รอบล่าสุด จาก ${past.length} รอบ</div>`;
+  }
+  el.innerHTML=html;
 }
 
 function updateMobTabsForDevice(){
