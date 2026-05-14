@@ -2644,8 +2644,8 @@ function renderMobileVesselView(){
       if(pln.length){const v=pln.reduce((s,x)=>s+x.vol,0);parts.push(`${pln[0].rows.length} INV${v?` · ${v} ตู้`:''}`);}
       if(flt.length){const v=flt.reduce((s,x)=>s+x.vol,0);parts.push(`ลอย ${flt.reduce((s,x)=>s+x.rows.length,0)} BKG · ${v} ตู้`);}
       summaryTxt=parts.join(' / ');
-    } else if(g.hasMixed){
-      /* mixed card — แสดงแค่ plan/float เพราะ จัดแล้ว ซ้ำกัน */
+    } else if(g.planSections&&g.planSections.length){
+      /* มี planSections — แสดงแค่ plan/float เพราะ จัดแล้ว ซ้ำกัน */
       const flt=(g.planSections||[]).filter(s=>s.isFloat);
       const pln=(g.planSections||[]).filter(s=>!s.isFloat);
       const parts=[];
@@ -2672,8 +2672,9 @@ function renderMobileVesselView(){
     /* expanded detail — แสดง plan/float sections เท่านั้น (ซ่อน จัดแล้ว เมื่อ mixed เพราะข้อมูลซ้ำ) */
     if(isOpen){
       out+=`<div style="border-top:1px solid rgba(0,0,0,.06);">`;
-      /* ── จัดแล้ว — แสดงเฉพาะเมื่อไม่มี plan sections (pure confirmed card) ── */
-      if(g.rows&&g.rows.length&&!g.hasMixed){
+      /* ── จัดแล้ว — ซ่อนถ้ามี planSections (ข้อมูลซ้ำ) ── */
+      const _hasPlan=g.planSections&&g.planSections.length>0;
+      if(g.rows&&g.rows.length&&!_hasPlan){
         out+=`<div style="padding:0 14px 8px;">${renderRows(g.rows,'#16a34a')}</div>`;
       }
       /* ── plan sections (แผน / ลอย) ── */
