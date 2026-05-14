@@ -816,18 +816,44 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <div class="view" id="mhomeView" style="flex-direction:column;overflow-y:auto;background:#f4f6fb;">
       <div id="mhomeWrap"></div>
     </div>
+    <!-- MOBILE MONTH VIEW (mobile only) -->
+    <div class="view" id="mmonthView" style="flex-direction:column;overflow-y:hidden;background:#f4f6fb;">
+      <!-- Month pills row -->
+      <div id="mmonthPills" style="display:flex;gap:8px;padding:10px 14px;background:#fff;border-bottom:1px solid #e8edf5;overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch;scrollbar-width:none;"></div>
+      <!-- Invoice list -->
+      <div id="mmonthList" style="flex:1;overflow-y:auto;padding:10px 14px;"></div>
+      <!-- Invoice detail panel (slide from right) -->
+      <div id="mmonthDetail" style="display:none;position:absolute;inset:0;background:#f4f6fb;overflow-y:auto;z-index:50;">
+        <div style="padding:10px 14px;background:#fff;border-bottom:1px solid #e8edf5;display:flex;align-items:center;gap:10px;flex-shrink:0;position:sticky;top:0;z-index:10;">
+          <button onclick="closeMmonthDetail()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#0ea5e9;padding:2px 6px;">‹</button>
+          <span id="mmonthDetailTitle" style="font-size:14px;font-weight:800;color:#111827;"></span>
+        </div>
+        <div id="mmonthDetailBody" style="padding:12px 14px;"></div>
+      </div>
+    </div>
+    <!-- MOBILE TRANSPORT VIEW (mobile only — shows company cards) -->
+    <div class="view" id="mtrView" style="flex-direction:column;overflow-y:hidden;background:#f4f6fb;">
+      <div style="padding:12px 16px 8px;background:#fff;border-bottom:1px solid #e8edf5;flex-shrink:0;">
+        <div style="font-size:15px;font-weight:900;color:#064e3b;">🚛 บริษัทขนส่ง</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:2px;">สถานะการจ่ายค่าขนส่ง</div>
+      </div>
+      <!-- Month filter pills -->
+      <div id="mtrMonthPills" style="display:flex;gap:6px;padding:8px 14px;background:#fff;border-bottom:1px solid #f1f5f9;overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch;scrollbar-width:none;"></div>
+      <!-- Company cards -->
+      <div id="mtrCoCards" style="flex:1;overflow-y:auto;padding:10px 14px;"></div>
+    </div>
   </div>
-  <!-- Mobile tabs (iOS style — 4 tab on phone, 5 on fold/tablet) -->
+  </div><!-- end #mainDash -->
+  <!-- Mobile tabs (iOS style — moved outside mainDash so visible in all views) -->
   <div class="mob-tabs">
     <div class="mob-tab active" id="mtab-mhome" onclick="switchTab('mhome')"><div class="mob-tab-icon">🏠</div>หน้าหลัก</div>
     <div class="mob-tab" id="mtab-pending" onclick="switchTab('pending')"><div class="mob-tab-icon" style="position:relative;">⏳<span class="mob-badge" id="mBadge" style="display:none;"></span></div>คงค้าง</div>
-    <div class="mob-tab" id="mtab-main" onclick="switchTab('main')"><div class="mob-tab-icon">📋</div>รายเดือน</div>
-    <div class="mob-tab" id="mtab-finance" onclick="switchTab('finance')"><div class="mob-tab-icon">🚛</div>ขนส่ง</div>
-    <!-- Tab เพิ่มเติมสำหรับ Z Fold 6 unfolded (ซ่อนบนจอเล็ก) -->
+    <div class="mob-tab" id="mtab-mmonth" onclick="switchTab('mmonth')"><div class="mob-tab-icon">📋</div>รายเดือน</div>
+    <div class="mob-tab" id="mtab-mtr" onclick="switchTab('mtr')"><div class="mob-tab-icon">🚛</div>ขนส่ง</div>
+    <!-- Tab เพิ่มเติมสำหรับ Z Fold 6 unfolded -->
     <div class="mob-tab mob-tab-fold" id="mtab-vessel" onclick="switchTab('vessel')" style="display:none;"><div class="mob-tab-icon">🚢</div>เรือ</div>
     <div class="mob-tab mob-tab-fold" id="mtab-factory" onclick="switchTab('factory')" style="display:none;"><div class="mob-tab-icon">🏭</div>โรงงาน</div>
   </div>
-  </div><!-- end #mainDash -->
 
   <!-- ===== TRANSPORT DASHBOARD ===== -->
   <div id="trDash">
@@ -2160,7 +2186,13 @@ const isLoaded=inv=>{
 
 function switchTab(tab){
   curTab=tab;
-  const allViews=['main','pending','stock','factory','vessel','billing','finance','price','report','mhome'];
+  /* ถ้ากำลังอยู่ใน trDash → กลับ mainDash ก่อน */
+  if(_showTransport&&tab!=='mtr'){
+    _showTransport=false;
+    document.getElementById('mainDash').style.display='flex';
+    document.getElementById('trDash').style.display='none';
+  }
+  const allViews=['main','pending','stock','factory','vessel','billing','finance','price','report','mhome','mmonth','mtr'];
   allViews.forEach(t=>{
     const v=document.getElementById(t+'View');if(v)v.classList.toggle('active',t===tab);
     const h2=document.getElementById('htab-'+t);if(h2)h2.classList.toggle('active',t===tab);
@@ -2176,6 +2208,8 @@ function switchTab(tab){
   if(tab==='price'){renderPriceLatest();}
   if(tab==='report'){renderReport();}
   if(tab==='mhome'){renderMobileHome();renderStatsMain();}
+  if(tab==='mmonth'){renderMobileMonthView();}
+  if(tab==='mtr'){renderMobileTrView();}
 }
 /* ── MOBILE HOME VIEW ── */
 function renderMobileHome(){
@@ -2265,6 +2299,148 @@ function renderMobileHome(){
   }
   html+=`<div style="height:24px;"></div>`;
   el.innerHTML=html;
+}
+
+/* ── MOBILE MONTH VIEW ── */
+let _mmonthSel=null;
+function renderMobileMonthView(){
+  const pills=document.getElementById('mmonthPills');
+  const list=document.getElementById('mmonthList');
+  if(!pills||!list)return;
+  const h2=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  /* month pills */
+  const months=Object.keys(BY_MONTH).filter(k=>k!=='-').sort(mSort);
+  if(!_mmonthSel||!BY_MONTH[_mmonthSel])_mmonthSel=months[months.length-1]||null;
+  pills.innerHTML=months.map(m=>{
+    const invs=BY_MONTH[m]||[];
+    const done=invs.filter(d=>d.doc_status==='ปล่อยเอกสารแล้ว').length;
+    const pct=invs.length>0?Math.round(done/invs.length*100):0;
+    const isActive=m===_mmonthSel;
+    return `<div onclick="selMmonth('${m}')" style="flex-shrink:0;padding:7px 14px;border-radius:20px;border:2px solid ${isActive?'#0ea5e9':'#e2e8f0'};background:${isActive?'#0ea5e9':'#fff'};color:${isActive?'#fff':'#374151'};font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;">
+      ${mLabel(m)}<span style="margin-left:5px;font-size:10px;opacity:.75;">${invs.length}</span>
+    </div>`;
+  }).join('');
+  renderMmonthList();
+}
+function selMmonth(m){
+  _mmonthSel=m;
+  /* rerender pills */
+  renderMobileMonthView();
+}
+function renderMmonthList(){
+  const list=document.getElementById('mmonthList');if(!list)return;
+  const h2=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const invs=(BY_MONTH[_mmonthSel]||[]).slice().sort((a,b)=>a.inv.localeCompare(b.inv));
+  if(!invs.length){list.innerHTML='<div style="text-align:center;padding:40px;color:#94a3b8;font-size:12px;">ไม่มีข้อมูล</div>';return;}
+  let html='';
+  invs.forEach(d=>{
+    const s=pst(d.prefix);
+    const pndCnt=PEND_CTRS.filter(c=>c.inv&&normInv(c.inv)===normInv(d.inv)).length;
+    const confirmed=d.total_actual-pndCnt;
+    const left=Math.max(0,d.total_expected-d.total_actual);
+    const pct=d.total_expected>0?Math.round(confirmed/d.total_expected*100):0;
+    const pendPct=pndCnt>0?Math.min(Math.round(pndCnt/d.total_expected*100),100-pct):0;
+    const bc=confirmed===0?'#ef4444':(pct<50?'#f97316':pct<80?'#eab308':'#22c55e');
+    const isDone=d.doc_status==='ปล่อยเอกสารแล้ว';
+    const allIn=d.total_expected>0&&d.total_actual>=d.total_expected;
+    html+=`<div onclick="openMmonthDetail(${d.id})" style="background:#fff;border:1.5px solid ${isDone?'#bbf7d0':allIn?'#c4b5fd':'#e8edf5'};border-radius:14px;padding:13px 14px;margin-bottom:8px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.05);-webkit-tap-highlight-color:transparent;transition:transform .1s;" ontouchstart="this.style.transform='scale(.98)'" ontouchend="this.style.transform=''">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;">
+        <span style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd};border-radius:7px;padding:2px 9px;font-size:10px;font-weight:800;">${h2(d.prefix)}</span>
+        <span style="font-size:13px;font-weight:900;color:#111827;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h2(d.inv)}</span>
+        ${isDone?'<span style="font-size:13px;">✅</span>':allIn?'<span style="font-size:13px;">🟣</span>':'<span style="font-size:13px;">⏳</span>'}
+      </div>
+      ${d.customer&&d.customer!=='-'?`<div style="font-size:10px;color:#6b7280;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🏭 ${h2(d.customer)}</div>`:''}
+      ${isDone?`<div style="font-size:10px;color:#16a34a;font-weight:700;">✔ ปล่อยเอกสารแล้ว</div>`:`<div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-size:12px;font-weight:800;color:${s.tx};">${confirmed}/${d.total_expected} ตู้</span>
+          <span style="display:flex;align-items:center;gap:5px;">
+            ${pndCnt>0?`<span style="font-size:9px;color:${s.tx};background:${s.bg};border:1px solid ${s.bd};border-radius:4px;padding:1px 5px;">⏳+${pndCnt}</span>`:''}
+            ${left>0?`<span style="font-size:10px;color:#dc2626;font-weight:700;">ขาด ${left}</span>`:''}
+          </span>
+        </div>
+        <div style="background:#e5e7eb;border-radius:5px;height:6px;overflow:hidden;display:flex;">
+          <div style="width:${pct}%;background:${bc};height:100%;"></div>
+          <div style="width:${pendPct}%;background:${bc};opacity:0.35;height:100%;"></div>
+        </div>
+      </div>`}
+    </div>`;
+  });
+  list.innerHTML=html;
+}
+function openMmonthDetail(id){
+  const panel=document.getElementById('mmonthDetail');
+  const title=document.getElementById('mmonthDetailTitle');
+  const body=document.getElementById('mmonthDetailBody');
+  if(!panel||!body)return;
+  const d=FLAT[id];if(!d)return;
+  title.textContent=d.inv;
+  showInvDetail(id,'mmonthDetailBody');
+  panel.style.display='flex';
+  panel.style.flexDirection='column';
+  panel.scrollTop=0;
+}
+function closeMmonthDetail(){
+  const panel=document.getElementById('mmonthDetail');
+  if(panel)panel.style.display='none';
+}
+
+/* ── MOBILE TRANSPORT VIEW ── */
+let _mtrMonthSel='all';
+function renderMobileTrView(){
+  const pills=document.getElementById('mtrMonthPills');
+  const wrap=document.getElementById('mtrCoCards');
+  if(!pills||!wrap)return;
+  const h2=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const fmtAmt=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}):'-';
+  /* month pills */
+  const months=['all',...Object.keys(BY_MONTH).filter(k=>k!=='-').sort(mSort).reverse().slice(0,6)];
+  pills.innerHTML=months.map(m=>{
+    const isActive=m===_mtrMonthSel;
+    return `<div onclick="selMtrMonth('${m}')" style="flex-shrink:0;padding:6px 12px;border-radius:20px;border:2px solid ${isActive?'#059669':'#e2e8f0'};background:${isActive?'#059669':'#fff'};color:${isActive?'#fff':'#374151'};font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;">${m==='all'?'ทั้งหมด':mLabel(m)}</div>`;
+  }).join('');
+  /* build company data (reuse logic from renderTrCoView) */
+  const extractTrCo=bill=>{const mm=(bill||'').match(/[A-Za-z]+/g);return mm&&mm.length?mm.join('-').toUpperCase():'(ไม่ระบุ)';};
+  const cos={};
+  TR_DATA.forEach(d=>{
+    if(_mtrMonthSel!=='all'&&d.month!==_mtrMonthSel)return;
+    const ck=extractTrCo(d.trBill);
+    if(!cos[ck])cos[ck]={bills:[],paid:0,unpaid:0,total:0};
+    cos[ck].bills.push(d);
+    const amt=d.price||0;
+    cos[ck].total+=amt;
+    if(d.isPaid)cos[ck].paid+=amt;else cos[ck].unpaid+=amt;
+  });
+  const sorted=Object.keys(cos).sort();
+  if(!sorted.length){wrap.innerHTML='<div style="text-align:center;padding:40px;color:#94a3b8;font-size:12px;">ไม่มีข้อมูล</div>';return;}
+  let html='';
+  sorted.forEach(ck=>{
+    const co=cos[ck];
+    const adv=TR_ADVANCE[ck];
+    const advDeducted=adv?(adv.deductions||[]).reduce((s,d)=>s+(d.amount||0),0):0;
+    const advRemaining=adv?adv.amount-advDeducted:0;
+    const pctPaid=co.total>0?Math.round(co.paid/co.total*100):0;
+    const bc=pctPaid===100?'#22c55e':pctPaid>0?'#f97316':'#ef4444';
+    html+=`<div style="background:#fff;border:1.5px solid #e8edf5;border-radius:16px;padding:14px 15px;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:15px;font-weight:900;color:#064e3b;flex:1;">🚛 ${h2(ck)}</span>
+        <button onclick="event.stopPropagation();openAdvModal('${ck}')" style="padding:4px 10px;border-radius:8px;border:1px solid #d1fae5;background:#f0fdf4;color:#059669;font-size:10px;cursor:pointer;font-weight:700;">📝 เบิก</button>
+      </div>
+      ${adv&&adv.amount>0?`<div style="background:#f5f3ff;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:11px;color:#6d28d9;font-weight:600;">💰 เบิกล่วงหน้า ${fmtAmt(adv.amount)} บาท${advDeducted>0?` · คงเหลือ <b>${fmtAmt(Math.abs(advRemaining))}</b>`:''}${advRemaining<0?' <span style="color:#dc2626;">(เกิน)</span>':''}</div>`:''}
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:11px;">
+        <span style="color:#6b7280;">จ่ายแล้ว: <b style="color:#16a34a;">${fmtAmt(co.paid)}</b></span>
+        <span style="color:#6b7280;">ค้าง: <b style="color:#dc2626;">${fmtAmt(co.unpaid)}</b></span>
+      </div>
+      <div style="background:#e5e7eb;border-radius:6px;height:8px;overflow:hidden;margin-bottom:6px;">
+        <div style="width:${pctPaid}%;background:${bc};height:100%;border-radius:6px;transition:width .4s;"></div>
+      </div>
+      <div style="font-size:10px;color:#94a3b8;text-align:right;">${pctPaid}% · ${co.bills.length} ใบ · รวม ${fmtAmt(co.total)} บาท</div>
+    </div>`;
+  });
+  wrap.innerHTML=html;
+}
+function selMtrMonth(m){
+  _mtrMonthSel=m;
+  renderMobileTrView();
 }
 
 function updateMobTabsForDevice(){
