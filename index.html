@@ -288,6 +288,8 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
 #trDash .sc .sub2{font-size:9px;color:#a0aec0;}
 /* Filter bar */
 #trDash .filter-bar{display:flex;gap:6px;padding:8px 16px;background:white;border-bottom:1px solid #e2e8f0;flex-wrap:wrap;align-items:center;}
+/* ftab-scroller — desktop: transparent wrapper (display:contents จะ inherit flex จาก filter-bar) */
+#trDash .ftab-scroller{display:contents;}
 #trDash .ftab{padding:5px 13px;border-radius:20px;border:1.5px solid #e2e8f0;font-size:11px;font-weight:700;cursor:pointer;background:white;color:#64748b;transition:all .15s;white-space:nowrap;}
 #trDash .ftab.active{border-color:currentColor;}
 #trDash .ftab.f-all.active{background:#f0fdf4;color:#059669;border-color:#34d399;}
@@ -447,12 +449,14 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
   #trDash .stats-bar::-webkit-scrollbar{display:none;}
   #trDash .sc{min-width:88px;padding:6px 10px;flex-shrink:0;}
   #trDash .sc .val{font-size:15px;}
-  /* Filter bar — horizontal scroll */
-  #trDash .filter-bar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:7px 10px;gap:5px;}
-  #trDash .filter-bar::-webkit-scrollbar{display:none;}
-  #trDash .search-wrap{display:none;}  /* ซ่อน search บนมือถือ — ใช้ filter แทน */
-  /* View toggle — horizontal scroll */
-  #trDash .view-toggle{margin-left:0;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:5px;width:100%;border-top:1px solid #f1f5f9;padding-top:7px;margin-top:4px;}
+  /* Filter bar — 2 แถวแยกกัน ไม่แย่งพื้นที่กัน */
+  #trDash .filter-bar{flex-direction:column;gap:0;padding:0;overflow:hidden;}
+  /* Row 1: status filter — horizontal scroll */
+  #trDash .ftab-scroller{display:flex;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:7px 10px;gap:5px;align-items:center;border-bottom:1px solid #f1f5f9;}
+  #trDash .ftab-scroller::-webkit-scrollbar{display:none;}
+  #trDash .search-wrap{display:none;}  /* ซ่อน search บนมือถือ */
+  /* Row 2: view toggle — always visible, horizontal scroll */
+  #trDash .view-toggle{margin-left:0;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:5px;width:100%;padding:7px 10px;}
   #trDash .view-toggle::-webkit-scrollbar{display:none;}
   #trDash .vtab{font-size:10px;padding:4px 10px;flex-shrink:0;white-space:nowrap;}
   /* Prefix bar — horizontal scroll */
@@ -931,14 +935,18 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <div class="stats-bar" id="trSBar"></div>
     <!-- Status filter + search + view toggle -->
     <div class="filter-bar" id="trFilterBar">
-      <button class="ftab f-all active" data-f="all">ทั้งหมด <span id="tr-cnt-all"></span></button>
-      <button class="ftab f-full" data-f="full">✅ ครบทุกตู้ <span id="tr-cnt-full"></span></button>
-      <button class="ftab f-partial" data-f="partial">⚠️ บางส่วน <span id="tr-cnt-partial"></span></button>
-      <button class="ftab f-none" data-f="none">❌ ยังไม่จ่าย <span id="tr-cnt-none"></span></button>
-      <button class="ftab f-nodata" data-f="nodata">— ไม่มีข้อมูลตู้ <span id="tr-cnt-nodata"></span></button>
-      <div class="search-wrap">
-        <input class="search-inp" id="trSearchInp" type="text" placeholder="🔍 ค้นหาอินวอยซ์...">
+      <!-- Row 1: status filter buttons + search (wrapped for independent horizontal scroll on mobile) -->
+      <div class="ftab-scroller">
+        <button class="ftab f-all active" data-f="all">ทั้งหมด <span id="tr-cnt-all"></span></button>
+        <button class="ftab f-full" data-f="full">✅ ครบทุกตู้ <span id="tr-cnt-full"></span></button>
+        <button class="ftab f-partial" data-f="partial">⚠️ บางส่วน <span id="tr-cnt-partial"></span></button>
+        <button class="ftab f-none" data-f="none">❌ ยังไม่จ่าย <span id="tr-cnt-none"></span></button>
+        <button class="ftab f-nodata" data-f="nodata">— ไม่มีข้อมูลตู้ <span id="tr-cnt-nodata"></span></button>
+        <div class="search-wrap">
+          <input class="search-inp" id="trSearchInp" type="text" placeholder="🔍 ค้นหาอินวอยซ์...">
+        </div>
       </div>
+      <!-- Row 2: view toggle (always visible, separate scroll) -->
       <div class="view-toggle">
         <button class="vtab active" data-v="invoice">📋 รายอินวอยซ์</button>
         <button class="vtab" data-v="month">📅 รายเดือน</button>
