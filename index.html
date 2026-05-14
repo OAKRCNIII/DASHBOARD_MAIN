@@ -478,9 +478,12 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
   .hdr-left h1{font-size:13px!important;}
   #logoutBtn{padding:4px 8px!important;font-size:10px!important;}
 }
+/* ── MOBILE ≤600px (iPhone 14 ProMax 430px, Z Fold6 cover 412px) ── */
 @media(max-width:600px){
   .htabs{display:none;}
   .mob-tabs{display:flex;}
+  /* iPhone Dynamic Island / notch safe area */
+  .header{padding-top:calc(8px + env(safe-area-inset-top,0px))!important;padding-left:16px!important;padding-right:16px!important;padding-bottom:8px!important;}
   #app{padding-bottom:calc(62px + env(safe-area-inset-bottom,0px));}
   .stats-bar{gap:6px;padding:6px 10px;flex-wrap:nowrap;overflow-x:auto;}
   .sc{padding:7px 11px;min-width:90px;flex-shrink:0;border-radius:12px!important;}
@@ -501,15 +504,32 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
   .stock-lbody{grid-template-columns:1fr;}
   .factory-topbar{flex-direction:column;}
   .fdate-bar{width:100%;}
-  /* pending cards — bigger touch targets */
   .pv-card{border-radius:14px!important;padding:13px 14px!important;margin-bottom:8px!important;}
   .pv-inv{font-size:15px!important;font-weight:900!important;}
   .pv-cust{font-size:11px!important;}
   .prog-bg{height:7px!important;border-radius:6px!important;}
   .pv-badge{font-size:10px!important;padding:2px 9px!important;border-radius:7px!important;}
-  /* header compact */
-  .header{padding:8px 14px!important;}
   .hdr-left h1{font-size:14px!important;}
+}
+
+/* ── TABLET / Z FOLD 6 UNFOLDED (601–960px) ── */
+@media(min-width:601px) and (max-width:960px){
+  .htabs{display:none;}
+  .mob-tabs{display:flex;}
+  /* เพิ่ม tab เพิ่มเติมสำหรับจอใหญ่ขึ้น */
+  .mob-tab{font-size:11px;padding:10px 6px 7px;}
+  .mob-tab-icon{font-size:24px;}
+  #app{padding-bottom:calc(68px + env(safe-area-inset-bottom,0px));}
+  /* content ใช้พื้นที่ได้มากขึ้น */
+  .pv-wrap{flex-direction:row;}
+  .pv-list{width:300px;max-width:300px;}
+  .pv-detail{display:block;flex:1;}
+  .mhome-stat{min-height:100px;}
+  .mhome-stat-val{font-size:36px;}
+  /* stats bar horizontal scroll */
+  .stats-bar{flex-wrap:nowrap;overflow-x:auto;}
+  /* 2-col grid for home cards on fold */
+  #mhomeWrap .mhome-grid{grid-template-columns:1fr 1fr;}
 }
 /* ===== LOGIN ===== */
 #loginScreen{position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f 0%,#0f2a52 100%);display:none;align-items:center;justify-content:center;z-index:99999;}
@@ -797,12 +817,15 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
       <div id="mhomeWrap"></div>
     </div>
   </div>
-  <!-- Mobile tabs (4 tabs iOS style) -->
+  <!-- Mobile tabs (iOS style — 4 tab on phone, 5 on fold/tablet) -->
   <div class="mob-tabs">
     <div class="mob-tab active" id="mtab-mhome" onclick="switchTab('mhome')"><div class="mob-tab-icon">🏠</div>หน้าหลัก</div>
     <div class="mob-tab" id="mtab-pending" onclick="switchTab('pending')"><div class="mob-tab-icon" style="position:relative;">⏳<span class="mob-badge" id="mBadge" style="display:none;"></span></div>คงค้าง</div>
     <div class="mob-tab" id="mtab-main" onclick="switchTab('main')"><div class="mob-tab-icon">📋</div>รายเดือน</div>
     <div class="mob-tab" id="mtab-finance" onclick="switchTab('finance')"><div class="mob-tab-icon">🚛</div>ขนส่ง</div>
+    <!-- Tab เพิ่มเติมสำหรับ Z Fold 6 unfolded (ซ่อนบนจอเล็ก) -->
+    <div class="mob-tab mob-tab-fold" id="mtab-vessel" onclick="switchTab('vessel')" style="display:none;"><div class="mob-tab-icon">🚢</div>เรือ</div>
+    <div class="mob-tab mob-tab-fold" id="mtab-factory" onclick="switchTab('factory')" style="display:none;"><div class="mob-tab-icon">🏭</div>โรงงาน</div>
   </div>
   </div><!-- end #mainDash -->
 
@@ -2243,6 +2266,13 @@ function renderMobileHome(){
   html+=`<div style="height:24px;"></div>`;
   el.innerHTML=html;
 }
+
+function updateMobTabsForDevice(){
+  /* Z Fold 6 unfolded (601–960px) → แสดง tab พิเศษเพิ่ม */
+  const isFold=window.innerWidth>=601&&window.innerWidth<=960;
+  document.querySelectorAll('.mob-tab-fold').forEach(el=>el.style.display=isFold?'flex':'none');
+}
+window.addEventListener('resize',()=>{updateMobTabsForDevice();if(window.innerWidth<=960&&curTab==='main')switchTab('mhome');});
 
 const kc=(l,v,s,c,f)=>`<div class="sc${f?' sc-click':''}"${f?` data-filter="${f}"`:''}style="border-left-color:${c}!important"><div class="lbl2">${l}</div><div class="val" style="color:${c}!important">${v}</div><div class="sub2">${s}${f?' · คลิกดู':''}</div></div>`;
 function renderStatsMain(){
@@ -7344,8 +7374,9 @@ function showDashboard(data){
   const now=new Date();document.getElementById('lastUpd').textContent='☁️ Supabase · '+pad(now.getHours())+':'+pad(now.getMinutes());
   renderTabs();renderStatsMain();const m=Object.keys(BY_MONTH).sort()[0];if(m)selMonth(m);
   applyRoleRestrictions();
-  /* บนมือถือให้เริ่มที่หน้าหลัก */
-  if(window.innerWidth<=600)switchTab('mhome');
+  /* บนมือถือ/แท็บเล็ต (รวม Z Fold 6 unfolded) ให้เริ่มที่หน้าหลัก */
+  updateMobTabsForDevice();
+  if(window.innerWidth<=960)switchTab('mhome');
 }
 async function updateFolderUI(){
   const box=document.getElementById('folderBox');const nm=document.getElementById('folderName');const sub=document.getElementById('folderSub');const empty=document.getElementById('folderEmpty');const hint=document.getElementById('folderHint');
