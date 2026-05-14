@@ -2518,49 +2518,87 @@ function renderMobileVesselView(){
   const today=new Date();today.setHours(0,0,0,0);
   const pD=s=>{if(!s||s==='-')return null;const p=s.split('/');if(p.length!==3)return null;const yy=parseInt(p[2]);return new Date(yy<100?2000+yy:yy,parseInt(p[1])-1,parseInt(p[0]));};
 
-  /* ── 1. VESSEL ที่ออกไปแล้ว / กำลังจะออก (มีข้อมูลจริง) ── */
-  const gmap={};
+  /* helper: normalize date → comparable key YYYY-MM-DD */
+  const dKey=s=>{const d=pD(s);if(!d)return '';return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();};
+  const vKey=(vessel,date)=>vessel.trim().toUpperCase()+'|||'+dKey(date);
+
+  /* ── 1. VESSEL ที่มีข้อมูลจริง ── */
+  const gmap={};/* vKey → card */
   VESSEL.forEach(r=>{
-    const k=r.vessel+'|||'+r.date;
-    if(!gmap[k])gmap[k]={vessel:r.vessel,date:r.date,rows:[],vol:0,planned:false};
+    const k=vKey(r.vessel,r.date);
+    if(!gmap[k])gmap[k]={vessel:r.vessel,date:r.date,rows:[],vol:0,planned:false,planSections:[]};
     gmap[k].rows.push(r);gmap[k].vol+=r.vol;
   });
 
-  /* ── 2. VESSEL_PLAN ที่ยังไม่ออก (ETD ในอนาคต, ยังไม่อยู่ใน VESSEL) ── */
+  /* ── 2. VESSEL_PLAN (แผนจริง) ── */
   const loadedInvs=new Set(VESSEL.map(r=>normInv(r.inv)));
-  /* สร้าง map inv → total_expected จาก FLAT */
   const flatVolMap={};FLAT.forEach(d=>{flatVolMap[normInv(d.inv)]=d.total_expected||0;});
-  const planMap={};/* vessel|||etd → {vessel,date,rows:[{inv,vol}],vol,planned:true} */
+  const planMap={};/* vKey → section object */
   Object.entries(VESSEL_PLAN).forEach(([invUp,vp])=>{
     if(!vp.etd||!vp.vessel)return;
     if(loadedInvs.has(normInv(invUp)))return;
     const d=pD(vp.etd);if(!d||d<today)return;
-    const k=vp.vessel+'|||'+vp.etd;
-    if(!planMap[k])planMap[k]={vessel:vp.vessel,date:vp.etd,rows:[],vol:0,planned:true};
+    const k=vKey(vp.vessel,vp.etd);
+    if(!planMap[k])planMap[k]={vessel:vp.vessel,date:vp.etd,rows:[],vol:0,planned:true,isFloat:false,planSections:[]};
     const v=flatVolMap[normInv(invUp)]||0;
     planMap[k].rows.push({inv:invUp,vol:v});
     planMap[k].vol+=v;
   });
-  /* ── 3. VESSEL_PLAN_FLOAT (ลอย / LOY) ── */
+
+  /* ── 3. VESSEL_PLAN_FLOAT (ลอย) ── */
   Object.values(VESSEL_PLAN_FLOAT).forEach(fp=>{
     if(!fp.etd||!fp.vessel)return;
     const d=pD(fp.etd);if(!d||d<today)return;
-    const k=fp.vessel+'|||'+fp.etd+'|||FLOAT';
+    const k=vKey(fp.vessel,fp.etd);
     const totalVol=fp.bkgs.reduce((s,b)=>s+(b.vol||0),0);
-    /* แสดงเป็น row ๆ ต่อ BKG */
-    const rows=fp.bkgs.map(b=>({inv:`LOY (${b.bkg||'-'})`,vol:b.vol||0,isFloat:true}));
-    planMap[k]={vessel:fp.vessel,date:fp.etd,rows,vol:totalVol,planned:true,isFloat:true};
+    const floatRows=fp.bkgs.map(b=>({inv:`LOY (${b.bkg||'-'})`,vol:b.vol||0,isFloat:true}));
+    /* ลอยเก็บแยกเป็น section ใน planMap entry เดียวกัน (vessel+date ตรงกัน) */
+    if(!planMap[k])planMap[k]={vessel:fp.vessel,date:fp.etd,rows:[],vol:0,planned:true,isFloat:false,planSections:[]};
+    planMap[k].planSections.push({label:'ลอย',rows:floatRows,vol:totalVol,isFloat:true});
+    planMap[k].vol+=totalVol;
   });
 
-  /* ── รวม + เรียงวันที่ ── */
-  const all=[
-    ...Object.values(gmap).sort((a,b)=>(pD(b.date)||new Date(0))-(pD(a.date)||new Date(0))),
-    ...Object.values(planMap).sort((a,b)=>(pD(b.date)||new Date(0))-(pD(a.date)||new Date(0)))
-  ];
-  const upcoming=all.filter(g=>{const d=pD(g.date);return d&&d>=today;})
-    .sort((a,b)=>(pD(b.date)||new Date(0))-(pD(a.date)||new Date(0)));/* ใหม่สุด (ETD ไกลสุด) ขึ้นก่อน */
-  const past=all.filter(g=>!g.planned&&(!(pD(g.date))||pD(g.date)<today))
-    .sort((a,b)=>(pD(b.date)||new Date(0))-(pD(a.date)||new Date(0))).slice(0,20);
+  /* ── 4. Merge planMap เข้า gmap ถ้า vessel+date ตรงกัน ── */
+  const standalonePlan=[];/* plan ที่ไม่ตรงกับ gmap ใดเลย */
+  Object.entries(planMap).forEach(([k,p])=>{
+    if(gmap[k]){
+      /* merge: ใส่เป็น planSections ใน gmap card */
+      const confirmed=gmap[k];
+      if(p.rows.length)confirmed.planSections.push({label:'แผน',rows:p.rows,vol:p.vol-p.planSections.reduce((s,x)=>s+x.vol,0),isFloat:false});
+      p.planSections.forEach(sec=>confirmed.planSections.push(sec));
+      confirmed.hasMixed=true;
+    } else {
+      /* plan ที่ยังไม่มีข้อมูลจริง — ต้องแสดงแยก */
+      /* ถ้ามีทั้ง rows (แผน) และ planSections (ลอย) รวมไว้ใน planSections */
+      const secs=[];
+      if(p.rows.length)secs.push({label:'แผน',rows:p.rows,vol:p.vol-p.planSections.reduce((s,x)=>s+x.vol,0),isFloat:false});
+      p.planSections.forEach(sec=>secs.push(sec));
+      standalonePlan.push({...p,planSections:secs});
+    }
+  });
+
+  /* ── รวมทั้งหมด เรียงวันที่ใหม่สุดก่อน ── */
+  const allCards=[...Object.values(gmap),...standalonePlan]
+    .sort((a,b)=>(pD(b.date)||new Date(0))-(pD(a.date)||new Date(0)));
+  const upcoming=allCards.filter(g=>{const d=pD(g.date);return d&&d>=today;});
+  const past=allCards.filter(g=>!g.planned&&!g.hasMixed&&(!(pD(g.date))||pD(g.date)<today)).slice(0,20);
+
+  /* ── render rows helper ── */
+  const renderRows=(rows,color)=>{
+    let o='';
+    rows.forEach(r=>{
+      const s=pst(getPfx(r.inv));
+      o+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f8fafc;">`;
+      o+=`<div style="display:flex;align-items:center;gap:7px;min-width:0;">`;
+      if(!r.isFloat)o+=`<span style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd};border-radius:5px;padding:1px 7px;font-size:10px;font-weight:800;white-space:nowrap;flex-shrink:0;">${esc(getPfx(r.inv))}</span>`;
+      o+=`<span style="font-size:13px;font-weight:700;color:#111827;">${esc(r.inv)}</span>`;
+      o+=`</div>`;
+      if(r.vol>0)o+=`<span style="font-size:13px;font-weight:800;color:${color};white-space:nowrap;">${r.vol} ตู้</span>`;
+      else o+=`<span style="font-size:11px;color:#94a3b8;">— ตู้</span>`;
+      o+=`</div>`;
+    });
+    return o;
+  };
 
   /* ── render card ── */
   const renderCard=(g,idx)=>{
@@ -2568,53 +2606,77 @@ function renderMobileVesselView(){
     const d=pD(g.date);
     const diff=d?Math.round((d-today)/(86400000)):null;
     const isUp=d&&d>=today;
-    const isPlan=!!g.planned;
+    const isPlanOnly=g.planned&&!g.hasMixed;
+    const hasPlanSec=g.planSections&&g.planSections.length>0;
 
+    /* day chip */
     let chip='';
-    if(!isPlan){
+    if(!isPlanOnly){
       if(diff===0)chip='<span style="background:#22c55e;color:#fff;border-radius:6px;padding:1px 8px;font-size:10px;font-weight:800;">วันนี้!</span>';
       else if(diff===1)chip='<span style="background:#84cc16;color:#fff;border-radius:6px;padding:1px 8px;font-size:10px;font-weight:800;">พรุ่งนี้</span>';
-      else if(diff>1)chip=`<span style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:6px;padding:1px 8px;font-size:10px;font-weight:700;">อีก ${diff} วัน</span>`;
+      else if(diff>1&&isUp)chip=`<span style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:6px;padding:1px 8px;font-size:10px;font-weight:700;">อีก ${diff} วัน</span>`;
     } else {
-      const planLabel=g.isFloat?'ลอย':'แผน';
-      chip=`<span style="background:${g.isFloat?'#f0f9ff':'#fef9c3'};color:${g.isFloat?'#0369a1':'#92400e'};border:1px solid ${g.isFloat?'#bae6fd':'#fde68a'};border-radius:6px;padding:1px 8px;font-size:10px;font-weight:800;">${planLabel}${diff>0?` · อีก ${diff} วัน`:''}</span>`;
+      const hasFlt=g.planSections.some(s=>s.isFloat);
+      const hasPln=g.rows.length>0||g.planSections.some(s=>!s.isFloat);
+      const labels=[hasPln?'แผน':null,hasFlt?'ลอย':null].filter(Boolean).join('+');
+      chip=`<span style="background:#fef9c3;color:#92400e;border:1px solid #fde68a;border-radius:6px;padding:1px 8px;font-size:10px;font-weight:800;">${labels}${diff>0?` · อีก ${diff} วัน`:''}</span>`;
     }
 
-    /* สไตล์: แพลน = กรอบประ สีจาง, จริง = กรอบทึบ */
-    const bdr=isPlan?'1.5px dashed #94a3b8':(isUp?(diff<=3?'4px solid #22c55e':'4px solid #60a5fa'):'4px solid #d1d5db');
-    const bg=isPlan?'rgba(248,250,252,0.7)':(isUp?(diff<=3?'linear-gradient(135deg,#f0fdf4,#dcfce7)':'linear-gradient(135deg,#eff6ff,#dbeafe)'):'#fff');
-    const opacity=isPlan?'opacity:.85;':'';
-    const shadow=isPlan?'box-shadow:none;':'box-shadow:0 2px 10px rgba(0,0,0,.07);';
+    /* mixed badge */
+    let mixBadge='';
+    if(g.hasMixed)mixBadge=`<span style="background:#fdf4ff;color:#7e22ce;border:1px solid #e9d5ff;border-radius:6px;padding:1px 8px;font-size:10px;font-weight:800;">+แผน/ลอย</span>`;
 
-    let out=`<div style="background:${bg};border-radius:14px;margin-bottom:10px;overflow:hidden;${shadow}border:${bdr};${opacity}">`;
+    /* border & bg */
+    const bdr=isPlanOnly?'1.5px dashed #94a3b8':(isUp?(diff<=3?'4px solid #22c55e':'4px solid #60a5fa'):'4px solid #d1d5db');
+    const bg=isPlanOnly?'rgba(248,250,252,.85)':(isUp?(diff<=3?'linear-gradient(135deg,#f0fdf4,#dcfce7)':'linear-gradient(135deg,#eff6ff,#dbeafe)'):'#fff');
+    const shadow=isPlanOnly?'box-shadow:none;':'box-shadow:0 2px 10px rgba(0,0,0,.07);';
+
+    /* summary text */
+    const totVol=(g.vol||0)+(g.planSections||[]).reduce((s,x)=>s+x.vol,0);
+    /* for confirmed card, vol is already the confirmed vol; planSections vol is extra */
+    const confirmVol=g.vol||0;
+    const planVolTotal=(g.planSections||[]).reduce((s,x)=>s+x.vol,0);
+    let summaryTxt='';
+    if(isPlanOnly){
+      const flt=g.planSections.filter(s=>s.isFloat);
+      const pln=g.planSections.filter(s=>!s.isFloat);
+      const parts=[];
+      if(pln.length){const v=pln.reduce((s,x)=>s+x.vol,0);parts.push(`${pln[0].rows.length} INV${v?` · ${v} ตู้`:''}`);}
+      if(flt.length){const v=flt.reduce((s,x)=>s+x.vol,0);parts.push(`ลอย ${flt.reduce((s,x)=>s+x.rows.length,0)} BKG · ${v} ตู้`);}
+      summaryTxt=parts.join(' / ');
+    } else {
+      summaryTxt=`${g.rows.length} INV · ${confirmVol} ตู้`;
+      if(planVolTotal>0)summaryTxt+=` (+${planVolTotal} แผน/ลอย)`;
+    }
+
+    let out=`<div style="background:${bg};border-radius:14px;margin-bottom:10px;overflow:hidden;${shadow}border:${bdr};${isPlanOnly?'opacity:.88;':''}">`;
     out+=`<div onclick="toggleMVesselGroup(${idx})" style="padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;-webkit-tap-highlight-color:transparent;">`;
     out+=`<div style="flex:1;min-width:0;">`;
-    const ico=!isPlan?'🚢':g.isFloat?'🌊':'🗓️';
-    out+=`<div style="font-size:13px;font-weight:${isPlan?700:900};color:${isPlan?'#475569':'#0f172a'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ico} ${esc(g.vessel)}</div>`;
+    out+=`<div style="font-size:13px;font-weight:${isPlanOnly?700:900};color:${isPlanOnly?'#475569':'#0f172a'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">🚢 ${esc(g.vessel)}</div>`;
     out+=`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;">`;
-    out+=`<span style="font-size:12px;color:${isPlan?'#94a3b8':(isUp?'#0369a1':'#64748b')};font-weight:700;">📅 ${esc(g.date)}</span>`;
-    const volTxt=g.vol>0?` · ${g.vol} ตู้`:'';
-    const invLabel=g.isFloat?`ลอย ${g.rows.length} BKG`:`${g.rows.length} INV`;
-    if(!isPlan)out+=`<span style="font-size:11px;color:#94a3b8;">${g.rows.length} INV · ${g.vol} ตู้</span>`;
-    else out+=`<span style="font-size:11px;color:#94a3b8;">${invLabel}${volTxt}</span>`;
+    out+=`<span style="font-size:12px;color:${isPlanOnly?'#94a3b8':(isUp?'#0369a1':'#64748b')};font-weight:700;">📅 ${esc(g.date)}</span>`;
+    out+=`<span style="font-size:11px;color:#94a3b8;">${summaryTxt}</span>`;
     if(chip)out+=chip;
+    if(mixBadge)out+=mixBadge;
     out+=`</div></div>`;
     out+=`<div style="font-size:20px;color:#cbd5e0;flex-shrink:0;">${isOpen?'▾':'›'}</div>`;
     out+=`</div>`;
 
-    /* expanded detail */
+    /* expanded detail — confirmed section + plan sections แยกกัน */
     if(isOpen){
-      out+=`<div style="border-top:1px solid rgba(0,0,0,.06);padding:4px 14px 10px;">`;
-      g.rows.forEach(r=>{
-        const s=pst(getPfx(r.inv));
-        out+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9;">`;
-        out+=`<div style="display:flex;align-items:center;gap:7px;min-width:0;">`;
-        out+=`<span style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd};border-radius:5px;padding:1px 7px;font-size:10px;font-weight:800;white-space:nowrap;">${esc(getPfx(r.inv))}</span>`;
-        out+=`<span style="font-size:13px;font-weight:700;color:#111827;">${esc(r.inv)}</span>`;
-        out+=`</div>`;
-        if(r.vol>0)out+=`<span style="font-size:13px;font-weight:800;color:${isPlan?'#92400e':'#16a34a'};white-space:nowrap;">${r.vol} ตู้</span>`;
-        else if(isPlan)out+=`<span style="font-size:11px;color:#94a3b8;">—</span>`;
-        out+=`</div>`;
+      out+=`<div style="border-top:1px solid rgba(0,0,0,.06);">`;
+      /* ── จัดแล้ว ── */
+      if(g.rows&&g.rows.length){
+        if(hasPlanSec)out+=`<div style="padding:6px 14px 2px;font-size:10px;font-weight:800;color:#166534;letter-spacing:.5px;text-transform:uppercase;">✅ จัดแล้ว · ${confirmVol} ตู้</div>`;
+        out+=`<div style="padding:0 14px 8px;">${renderRows(g.rows,'#16a34a')}</div>`;
+      }
+      /* ── plan sections (แผน / ลอย) ── */
+      (g.planSections||[]).forEach(sec=>{
+        const secColor=sec.isFloat?'#0369a1':'#92400e';
+        const secBg=sec.isFloat?'#f0f9ff':'#fffbeb';
+        const secLabel=sec.isFloat?`🌊 ลอย · ${sec.vol} ตู้`:`🗓️ แผน · ${sec.vol} ตู้`;
+        out+=`<div style="background:${secBg};padding:6px 14px 2px;font-size:10px;font-weight:800;color:${secColor};letter-spacing:.5px;text-transform:uppercase;">${secLabel}</div>`;
+        out+=`<div style="padding:0 14px 8px;">${renderRows(sec.rows,secColor)}</div>`;
       });
       out+=`</div>`;
     }
@@ -2624,9 +2686,7 @@ function renderMobileVesselView(){
 
   let html='';
   if(upcoming.length){
-    const realUp=upcoming.filter(g=>!g.planned).length;
-    const planUp=upcoming.filter(g=>g.planned).length;
-    html+=`<div style="font-size:10px;font-weight:800;color:#0369a1;letter-spacing:.8px;text-transform:uppercase;margin-bottom:8px;">📅 กำลังจะออก${realUp?` — ${realUp} เที่ยว`:''}${planUp?` · แผน ${planUp} เที่ยว`:''}</div>`;
+    html+=`<div style="font-size:10px;font-weight:800;color:#0369a1;letter-spacing:.8px;text-transform:uppercase;margin-bottom:8px;">📅 กำลังจะออก — ${upcoming.length} รายการ</div>`;
     upcoming.forEach((g,i)=>{html+=renderCard(g,i);});
   }
   if(past.length){
