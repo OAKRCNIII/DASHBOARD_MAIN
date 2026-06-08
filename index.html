@@ -5075,12 +5075,13 @@ function trPrintByFactoryReport(){
   /* e.g. "2569-PIYA-001"→PIYA, "VT-04/69"→VT, "TWC 04/26"→TWC, "PTC 7/2569"→PTC */
   const extractTrCo=(bill)=>{const m=bill.match(/[A-Za-z]+/g);return m&&m.length?m.join('-').toUpperCase():'(ไม่ระบุ)';};
   const groups={
-    ogm: {label:'OGM',sublabel:'(แยกตามบริษัทขนส่ง)',color:'#065f46',light:'#d1fae5',cos:{},coIns:[],tot:{ctr:0,amount:0}},
-    other:{label:'โรงงานอื่นๆ (BSW / TWI / INV)',sublabel:'(แยกตามบริษัทขนส่ง)',color:'#1e3a5f',light:'#dbeafe',cos:{},coIns:[],tot:{ctr:0,amount:0}}
+    ogm: {label:'OGM&KNT',sublabel:'(เลขลำดับ AL)',color:'#065f46',light:'#d1fae5',cos:{},coIns:[],tot:{ctr:0,amount:0}},
+    other:{label:'โรงงานอื่นๆ (ไม่รวม OGM)',sublabel:'(แยกตามบริษัทขนส่ง)',color:'#1e3a5f',light:'#dbeafe',cos:{},coIns:[],tot:{ctr:0,amount:0}}
   };
   let grandAmt=0,grandCtr=0;
   src.forEach(d=>{
-    const grp=(d.prefix||'').trim().toUpperCase()==='OGM'?groups.ogm:groups.other;
+    const _pfx=(d.prefix||'').trim().toUpperCase();
+    const grp=(_pfx==='OGM'||_pfx==='KNT')?groups.ogm:groups.other;
     d.details.forEach(row=>{
       if(!row.trMatch||row.trMatch._prePaid)return;
       const bill=(row.trMatch.billNo||'').trim()||'(ไม่มีเลข)';
@@ -6856,7 +6857,8 @@ function renderReport(){
       mNum = parseInt(d.month);
     } else return;
     if(isNaN(mNum) || mNum < 1 || mNum > 12) return;
-    const pfx = getPfx(d.inv || '');
+    let pfx = getPfx(d.inv || '');
+    if(pfx === 'OGM' || pfx === 'KNT') pfx = 'OGM&KNT';
     const vol = parseInt(d.total_expected) || 0;
     if(!pivot[mNum]) pivot[mNum] = {};
     pivot[mNum][pfx] = (pivot[mNum][pfx] || 0) + vol;
@@ -7026,7 +7028,8 @@ function printReport(){
     else if(d.month) mNum = parseInt(d.month);
     else return;
     if(isNaN(mNum)||mNum<1||mNum>12) return;
-    const pfx = getPfx(d.inv||''); const vol = parseInt(d.total_expected)||0;
+    let pfx = getPfx(d.inv||''); if(pfx==='OGM'||pfx==='KNT') pfx='OGM&KNT';
+    const vol = parseInt(d.total_expected)||0;
     if(!pivot[mNum]) pivot[mNum]={};
     pivot[mNum][pfx] = (pivot[mNum][pfx]||0)+vol;
     pfxSet.add(pfx);
