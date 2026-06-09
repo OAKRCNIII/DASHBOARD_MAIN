@@ -6859,8 +6859,7 @@ function renderReport(){
       mNum = parseInt(d.month);
     } else return;
     if(isNaN(mNum) || mNum < 1 || mNum > 12) return;
-    let pfx = getPfx(d.inv || '');
-    if(pfx === 'OGM' || pfx === 'KNT') pfx = 'OGM&KNT';
+    const pfx = getPfx(d.inv || '');
     const vol = parseInt(d.total_expected) || 0;
     if(!pivot[mNum]) pivot[mNum] = {};
     pivot[mNum][pfx] = (pivot[mNum][pfx] || 0) + vol;
@@ -7030,7 +7029,7 @@ function printReport(){
     else if(d.month) mNum = parseInt(d.month);
     else return;
     if(isNaN(mNum)||mNum<1||mNum>12) return;
-    let pfx = getPfx(d.inv||''); if(pfx==='OGM'||pfx==='KNT') pfx='OGM&KNT';
+    const pfx = getPfx(d.inv||'');
     const vol = parseInt(d.total_expected)||0;
     if(!pivot[mNum]) pivot[mNum]={};
     pivot[mNum][pfx] = (pivot[mNum][pfx]||0)+vol;
