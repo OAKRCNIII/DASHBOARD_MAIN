@@ -6868,15 +6868,7 @@ function renderReport(){
     pfxSet.add(pfx);
   });
 
-  /* ── 2b. zero out current month if hidden ── */
-  const _nowM = new Date().getMonth() + 1;
-  const _nowY = new Date().getFullYear();
-  const _isCurYr = (_rptYear === _nowY);
-  if(_rptHideCurrent && _isCurYr && pivot[_nowM]){
-    pivot[_nowM] = {};   /* ทำเป็น 0 ทุก prefix */
-  }
-
-  /* ── 3. pre-calc totals per prefix (for sort) ── */
+  /* ── 3. pre-calc totals per prefix (for sort) — คำนวณก่อน zero เดือนปัจจุบัน ── */
   const _preTotals = {};
   [...pfxSet].forEach(p => {
     _preTotals[p] = 0;
@@ -6884,6 +6876,14 @@ function renderReport(){
   });
   /* sort by total desc (มากสุดซ้าย), tie-break alphabetically */
   const allPfx = [...pfxSet].sort((a,b) => (_preTotals[b] - _preTotals[a]) || a.localeCompare(b));
+
+  /* ── 2b. zero out current month if hidden ── */
+  const _nowM = new Date().getMonth() + 1;
+  const _nowY = new Date().getFullYear();
+  const _isCurYr = (_rptYear === _nowY);
+  if(_rptHideCurrent && _isCurYr && pivot[_nowM]){
+    pivot[_nowM] = {};   /* ทำเป็น 0 ทุก prefix */
+  }
 
   /* ── 4. year selector ── */
   const years = [...new Set(FLAT.map(d => d.year ? parseInt(d.year) : (d.month ? parseInt(String(d.month).split('_')[0]) : 0)).filter(y => y > 2000))].sort();
