@@ -6966,7 +6966,7 @@ function renderReport(){
       <span style="background:${c.bg};color:${c.tx};border:1px solid ${c.bd};border-radius:6px;padding:2px 8px;font-size:12px;font-weight:800;white-space:nowrap;display:inline-block;">${h(p)}</span>
     </th>`;
   });
-  out += `<th style="padding:12px 16px;text-align:center;color:#fbbf24;font-weight:800;font-size:13px;border-radius:0 14px 0 0;white-space:nowrap;">รวม</th>
+  out += `<th style="padding:12px 16px;text-align:center;color:#fbbf24;font-weight:800;font-size:13px;border-radius:0 14px 0 0;white-space:nowrap;position:sticky;right:0;background:#1e3a8a;z-index:2;">รวม</th>
       </tr>
     </thead>
     <tbody>`;
@@ -6990,7 +6990,7 @@ function renderReport(){
         ${v > 0 ? `<span style="background:${c.bg};color:${c.tx};border-radius:20px;padding:2px 12px;font-size:13px;">${v}</span>` : '—'}
       </td>`;
     });
-    out += `<td style="padding:11px 16px;text-align:center;border-bottom:1px solid #f1f5f9;font-weight:800;color:${mTotals[m]>0?'#1e40af':'#cbd5e1'};">
+    out += `<td style="padding:11px 16px;text-align:center;border-bottom:1px solid #f1f5f9;font-weight:800;color:${mTotals[m]>0?'#1e40af':'#cbd5e1'};position:sticky;right:0;background:${rowBg};z-index:1;">
       ${mTotals[m] > 0 ? `<span style="font-size:15px;">${mTotals[m]}</span>` : '—'}
     </td></tr>`;
   }
@@ -7004,7 +7004,7 @@ function renderReport(){
       ${pfxTotals[p] > 0 ? `<span style="background:${c.bg};color:${c.tx};border:1.5px solid ${c.bd};border-radius:20px;padding:2px 14px;">${pfxTotals[p]}</span>` : '—'}
     </td>`;
   });
-  out += `<td style="padding:13px 16px;text-align:center;font-weight:900;font-size:18px;color:#1e3a8a;">${grandTotal}</td>
+  out += `<td style="padding:13px 16px;text-align:center;font-weight:900;font-size:18px;color:#1e3a8a;position:sticky;right:0;background:linear-gradient(135deg,#dbeafe,#eff6ff);z-index:1;">${grandTotal}</td>
   </tr></tbody></table></div>`;
 
   /* footnote */
