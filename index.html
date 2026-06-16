@@ -2887,7 +2887,7 @@ function showInvDetail(id,panelId){
   if(Object.keys(TRANSPORT).length>0){if(tr&&tr.total>0){out+=`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin-bottom:10px;"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;"><span style="font-size:12px;font-weight:700;color:#166534;">🚛 ค่าขนส่ง — จ่ายแล้ว</span><span style="font-size:13px;font-weight:800;color:#16a34a;">${fm(tr.total)} บาท</span></div><div style="font-size:10px;color:#4ade80;margin-top:2px;">${tr.count} ตู้ · ${[...new Set(tr.records.map(r=>r.billNo).filter(Boolean))].join(', ')}</div><details style="margin-top:6px;"><summary style="font-size:10px;color:#16a34a;cursor:pointer;">ดูรายละเอียด (${tr.count})</summary><table class="det-tbl" style="margin-top:4px;"><thead><tr><th>วันที่</th><th>โรงงาน</th><th>เบอร์ตู้</th><th>ราคา</th><th>AL</th></tr></thead><tbody>`;tr.records.forEach(r=>{out+=`<tr><td>${h(r.date)}</td><td>${h(r.factory)}</td><td style="font-family:monospace;font-size:10px;">${h(r.container)}</td><td style="text-align:right;font-weight:600;">${fm(r.price)}</td><td style="color:#94a3b8;font-size:10px;">${h(r.al)}</td></tr>`;});out+='</tbody></table></details></div>';}else{out+='<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;"><span style="font-size:18px;">🚛</span><span style="font-size:12px;font-weight:700;color:#dc2626;">ค่าขนส่ง — ยังไม่มีข้อมูล</span></div>';}}
   /* === วางบิลโรงงาน (OGM(A) / ID / JM — factory type) === */
   const isOgmA=d.prefix==='OGM'&&normInv(d.inv).includes('(A)');
-  const isFactoryPrefix=['ID','JM','KNT'].includes(d.prefix);
+  const isFactoryPrefix=['ID','JM','KNT','ONE'].includes(d.prefix);
   if(isOgmA||isFactoryPrefix){try{
     const showPrice=_canSeeFees();
     const pe0=findPriceEntry(d.inv);
@@ -2921,7 +2921,7 @@ function showInvDetail(id,panelId){
       out+=`<table class="det-tbl"><thead><tr><th>โรงงาน</th><th style="text-align:center;">ตู้</th><th style="text-align:right;">ราคา/ตู้ (฿)</th><th style="text-align:right;">รวม (฿)</th></tr></thead><tbody>${billRows}</tbody>`;
       if(totalBill>0)out+=`<tfoot><tr style="font-weight:700;background:#dcfce7;"><td colspan="3" style="text-align:right;padding:5px 8px;">ยอดรวม</td><td style="text-align:right;padding:5px 8px;color:#15803d;">${fm2(totalBill)}</td></tr></tfoot>`;
       out+=`</table>`;
-      if(!hasPrice)out+=`<div style="font-size:10px;color:#b45309;margin-top:4px;">⚠️ ไม่พบข้อมูลราคาสำหรับอินวอยซ์นี้ — กรุณาตั้งค่าไฟล์ราคา (OGM A / ID / JM)</div>`;
+      if(!hasPrice)out+=`<div style="font-size:10px;color:#b45309;margin-top:4px;">⚠️ ไม่พบข้อมูลราคาสำหรับอินวอยซ์นี้ — กรุณาตั้งค่าไฟล์ราคา (OGM A / ONE_GOLD / ID / JM)</div>`;
     }else{
       out+=`<table class="det-tbl"><thead><tr><th>โรงงาน</th><th style="text-align:center;">จำนวนตู้</th></tr></thead><tbody>${billRows}</tbody></table>`;
     }
@@ -3124,7 +3124,7 @@ function renderPriceLatest(){
   /* badge color helper */
   function pfxBadge(pfx){const c=pst(pfx);return `<span style="background:${c.bg};color:${c.tx};border:1px solid ${c.bd};border-radius:6px;padding:2px 10px;font-size:13px;font-weight:800;">${h(pfx)}</span>`;}
   const SIMPLE_ORDER=['SHL','TWI','BSW','AD','INV'];
-  const FACTORY_ORDER=['OGM','ID','JM','KNT'];
+  const FACTORY_ORDER=['OGM','ONE_GOLD','ID','JM','KNT'];
   let out='';
   out+=`<div style="font-size:15px;font-weight:800;color:#0f2a52;margin-bottom:14px;display:flex;align-items:center;gap:8px;">💰 PRICE UPDATE <span style="font-size:11px;font-weight:400;color:#64748b;">ราคาล่าสุดที่แจ้งโรงงาน</span></div>`;
   /* ===== Simple / Tiered section ===== */
