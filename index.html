@@ -3529,12 +3529,10 @@ function showVslPlanDetail(dateKey,vesselName){
   const THAI_MONTHS=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 
   /* collect planned invs for this vessel+date */
-  const loadedInvs=new Set(_VSL_GROUPS.flatMap(g=>g.rows.map(r=>normInv(r.inv))));
   const invList=[];
   Object.entries(VESSEL_PLAN).forEach(([invUp,vp])=>{
     if(!vp.etd||!vp.vessel)return;
     if(vp.vessel!==vesselName)return;
-    if(loadedInvs.has(normInv(invUp)))return;
     const p2=vp.etd.split('/');if(p2.length!==3)return;
     const dd2=parseInt(p2[0]),mm2=parseInt(p2[1]),yy2=parseInt(p2[2]);
     const yyyy2=yy2<100?2000+yy2:yy2;
