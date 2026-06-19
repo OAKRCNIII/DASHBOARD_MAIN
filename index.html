@@ -4186,7 +4186,7 @@ function renderBilling(){
     const trCell=prePaid
       ?`<div style="color:#16a34a;font-weight:700;font-size:11px;">✔ pre-paid</div>`
       :trEntry&&trEntry.status!=='nodata'
-        ?`<div style="color:${trEntry.status==='full'?'#16a34a':'#d97706'};font-weight:700;font-size:11px;">${trEntry.status==='full'?'✔ ครบ':'⚠ บางส่วน'}</div>
+        ?`<div style="color:${trEntry.status==='full'?'#16a34a':trEntry.status==='partial'?'#d97706':'#ef4444'};font-weight:700;font-size:11px;">${trEntry.status==='full'?'✔ ครบ':trEntry.status==='partial'?'⚠ บางส่วน':'❌ ยังไม่จ่าย'}</div>
            ${fmTHB(trEntry.totalPaid)?`<div style="font-size:10px;color:#475569;">${fmTHB(trEntry.totalPaid)}</div>`:''}
            <div style="font-size:10px;color:#94a3b8;">${trEntry.paidCount||0}/${trEntry.total||0} ตู้</div>`
         :`<span style="color:#ef4444;font-size:11px;font-weight:700;">❌ ยังไม่มี</span>`;
@@ -4566,7 +4566,7 @@ function matchContainersTr(allInv,dbMap,trMap){
       else if(paidCount>0)status='partial';
       else status='none';
     }
-    return{...inv,details,paidCount,totalPaid,status};
+    return{...inv,details,paidCount,totalPaid,status,total:details.length};
   });
 }
 
