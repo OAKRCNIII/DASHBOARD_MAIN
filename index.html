@@ -3088,6 +3088,14 @@ function goToPriceInv(nk){
   },60);
 }
 /* ── global helper: หาช่วงวันที่เข้าโรงงานจาก FLAT สำหรับ invoice ── */
+function getMaxDateMs(inv){
+  const nk=normInv(inv);
+  let rec=FLAT.find(d=>normInv(d.inv)===nk);
+  if(!rec){const nkF=nk.replace(/[-_\/]/g,'');rec=FLAT.find(d=>normInv(d.inv).replace(/[-_\/]/g,'')===nkF);}
+  if(!rec||!rec.details||!rec.details.length)return 0;
+  const ts=rec.details.map(r=>{const s=String(r.เข้าโรงงาน||'').trim();if(!s)return 0;const p=s.split(/[\/\-]/);if(p.length>=3){const d=parseInt(p[0]),m=parseInt(p[1]),y=parseInt(p[2]);if(!isNaN(d)&&!isNaN(m)&&!isNaN(y)&&m>=1&&m<=12)return new Date(y<100?2000+y:y,m-1,d).getTime();}const dt=new Date(s);return isNaN(dt.getTime())?0:dt.getTime();}).filter(Boolean);
+  return ts.length?Math.max(...ts):0;
+}
 function getDateRange(inv){
   const nk=normInv(inv);
   let rec=FLAT.find(d=>normInv(d.inv)===nk);
@@ -3190,7 +3198,8 @@ function showPriceHistory(pfx){
   let body='';
   if(!hist.length){body='<div style="text-align:center;color:#94a3b8;padding:20px;">ไม่มีข้อมูล</div>';}
   else{
-    const recent=hist.slice(-10); /* 10 ล่าสุด ตามลำดับตาราง (เก่า→ใหม่) */
+    const sorted=[...hist].sort((a,b)=>(getMaxDateMs(b.inv)||0)-(getMaxDateMs(a.inv)||0)||(hist.indexOf(b)-hist.indexOf(a)));
+    const recent=sorted.slice(0,10); /* 10 ล่าสุดตามวันจริง */
     const isFactory=recent.some(x=>x.entry.type==='factory');
     if(isFactory){
       /* รวบรวมชื่อโรงงานทุกตัวที่มีใน 10 rows (ตามลำดับที่พบ) */
@@ -3203,8 +3212,8 @@ function showPriceHistory(pfx){
       body+=`<th style="text-align:center;padding:6px 8px;color:#64748b;font-weight:600;white-space:nowrap;">ช่วงเวลา</th>`;
       facSet.forEach(f=>{body+=`<th style="text-align:right;padding:6px 8px;color:#64748b;font-weight:600;white-space:nowrap;">${h(f)}</th>`;});
       body+=`</tr></thead><tbody>`;
-      /* rows: ล่าสุดก่อน */
-      [...recent].reverse().forEach(({inv,entry},idx)=>{
+      /* rows: ล่าสุดก่อน (sorted by date) */
+      recent.forEach(({inv,entry},idx)=>{
         const dr=getDateRange(inv);
         const isLatest=idx===0;
         body+=`<tr style="background:${isLatest?c.bg:'transparent'};border-bottom:1px solid #f1f5f9;">`;
@@ -3221,7 +3230,7 @@ function showPriceHistory(pfx){
       /* simple / tiered — เรียงตามลำดับ */
       body+=`<table style="width:100%;border-collapse:collapse;font-size:12px;">`;
       body+=`<thead><tr style="background:#f8fafc;"><th style="text-align:left;padding:5px 8px;color:#64748b;font-weight:600;">อินวอยซ์</th><th style="text-align:center;padding:5px 8px;color:#64748b;font-weight:600;">ช่วงเวลา</th><th style="text-align:right;padding:5px 8px;color:#64748b;font-weight:600;">ราคา</th></tr></thead><tbody>`;
-      [...recent].reverse().forEach(({inv,entry},idx)=>{
+      recent.forEach(({inv,entry},idx)=>{
         const dr=getDateRange(inv);
         const isLatest=idx===0;
         body+=`<tr style="background:${isLatest?c.bg:'transparent'};border-bottom:1px solid #f1f5f9;">`;
