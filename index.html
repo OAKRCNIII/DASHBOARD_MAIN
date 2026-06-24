@@ -3125,6 +3125,17 @@ function getDateRange(inv){
       return first.getDate()+'-'+last.getDate()+' '+MONTHS[first.getMonth()];
     return fmtDt(first)+' – '+fmtDt(last);
 }
+function getLatestByDate(pfx){
+  const hist=OGM_PRICE_HISTORY[pfx]||[];
+  if(!hist.length)return OGM_PRICE_LATEST[pfx]||null;
+  /* sort by factory date desc; fall back to id order (position in hist) if no date */
+  const sorted=[...hist].sort((a,b)=>{
+    const da=getMaxDateMs(a.inv),db=getMaxDateMs(b.inv);
+    if(da||db)return (db||0)-(da||0);
+    return hist.indexOf(b)-hist.indexOf(a);
+  });
+  return sorted[0]||null;
+}
 function renderPriceLatest(){
   const wrap=document.getElementById('priceWrap');
   if(!_canSeeFees()){wrap.innerHTML='<div class="placeholder"><div class="ico">🔒</div><p>เฉพาะ Admin</p></div>';return;}
@@ -3141,7 +3152,8 @@ function renderPriceLatest(){
   if(simpleKeys.length){
     out+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px;">`;
     simpleKeys.forEach(pfx=>{
-      const {inv,entry}=OGM_PRICE_LATEST[pfx];
+      const latest=getLatestByDate(pfx);if(!latest)return;
+      const {inv,entry}=latest;
       const dr=getDateRange(inv);
       const c=pst(pfx);
       const nk=normInv(inv);
@@ -3164,7 +3176,8 @@ function renderPriceLatest(){
   /* ===== Factory section (OGM / ID / JM) ===== */
   const factKeys=FACTORY_ORDER.filter(k=>OGM_PRICE_LATEST[k]);
   factKeys.forEach(pfx=>{
-    const {inv,entry}=OGM_PRICE_LATEST[pfx];
+    const latest=getLatestByDate(pfx);if(!latest)return;
+    const {inv,entry}=latest;
     const dr=getDateRange(inv);
     const c=pst(pfx);
     const factories=Object.keys(entry).filter(k=>k!=='type'&&k!=='sheetPrefix');
