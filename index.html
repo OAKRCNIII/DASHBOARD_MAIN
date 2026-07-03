@@ -4577,11 +4577,12 @@ function matchContainersTr(allInv,dbMap,trMap){
         normStr(tr.truck)===normStr(row.ทะเบียนรถ)
       )||null;
       const prePaid=!matched&&isPrePaidTr(inv.inv);
-      const effectiveMatch=matched||(prePaid?{price:0,date:'-',factory:'-',billNo:'ยืนยันแล้ว (ม.ค.2026)',al:'',_prePaid:true}:null);
+      const isFacTruck=!matched&&FACTORY_TRUCKS_NORM.has(normTruck(row.ทะเบียนรถ||''));
+      const effectiveMatch=matched||(prePaid?{price:0,date:'-',factory:'-',billNo:'ยืนยันแล้ว (ม.ค.2026)',al:'',_prePaid:true}:(isFacTruck?{price:0,date:'-',factory:'-',billNo:'รถโรงงาน',al:'',_factoryTruck:true}:null));
       return{...row,trMatch:effectiveMatch};
     });
     const paidCount=details.filter(r=>r.trMatch).length;
-    const totalPaid=details.reduce((a,r)=>a+(r.trMatch&&!r.trMatch._prePaid?r.trMatch.price:0),0);
+    const totalPaid=details.reduce((a,r)=>a+(r.trMatch&&!r.trMatch._prePaid&&!r.trMatch._factoryTruck?r.trMatch.price:0),0);
     let status='nodata';
     if(details.length>0){
       if(paidCount===details.length)status='full';
@@ -4696,7 +4697,7 @@ function renderTrTable(){
     /* คำนวณยอดที่ควรจ่ายต่ออินวอยซ์ */
     let invExpected=0;
     if(hasPU){d.details.forEach(row=>{
-      if(row.trMatch&&!row.trMatch._prePaid){invExpected+=row.trMatch.price||0;}
+      if(row.trMatch&&!row.trMatch._prePaid&&!row.trMatch._factoryTruck){invExpected+=row.trMatch.price||0;}
       else if(!row.trMatch){invExpected+=lookupPriceUpdate(row.เข้าโรงงาน,d.prefix,row.โรงงาน,d.inv);}
     });}
     const isOpen=TR_OPEN.has(d.inv);
@@ -4746,7 +4747,7 @@ function renderTrTable(){
         html+='<td>'+h(row.โรงงาน)+'</td>';
         html+='<td>'+h(row.เข้าโรงงาน)+'</td>';
         html+='<td>'+h(row.DATE_PICKUP)+'</td>';
-        if(tr2&&!tr2._prePaid){
+        if(tr2&&!tr2._prePaid&&!tr2._factoryTruck){
           html+='<td style="text-align:right;font-weight:700;color:#16a34a;white-space:nowrap;">'+fmtAmt(tr2.price)+'</td>';
           html+='<td style="font-size:10px;color:#64748b;">'+h(tr2.billNo)+'<br><span style="color:#94a3b8;font-size:9px;">'+h(tr2.al)+'</span></td>';
           html+='<td style="text-align:center;"><span class="paid-mark paid-yes">✅ จ่ายแล้ว</span></td>';
@@ -4754,6 +4755,10 @@ function renderTrTable(){
           html+='<td style="text-align:right;"><span style="color:#7c3aed;font-size:10px;">—</span></td>';
           html+='<td style="font-size:10px;color:#7c3aed;">ม.ค.2026</td>';
           html+='<td style="text-align:center;"><span class="paid-mark" style="background:#ede9fe;color:#6d28d9;">📌 ยืนยันแล้ว</span></td>';
+        }else if(tr2&&tr2._factoryTruck){
+          html+='<td style="text-align:right;"><span style="color:#94a3b8;">—</span></td>';
+          html+='<td style="font-size:10px;color:#92400e;">รถโรงงาน</td>';
+          html+='<td style="text-align:center;"><span class="paid-mark" style="background:#ede9fe;color:#6d28d9;border:1px solid #c4b5fd;">รถโรงงาน ไม่ต้องจ่าย</span></td>';
         }else{
           html+='<td style="text-align:right;"><span style="color:#94a3b8;">-</span></td>';
           html+='<td></td>';
@@ -4787,7 +4792,7 @@ function renderTrMonthSummary(){
     const g=months[m];g.inv++;g.ctr+=d.details.length;g.paid+=d.paidCount;g.amount+=d.totalPaid;
     if(!unpaidByMonth[m])unpaidByMonth[m]=[];
     d.details.forEach(row=>{
-      if(row.trMatch&&!row.trMatch._prePaid){g.expected+=row.trMatch.price||0;}
+      if(row.trMatch&&!row.trMatch._prePaid&&!row.trMatch._factoryTruck){g.expected+=row.trMatch.price||0;}
       else if(!row.trMatch&&hasPU){g.expected+=lookupPriceUpdate(row.เข้าโรงงาน,d.prefix,row.โรงงาน,d.inv);}
       /* เก็บตู้ที่ยังไม่มีใน DATA_BASE_BILL */
       if(!row.trMatch){
@@ -6625,6 +6630,7 @@ function renderTrUnpaid(){
 
 /* ===== THIRA TRUCK DASHBOARD ===== */
 const THIRA_TRUCKS=['71-9538','72-1620','72-2237','72-2420','72-2953','72-3148'];
+const FACTORY_TRUCKS_NORM=new Set(['722330']); /* รถโรงงาน — ไม่นับในยอดค้างจ่าย */
 const normTruck=s=>String(s||'').replace(/[\s\-\.]/g,'').toUpperCase();
 const THIRA_NORM=new Set(THIRA_TRUCKS.map(normTruck));
 const isThiraTruck=truck=>THIRA_NORM.has(normTruck(truck));
