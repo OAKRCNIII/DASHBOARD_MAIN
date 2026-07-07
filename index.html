@@ -1146,7 +1146,13 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
   </div>
   <div id="debtPrintBg" onclick="if(event.target===this)document.getElementById('debtPrintBg').style.display='none'" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;display:none;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:16px;padding:24px;min-width:280px;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,.2);">
-      <div style="font-size:14px;font-weight:900;color:#92400e;margin-bottom:14px;">🖨️ เลือกโรงงานที่ต้องการพิมพ์</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="font-size:14px;font-weight:900;color:#92400e;">🖨️ เลือกโรงงานที่ต้องการพิมพ์</div>
+        <div style="display:flex;gap:6px;">
+          <button onclick="document.querySelectorAll('#debtPrintSelList input[type=checkbox]').forEach(c=>c.checked=true)" style="padding:3px 10px;border-radius:6px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;font-size:10px;font-weight:700;cursor:pointer;">เลือกทั้งหมด</button>
+          <button onclick="document.querySelectorAll('#debtPrintSelList input[type=checkbox]').forEach(c=>c.checked=false)" style="padding:3px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:10px;font-weight:700;cursor:pointer;">ไม่เลือกทั้งหมด</button>
+        </div>
+      </div>
       <div id="debtPrintSelList" style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow:auto;margin-bottom:16px;"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
         <button onclick="document.getElementById('debtPrintBg').style.display='none'" style="padding:7px 18px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:12px;font-weight:700;cursor:pointer;">ยกเลิก</button>
