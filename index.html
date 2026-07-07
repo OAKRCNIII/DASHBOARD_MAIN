@@ -7856,6 +7856,7 @@ function printDebtReport(pfxFilter,showDetail,shipFilter){
         pendingDetailHtml+=`</tbody></table>`;
         if(isLastPend)pendingDetailHtml+=`<div class="grand-bar" style="background:#78350f;margin-top:12px;">⏳ ยอดประมาณการทั้งหมด (PENDING) &nbsp;·&nbsp; <span style="font-family:monospace;">${fm(pendGrandD)}</span></div>`;
         pendingDetailHtml+=`</div>`;
+      });
     }
   }
   const summaryContent=showDetail?'':`<table><thead><tr><th>โรงงาน</th><th style="text-align:center;">จำนวน INV</th><th class="r">ยอดค้างชำระ (บาท)</th></tr></thead><tbody>${body}${grandTotal>0?`<tr class="grand"><td colspan="2">💰 ยอดรวมค้างชำระ (วางบิลโรงงาน)</td><td style="text-align:right;font-family:monospace;">${fm(grandTotal)}</td></tr>`:''}</tbody></table>${pendingSummaryHtml}${shipSummaryHtml}`;
