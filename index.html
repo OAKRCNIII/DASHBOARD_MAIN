@@ -7417,7 +7417,7 @@ function renderDebtDash(){
   /* ===== PENDING section (ประมาณการ — ยังไม่วางบิลจริง) ===== */
   if(_debtShowPending){
     const pendMap=_buildPendingDebtMap();
-    const pendPfxs=Object.keys(pendMap).filter(p=>pendMap[p].total>0).sort();
+    const pendPfxs=Object.keys(pendMap).filter(p=>pendMap[p].invs.length>0).sort();
     if(pendPfxs.length){
       const pendGrand=pendPfxs.reduce((a,p)=>a+pendMap[p].total,0);
       tbl+=`<table class="debt-tbl" style="margin-top:12px;"><thead><tr>`;
@@ -7822,7 +7822,7 @@ function printDebtReport(pfxFilter,showDetail,shipFilter){
   let pendingSummaryHtml='';
   if(_debtShowPending){
     const pendMap=_buildPendingDebtMap();
-    const pendPfxsP=Object.keys(pendMap).filter(p=>pendMap[p].total>0).sort();
+    const pendPfxsP=Object.keys(pendMap).filter(p=>pendMap[p].invs.length>0).sort();
     if(pendPfxsP.length){
       const pendGrandP=pendPfxsP.reduce((a,p)=>a+pendMap[p].total,0);
       pendingSummaryHtml+=`<h3 style="color:#78350f;margin:20px 0 6px;font-size:13px;">⏳ PENDING — ประมาณการวางบิล (ยังไม่วางบิลจริง)</h3>`;
