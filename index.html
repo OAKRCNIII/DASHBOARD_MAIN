@@ -7850,8 +7850,9 @@ function printDebtReport(pfxFilter,showDetail,shipFilter){
       const pendGrandD=pendPfxsD.reduce((a,p)=>a+pendMapD[p].total,0);
       pendPfxsD.forEach((pfx,idx)=>{
         const g=pendMapD[pfx];
+        const isFirstPend=idx===0;
         const isLastPend=idx===pendPfxsD.length-1;
-        pendingDetailHtml+=`<div class="pfx-page page-break">`;
+        pendingDetailHtml+=`<div class="pfx-page page-break" style="${isFirstPend?'page-break-before:always;break-before:page;':''}">`;
         pendingDetailHtml+=`<div class="pfx-hdr" style="color:#78350f;border-bottom-color:#fcd34d;">⏳ ${pfx} <span class="pfx-sub" style="color:#92400e;">${g.invs.length} อินวอยซ์ — PENDING</span></div>`;
         pendingDetailHtml+=`<div style="font-size:10px;color:#92400e;margin:4px 0 8px;">⚠️ ประมาณการ — ยังไม่วางบิลจริง</div>`;
         pendingDetailHtml+=`<table><thead><tr><th style="background:#78350f;">อินวอยซ์</th><th style="background:#78350f;text-align:center;">ตู้</th><th class="r" style="background:#78350f;">ยอดประมาณการ (บาท)</th></tr></thead><tbody>`;
