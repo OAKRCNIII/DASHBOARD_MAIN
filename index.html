@@ -1005,6 +1005,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
       <span class="debt-title">🏦 ยอดค้างชำระ — วางบิลแล้วแต่ยังไม่รับเงิน</span>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <span id="debtSummaryChip" style="font-size:11px;color:#92400e;font-weight:700;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:4px 12px;"></span>
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#92400e;font-weight:700;cursor:pointer;background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:4px 10px;user-select:none;"><input type="checkbox" id="debtPendingChk" onchange="_debtShowPending=this.checked;renderDebtDash();" style="accent-color:#92400e;cursor:pointer;"> ⏳ รวม PENDING</label>
         <button onclick="printDebtReport(null,false,Object.keys(_buildShippingDebtMap()).filter(p=>_buildShippingDebtMap()[p].total>0))" style="padding:5px 14px;border-radius:8px;border:1px solid #fde68a;background:#92400e;color:#fff;font-size:11px;font-weight:700;cursor:pointer;">🖨️ พิมพ์รวม</button>
         <button onclick="debtPrintSelectModal()" style="padding:5px 14px;border-radius:8px;border:1px solid #fde68a;background:#b45309;color:#fff;font-size:11px;font-weight:700;cursor:pointer;">🖨️ เลือกโรงงาน</button>
         <button onclick="toggleDebtDash()" style="padding:5px 14px;border-radius:8px;border:1px solid #fde68a;background:#fff;color:#92400e;font-size:11px;font-weight:700;cursor:pointer;">✕ ปิด</button>
@@ -6842,6 +6843,7 @@ function toggleDashboard(){
 }
 
 let _showDebt=false;
+let _debtShowPending=false;
 function toggleDebtDash(){
   _showDebt=!_showDebt;
   /* hide main and transport dashboards */
@@ -7412,6 +7414,32 @@ function renderDebtDash(){
   });
   tbl+=`<tr class="debt-total-row"><td colspan="2">💰 ยอดรวมค้างชำระ (วางบิลโรงงาน)</td><td style="text-align:right;font-family:monospace;">${fm(grandTotal)}</td></tr>`;
   tbl+=`</tbody></table>`;
+  /* ===== PENDING section (ประมาณการ — ยังไม่วางบิลจริง) ===== */
+  if(_debtShowPending){
+    const pendMap=_buildPendingDebtMap();
+    const pendPfxs=Object.keys(pendMap).filter(p=>pendMap[p].total>0).sort();
+    if(pendPfxs.length){
+      const pendGrand=pendPfxs.reduce((a,p)=>a+pendMap[p].total,0);
+      tbl+=`<table class="debt-tbl" style="margin-top:12px;"><thead><tr>`;
+      tbl+=`<th style="background:#78350f;">⏳ PENDING — ประมาณการวางบิล (ยังไม่วางบิลจริง)</th>`;
+      tbl+=`<th style="background:#78350f;">จำนวน INV</th>`;
+      tbl+=`<th class="r" style="background:#78350f;">ยอดประมาณการ (บาท)</th></tr></thead><tbody>`;
+      pendPfxs.forEach(pfx=>{
+        const g=pendMap[pfx];
+        tbl+=`<tr class="debt-pfx-row" style="background:#fffbf0;" onclick="debtTogglePending(this,'${pfx.replace(/'/g,"\\'")}')"><td>⏳ ${h(pfx)} <span class="debt-badge" style="background:#fef9c3;color:#78350f;border-color:#fde68a;">${g.invs.length} INV</span></td><td style="color:#78350f;">${g.invs.length}</td><td style="text-align:right;color:#92400e;font-family:monospace;">${fm(g.total)}</td></tr>`;
+        tbl+=`<tr class="debt-pfx-detail" data-pend="${h(pfx)}" style="display:none;"><td colspan="3" style="padding:0;"><table style="width:100%;border-collapse:collapse;">`;
+        g.invs.forEach(iv=>{
+          tbl+=`<tr class="debt-inv-row" style="background:#fffbeb;"><td style="padding:6px 12px 6px 28px;">${h(iv.inv)} <span style="font-size:10px;color:#94a3b8;">(${iv.ctrs} ตู้)</span></td><td style="text-align:right;font-family:monospace;padding:6px 12px;">${fm(iv.amount)}</td><td></td></tr>`;
+        });
+        tbl+=`</table></td></tr>`;
+      });
+      tbl+=`<tr class="debt-total-row" style="background:#fef3c7;border-top:2px solid #fcd34d;"><td colspan="2">⏳ ยอดประมาณการทั้งหมด (PENDING)</td><td style="text-align:right;font-family:monospace;">${fm(pendGrand)}</td></tr>`;
+      tbl+=`</tbody></table>`;
+      tbl+=`<div style="font-size:10px;color:#92400e;opacity:.75;margin:4px 0 2px;padding:0 2px;">⚠️ ยอด PENDING เป็นประมาณการ — ยังไม่วางบิลจริง และไม่นับรวมในหน้า FINANCE ANTS</div>`;
+    }else{
+      tbl+=`<div style="margin-top:10px;background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:12px;color:#92400e;">⏳ ไม่พบอินวอยซ์ PENDING (มีข้อมูลตู้แต่ยังไม่มีราคา หรือวางบิลครบแล้ว)</div>`;
+    }
+  }
   /* ===== TWI / SHL shipping debt section (collapsible) ===== */
   const shipMap=_buildShippingDebtMap();
   const shipPfxs=Object.keys(shipMap).filter(p=>shipMap[p].months.length>0);
@@ -7533,6 +7561,14 @@ function debtTogglePfx(row,pfx){
   const badge=row.querySelector('.debt-badge');
   if(badge)badge.textContent=open?`${row.cells[1].textContent} INV`:`▲ ${row.cells[1].textContent} INV`;
 }
+function debtTogglePending(row,pfx){
+  const detail=document.querySelector(`.debt-pfx-detail[data-pend="${CSS.escape(pfx)}"]`);
+  if(!detail)return;
+  const open=detail.style.display!=='none';
+  detail.style.display=open?'none':'table-row';
+  const badge=row.querySelector('.debt-badge');
+  if(badge)badge.textContent=open?badge.textContent.replace('▲ ',''):`▲ ${badge.textContent}`;
+}
 function debtToggleShip(row,pfx){
   const detail=document.querySelector(`.debt-pfx-detail[data-ship="${CSS.escape(pfx)}"]`);
   if(!detail)return;
@@ -7552,6 +7588,34 @@ function _buildDebtMap(){
     if(!pfxMap[pfx])pfxMap[pfx]={invs:[],total:0};
     pfxMap[pfx].invs.push({inv:rec?rec.inv:nInv,amount});
     pfxMap[pfx].total+=amount;
+  });
+  return pfxMap;
+}
+function _buildPendingDebtMap(){
+  const pfxMap={};
+  FLAT.forEach(d=>{
+    if(!d||!d.total_actual)return;
+    const nk=normInv(d.inv);
+    if(BILLED_ANTS.has(nk)||PAID_ANTS.has(nk))return;
+    const pe=findPriceEntry(d.inv);
+    if(!pe)return;
+    let estAmt=0;
+    if(pe.type==='factory'){
+      const factCounts={};
+      (d.details||[]).forEach(r=>{const f=r.โรงงาน||'-';factCounts[f]=(factCounts[f]||0)+1;});
+      Object.keys(pe).filter(k=>k!=='type'&&k!=='sheetPrefix').forEach(f=>{estAmt+=(factCounts[f]||0)*(pe[f]||0);});
+    }else if(pe.type==='simple'){
+      estAmt=(pe.price||0)*d.total_actual;
+    }else if(pe.type==='tiered'&&pe.tiers&&pe.tiers.length){
+      const n=d.total_actual;
+      const tier=pe.tiers.find(t=>n>=t.from&&n<=t.to)||pe.tiers[pe.tiers.length-1];
+      if(tier)estAmt=(tier.price||0)*n;
+    }
+    if(estAmt<=0)return;
+    const pfx=d.prefix;
+    if(!pfxMap[pfx])pfxMap[pfx]={invs:[],total:0};
+    pfxMap[pfx].invs.push({inv:d.inv,amount:estAmt,ctrs:d.total_actual});
+    pfxMap[pfx].total+=estAmt;
   });
   return pfxMap;
 }
@@ -7750,7 +7814,21 @@ function printDebtReport(pfxFilter,showDetail,shipFilter){
     shipSummaryHtml+=`<tr style="background:#dbeafe;"><td colspan="2" style="padding:9px 12px;font-weight:900;color:#1e40af;">รวมค่าขนส่งค้างชำระ</td><td style="text-align:right;font-family:monospace;font-weight:900;font-size:13px;color:#1e40af;padding:9px 12px;">${fm(shipGrand)}</td></tr></tbody></table>`;
     if(grandTotal>0)shipSummaryHtml+=`<div style="margin-top:12px;padding:10px 12px;background:#7c2d12;color:#fff;border-radius:6px;font-weight:900;font-size:14px;display:flex;justify-content:space-between;"><span>🏦 ยอดรวมทั้งหมด (โรงงาน + ค่าขนส่ง)</span><span style="font-family:monospace;">${fm(allTotal)} บาท</span></div>`;
   }
-  const summaryContent=showDetail?'':`<table><thead><tr><th>โรงงาน</th><th style="text-align:center;">จำนวน INV</th><th class="r">ยอดค้างชำระ (บาท)</th></tr></thead><tbody>${body}${grandTotal>0?`<tr class="grand"><td colspan="2">💰 ยอดรวมค้างชำระ (วางบิลโรงงาน)</td><td style="text-align:right;font-family:monospace;">${fm(grandTotal)}</td></tr>`:''}</tbody></table>${shipSummaryHtml}`;
+  /* PENDING section (summary mode) */
+  let pendingSummaryHtml='';
+  if(_debtShowPending){
+    const pendMap=_buildPendingDebtMap();
+    const pendPfxsP=Object.keys(pendMap).filter(p=>pendMap[p].total>0).sort();
+    if(pendPfxsP.length){
+      const pendGrandP=pendPfxsP.reduce((a,p)=>a+pendMap[p].total,0);
+      pendingSummaryHtml+=`<h3 style="color:#78350f;margin:20px 0 6px;font-size:13px;">⏳ PENDING — ประมาณการวางบิล (ยังไม่วางบิลจริง)</h3>`;
+      pendingSummaryHtml+=`<table><thead><tr><th style="background:#78350f;">โรงงาน</th><th style="background:#78350f;text-align:center;">จำนวน INV</th><th class="r" style="background:#78350f;">ยอดประมาณการ (บาท)</th></tr></thead><tbody>`;
+      pendPfxsP.forEach(pfx=>{const g=pendMap[pfx];pendingSummaryHtml+=`<tr><td style="padding:9px 12px;font-size:13px;font-weight:800;color:#78350f;">⏳ ${pfx}</td><td style="text-align:center;font-size:11px;color:#6b7280;padding:9px 12px;">${g.invs.length} อินวอยซ์</td><td style="text-align:right;font-family:monospace;font-size:13px;font-weight:700;padding:9px 12px;">${fm(g.total)}</td></tr>`;});
+      pendingSummaryHtml+=`<tr style="background:#fef9c3;"><td colspan="2" style="padding:9px 12px;font-weight:900;color:#78350f;">⏳ ยอดประมาณการทั้งหมด (PENDING)</td><td style="text-align:right;font-family:monospace;font-weight:900;font-size:13px;color:#92400e;padding:9px 12px;">${fm(pendGrandP)}</td></tr></tbody></table>`;
+      pendingSummaryHtml+=`<div style="font-size:10px;color:#92400e;opacity:.7;margin:4px 0 8px;">⚠️ ยอด PENDING เป็นประมาณการ — ยังไม่วางบิลจริง และไม่นับรวมในยอดหนี้จริง</div>`;
+    }
+  }
+  const summaryContent=showDetail?'':`<table><thead><tr><th>โรงงาน</th><th style="text-align:center;">จำนวน INV</th><th class="r">ยอดค้างชำระ (บาท)</th></tr></thead><tbody>${body}${grandTotal>0?`<tr class="grand"><td colspan="2">💰 ยอดรวมค้างชำระ (วางบิลโรงงาน)</td><td style="text-align:right;font-family:monospace;">${fm(grandTotal)}</td></tr>`:''}</tbody></table>${pendingSummaryHtml}${shipSummaryHtml}`;
   const detailContent=showDetail?body:'';
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>
     body{font-family:'Sarabun',sans-serif;margin:0;padding:${showDetail?'0':'24px'};font-size:12px;color:#1f2937;}
