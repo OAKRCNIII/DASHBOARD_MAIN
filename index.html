@@ -7597,7 +7597,9 @@ function _buildDebtMap(){
 function _buildPendingDebtMap(){
   const pfxMap={};
   FLAT.forEach(d=>{
-    if(!d||!d.total_actual)return;
+    if(!d)return;
+    const ctrCount=d.total_actual||d.total_expected||0;
+    if(!ctrCount)return;
     const nk=normInv(d.inv);
     if(BILLED_ANTS.has(nk)||PAID_ANTS.has(nk))return;
     const pe=findPriceEntry(d.inv);
@@ -7609,16 +7611,15 @@ function _buildPendingDebtMap(){
         (d.details||[]).forEach(r=>{const f=r.โรงงาน||'-';factCounts[f]=(factCounts[f]||0)+1;});
         Object.keys(pe).filter(k=>k!=='type'&&k!=='sheetPrefix').forEach(f=>{estAmt+=(factCounts[f]||0)*(pe[f]||0);});
       }else if(pe.type==='simple'){
-        estAmt=(pe.price||0)*d.total_actual;
+        estAmt=(pe.price||0)*ctrCount;
       }else if(pe.type==='tiered'&&pe.tiers&&pe.tiers.length){
-        const n=d.total_actual;
-        const tier=pe.tiers.find(t=>n>=t.from&&n<=t.to)||pe.tiers[pe.tiers.length-1];
-        if(tier)estAmt=(tier.price||0)*n;
+        const tier=pe.tiers.find(t=>ctrCount>=t.from&&ctrCount<=t.to)||pe.tiers[pe.tiers.length-1];
+        if(tier)estAmt=(tier.price||0)*ctrCount;
       }
     }
     const pfx=d.prefix;
     if(!pfxMap[pfx])pfxMap[pfx]={invs:[],total:0};
-    pfxMap[pfx].invs.push({inv:d.inv,amount:estAmt,ctrs:d.total_actual,noPrice});
+    pfxMap[pfx].invs.push({inv:d.inv,amount:estAmt,ctrs:ctrCount,noPrice});
     pfxMap[pfx].total+=estAmt;
   });
   return pfxMap;
