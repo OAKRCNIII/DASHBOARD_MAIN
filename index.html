@@ -7602,14 +7602,16 @@ function _buildPendingDebtMap(){
     if(!ctrCount)return;
     const nk=normInv(d.inv);
     if(BILLED_ANTS.has(nk)||PAID_ANTS.has(nk))return;
+    if(OLD_INV.has(nk))return; /* invoice เก่าไม่มีเดือน/ปี — ไม่นับใน PENDING */
     const pe=findPriceEntry(d.inv);
     let estAmt=0;
-    const noPrice=!pe;
+    let noPrice=!pe;
     if(pe){
       if(pe.type==='factory'){
         const factCounts={};
         (d.details||[]).forEach(r=>{const f=r.โรงงาน||'-';factCounts[f]=(factCounts[f]||0)+1;});
-        Object.keys(pe).filter(k=>k!=='type'&&k!=='sheetPrefix').forEach(f=>{estAmt+=(factCounts[f]||0)*(pe[f]||0);});
+        if(!d.details||!d.details.length){noPrice=true;/* ไม่มี breakdown โรงงาน คำนวณไม่ได้ */}
+        else Object.keys(pe).filter(k=>k!=='type'&&k!=='sheetPrefix').forEach(f=>{estAmt+=(factCounts[f]||0)*(pe[f]||0);});
       }else if(pe.type==='simple'){
         estAmt=(pe.price||0)*ctrCount;
       }else if(pe.type==='tiered'&&pe.tiers&&pe.tiers.length){
