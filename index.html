@@ -7842,21 +7842,20 @@ function printDebtReport(pfxFilter,showDetail,shipFilter){
     const pendPfxsD=Object.keys(pendMapD).filter(p=>pendMapD[p].invs.length>0).sort();
     if(pendPfxsD.length){
       const pendGrandD=pendPfxsD.reduce((a,p)=>a+pendMapD[p].total,0);
-      pendingDetailHtml+=`<div class="pfx-page page-break">`;
-      pendingDetailHtml+=`<div class="pfx-hdr" style="color:#78350f;border-bottom-color:#fcd34d;">⏳ PENDING — ประมาณการวางบิล (ยังไม่วางบิลจริง)</div>`;
-      pendingDetailHtml+=`<div style="font-size:10px;color:#92400e;margin:4px 0 8px;">⚠️ ยอดด้านล่างเป็นประมาณการ — ยังไม่วางบิลจริง ไม่นับรวมในยอดหนี้จริง</div>`;
-      pendPfxsD.forEach(pfx=>{
+      pendPfxsD.forEach((pfx,idx)=>{
         const g=pendMapD[pfx];
-        pendingDetailHtml+=`<div style="margin-top:12px;margin-bottom:4px;font-size:13px;font-weight:800;color:#78350f;border-bottom:1px solid #fde68a;padding-bottom:4px;">⏳ ${pfx} <span style="font-size:11px;font-weight:400;color:#92400e;">${g.invs.length} อินวอยซ์</span></div>`;
+        const isLastPend=idx===pendPfxsD.length-1;
+        pendingDetailHtml+=`<div class="pfx-page page-break">`;
+        pendingDetailHtml+=`<div class="pfx-hdr" style="color:#78350f;border-bottom-color:#fcd34d;">⏳ ${pfx} <span class="pfx-sub" style="color:#92400e;">${g.invs.length} อินวอยซ์ — PENDING</span></div>`;
+        pendingDetailHtml+=`<div style="font-size:10px;color:#92400e;margin:4px 0 8px;">⚠️ ประมาณการ — ยังไม่วางบิลจริง</div>`;
         pendingDetailHtml+=`<table><thead><tr><th style="background:#78350f;">อินวอยซ์</th><th style="background:#78350f;text-align:center;">ตู้</th><th class="r" style="background:#78350f;">ยอดประมาณการ (บาท)</th></tr></thead><tbody>`;
         g.invs.forEach(iv=>{
           pendingDetailHtml+=`<tr><td style="padding:7px 12px;font-size:12px;">${iv.inv}</td><td style="text-align:center;font-size:11px;padding:7px 12px;color:#6b7280;">${iv.ctrs}</td><td style="text-align:right;font-family:monospace;font-size:12px;padding:7px 12px;${iv.noPrice?'color:#dc2626;':'font-weight:700;'}">${iv.noPrice?'ไม่มีราคา':fm(iv.amount)}</td></tr>`;
         });
         pendingDetailHtml+=`<tr class="sub-total" style="background:#fef9c3;"><td>รวม ${pfx}</td><td></td><td style="text-align:right;font-family:monospace;">${g.total>0?fm(g.total):'รอราคา'}</td></tr>`;
         pendingDetailHtml+=`</tbody></table>`;
-      });
-      pendingDetailHtml+=`<div class="grand-bar" style="background:#78350f;">⏳ ยอดประมาณการทั้งหมด (PENDING) &nbsp;·&nbsp; <span style="font-family:monospace;">${fm(pendGrandD)}</span></div>`;
-      pendingDetailHtml+=`</div>`;
+        if(isLastPend)pendingDetailHtml+=`<div class="grand-bar" style="background:#78350f;margin-top:12px;">⏳ ยอดประมาณการทั้งหมด (PENDING) &nbsp;·&nbsp; <span style="font-family:monospace;">${fm(pendGrandD)}</span></div>`;
+        pendingDetailHtml+=`</div>`;
     }
   }
   const summaryContent=showDetail?'':`<table><thead><tr><th>โรงงาน</th><th style="text-align:center;">จำนวน INV</th><th class="r">ยอดค้างชำระ (บาท)</th></tr></thead><tbody>${body}${grandTotal>0?`<tr class="grand"><td colspan="2">💰 ยอดรวมค้างชำระ (วางบิลโรงงาน)</td><td style="text-align:right;font-family:monospace;">${fm(grandTotal)}</td></tr>`:''}</tbody></table>${pendingSummaryHtml}${shipSummaryHtml}`;
