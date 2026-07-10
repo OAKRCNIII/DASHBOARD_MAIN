@@ -2752,8 +2752,21 @@ function renderStatsVessel(){
   const vn=[...new Set(VESSEL.map(r=>r.vessel))];const tv=VESSEL.reduce((a,r)=>a+r.vol,0);
   let tocf=0,ttlx=0;VESSEL.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){tocf+=f.ocf||0;ttlx+=f.tlx||0;}});
   const tot=tocf+ttlx;const fm=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}):'-';
+  let unpaidOcfCtrs=0,unpaidOcfInvs=0;
+  if(_canSeeFees()){
+    VESSEL.forEach(r=>{
+      const f=FEES[normInv(r.inv)]||{};
+      if((f.ocf||0)>0)return;
+      const iP=PRE_PAID.some(v=>r.vessel.trim().toUpperCase()===v.toUpperCase());
+      if(iP)return;
+      const mpKey=normInv(r.inv).toUpperCase();
+      if(MANUAL_PAID.has(mpKey)||MANUAL_PAID.has(r.inv.toUpperCase()))return;
+      unpaidOcfCtrs+=r.vol;unpaidOcfInvs++;
+    });
+  }
   let bar=kc('⛴️ เรือทั้งหมด',vn.length,'รอบการส่ง','#6366f1',null)+kc('📋 อินวอยซ์',VESSEL.length,'จัดขึ้นเรือแล้ว','#10b981',null)+kc('🗳️ ตู้รวม',tv,'ตู้','#8b5cf6',null);
   if(_canSeeFees()&&tot>0)bar+=kc('OCF',fm(tocf)+' RM','ค่าระวาง','#16a34a',null)+kc('TLX',fm(ttlx)+' RM','ค่า Telex','#2563eb',null)+kc('รวม',fm(tot)+' RM','OCF+TLX','#dc2626',null);
+  if(_canSeeFees()&&unpaidOcfCtrs>0)bar+=kc('💸 ยังไม่จ่าย OCF',unpaidOcfCtrs,'ตู้ · '+unpaidOcfInvs+' INV','#dc2626',null);
   if(_canSeeFees()&&STMT.latestNo)bar+=kc('ลำดับล่าสุด','#'+STMT.latestNo,STMT.latestDate,'#475569',null)+kc('ยอดคงเหลือ',fm(STMT.latestBalance)+' RM','ณ #'+STMT.latestNo,'#dc2626',null);
   document.getElementById('sBar').innerHTML=bar;
 }
