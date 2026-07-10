@@ -2765,7 +2765,7 @@ function renderStatsVessel(){
     });
   }
   let bar=kc('⛴️ เรือทั้งหมด',vn.length,'รอบการส่ง','#6366f1',null)+kc('📋 อินวอยซ์',VESSEL.length,'จัดขึ้นเรือแล้ว','#10b981',null)+kc('🗳️ ตู้รวม',tv,'ตู้','#8b5cf6',null);
-  if(_canSeeFees()&&tot>0)bar+=kc('OCF',fm(tocf)+' RM','ค่าระวาง','#16a34a',null)+kc('TLX',fm(ttlx)+' RM','ค่า Telex','#2563eb',null)+kc('รวม',fm(tot)+' RM','OCF+TLX','#dc2626',null);
+  /* OCF/TLX/รวม ซ่อน — ไม่ค่อยได้ดู */
   if(_canSeeFees()&&unpaidOcfCtrs>0)bar+=kc('💸 ยังไม่จ่าย OCF',unpaidOcfCtrs,'ตู้ · '+unpaidOcfInvs+' INV','#dc2626',null);
   if(_canSeeFees()&&STMT.latestNo)bar+=kc('ลำดับล่าสุด','#'+STMT.latestNo,STMT.latestDate,'#475569',null)+kc('ยอดคงเหลือ',fm(STMT.latestBalance)+' RM','ณ #'+STMT.latestNo,'#dc2626',null);
   document.getElementById('sBar').innerHTML=bar;
