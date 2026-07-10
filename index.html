@@ -1869,11 +1869,15 @@ async function loadData(){
   });
   const ava=bkgContainers.filter(c=>c.status==='AVAILABLE');
   const usedBkg=bkgContainers.filter(c=>c.status==='USED');
+  // ตู้เวียนซ้ำหลาย BKG ได้ — นับ distinct container_no
+  const totalUniq=new Set(bkgContainers.map(c=>c.container_no||c.ctrNum||'')).size;
+  const avaUniq=new Set(ava.map(c=>c.container_no||c.ctrNum||'')).size;
+  const usedUniq=new Set(usedBkg.map(c=>c.container_no||c.ctrNum||'')).size;
   const stock={
     containers:bkgContainers,groups:Object.values(gmap),
-    stats:{total:bkgContainers.length,used:usedBkg.length,available:ava.length,
-      mmf:ava.filter(c=>c.lockFor.toUpperCase().includes('MMF')).length,
-      pip:ava.filter(c=>c.lockFor.toUpperCase().includes('PIP')).length},
+    stats:{total:totalUniq,used:usedUniq,available:avaUniq,
+      mmf:new Set(ava.filter(c=>c.lockFor.toUpperCase().includes('MMF')).map(c=>c.container_no||c.ctrNum||'')).size,
+      pip:new Set(ava.filter(c=>c.lockFor.toUpperCase().includes('PIP')).map(c=>c.container_no||c.ctrNum||'')).size},
   };
 
   /* ── 6. Build VESSEL from vessels table ── */
@@ -5015,10 +5019,15 @@ function trShowAlModal(month){
   /* ── collect bills per company (track invSet per bill) ── */
   const coIns=[];const coBills={};const coTot={};
   let totalCtr=0,totalAmount=0;
+  const modalFacTruckByInv={};
   src.forEach(d=>{
     totalCtr+=d.details.length;
     d.details.forEach(row=>{
-      if(!row.trMatch||row.trMatch._prePaid)return;
+      if(row.trMatch&&row.trMatch._factoryTruck){
+        if(!modalFacTruckByInv[d.inv])modalFacTruckByInv[d.inv]=0;
+        modalFacTruckByInv[d.inv]++;
+      }
+      if(!row.trMatch||row.trMatch._prePaid||row.trMatch._factoryTruck)return;
       const co=(row.trMatch.co||row.trMatch.al||'').trim()||'(ไม่ระบุ)';
       const bill=(row.trMatch.billNo||'').trim()||'(ไม่มีเลข)';
       const price=row.trMatch.price||0;
@@ -5081,7 +5090,17 @@ function trShowAlModal(month){
     '<td class="r">'+totalCtr+' ตู้</td>'+
     '<td class="r tral-amt">'+fmt(totalAmount)+'</td>'+
   '</tr>';
+  const mftInvs=Object.keys(modalFacTruckByInv).sort();
+  let modalFtNote='';
+  if(mftInvs.length){
+    const mftTotal=mftInvs.reduce((a,k)=>a+modalFacTruckByInv[k],0);
+    const mftDetail=mftInvs.map(inv=>`${inv} (${modalFacTruckByInv[inv]} ตู้)`).join(', ');
+    modalFtNote=`<div style="margin:10px 0 4px;padding:8px 12px;background:#fef9c3;border:1px solid #fde68a;border-radius:6px;font-size:11px;color:#78350f;line-height:1.6;">
+      ⚠️ <strong>รถโรงงาน ${mftTotal} ตู้</strong> ไม่นับในยอดจ่าย — <span style="color:#92400e;">${mftDetail}</span>
+    </div>`;
+  }
   document.getElementById('trAlBody').innerHTML=
+    modalFtNote+
     '<table class="tral-tbl"><thead><tr>'+
     '<th style="width:32px;text-align:right;">#</th>'+
     '<th style="width:30%">เลขที่วางบิล</th>'+
@@ -5114,11 +5133,16 @@ function trPrintByFactoryReport(){
     other:{label:'โรงงานอื่นๆ (ไม่รวม OGM)',sublabel:'(แยกตามบริษัทขนส่ง)',color:'#1e3a5f',light:'#dbeafe',cos:{},coIns:[],tot:{ctr:0,amount:0}}
   };
   let grandAmt=0,grandCtr=0;
+  const pfxFacTruckByInv={};
   src.forEach(d=>{
     const _pfx=(d.prefix||'').trim().toUpperCase();
     const grp=(_pfx==='OGM'||_pfx==='KNT')?groups.ogm:groups.other;
     d.details.forEach(row=>{
-      if(!row.trMatch||row.trMatch._prePaid)return;
+      if(row.trMatch&&row.trMatch._factoryTruck&&grp===groups.other){
+        if(!pfxFacTruckByInv[d.inv])pfxFacTruckByInv[d.inv]=0;
+        pfxFacTruckByInv[d.inv]++;
+      }
+      if(!row.trMatch||row.trMatch._prePaid||row.trMatch._factoryTruck)return;
       const bill=(row.trMatch.billNo||'').trim()||'(ไม่มีเลข)';
       const al=(row.trMatch.al||row.trMatch.seq||'').trim()||'-';
       const co=extractTrCo(bill);
@@ -5232,7 +5256,17 @@ function trPrintByFactoryReport(){
       </table>
     </div>`;
   };
-  const body=buildSection(groups.ogm)+buildSection(groups.other)+
+  const pftInvs=Object.keys(pfxFacTruckByInv).sort();
+  let pfxFtNote='';
+  if(pftInvs.length){
+    const pftTotal=pftInvs.reduce((a,k)=>a+pfxFacTruckByInv[k],0);
+    const pftDetail=pftInvs.map(inv=>`${inv} (${pfxFacTruckByInv[inv]} ตู้)`).join(', ');
+    pfxFtNote=`<div style="margin-top:14px;padding:10px 16px;background:#fef9c3;border:1.5px solid #fde68a;border-radius:7px;font-size:12px;color:#78350f;line-height:1.7;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+      <strong>⚠️ หมายเหตุ:</strong> มีตู้รถโรงงาน <strong>${pftTotal} ตู้</strong> ที่ไม่นับในยอดค่าขนส่งด้านบน<br>
+      <span style="font-size:11px;color:#92400e;">${pftDetail}</span>
+    </div>`;
+  }
+  const body=buildSection(groups.ogm)+buildSection(groups.other)+pfxFtNote+
     `<table style="margin-top:12px;"><tbody><tr class="grand-row">
       <td colspan="2">รวมทั้งหมด</td><td class="r">${grandCtr} ตู้</td><td class="r">${fm(grandAmt)}</td>
     </tr></tbody></table>`;
@@ -5282,6 +5316,7 @@ function trPrintAlMonthXref(){
       }
     });
   });
+  const facTruckByInv={};
   TR_DATA.forEach(d=>{
     if(d.month!==printMonth)return;
     if(!matchTrPrefix(d))return;
@@ -5290,7 +5325,11 @@ function trPrintAlMonthXref(){
     const grp=fmap[fk];
     const mo=d.month;
     d.details.forEach(row=>{
-      if(!row.trMatch||row.trMatch._prePaid)return;
+      if(row.trMatch&&row.trMatch._factoryTruck&&fk==='other'){
+        if(!facTruckByInv[d.inv])facTruckByInv[d.inv]=0;
+        facTruckByInv[d.inv]++;
+      }
+      if(!row.trMatch||row.trMatch._prePaid||row.trMatch._factoryTruck)return;
       const al=(row.trMatch.al||row.trMatch.seq||'').trim()||'(ไม่มีเลขลำดับ)';
       const bill=(row.trMatch.billNo||'').trim()||'(ไม่มีเลข)';
       /* extract transport company from English letters in billNo */
@@ -5448,7 +5487,17 @@ function trPrintAlMonthXref(){
     <td class="r">${grandCtr} ตู้</td>
     <td class="r">${fm(grandAmt)}</td>
   </tr></tbody></table></div>`;
-  const body=ogmHtml+otherHtml+(ogmHtml||otherHtml?grandHtml:'');
+  const facTruckInvs=Object.keys(facTruckByInv).sort();
+  let facTruckNote='';
+  if(facTruckInvs.length){
+    const ftTotal=facTruckInvs.reduce((a,k)=>a+facTruckByInv[k],0);
+    const ftDetail=facTruckInvs.map(inv=>`${inv} (${facTruckByInv[inv]} ตู้)`).join(', ');
+    facTruckNote=`<div style="margin-top:14px;padding:10px 16px;background:#fef9c3;border:1.5px solid #fde68a;border-radius:7px;font-size:12px;color:#78350f;line-height:1.7;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+      <strong>⚠️ หมายเหตุ:</strong> มีตู้รถโรงงาน <strong>${ftTotal} ตู้</strong> ที่ไม่นับในยอดค่าขนส่งด้านบน<br>
+      <span style="font-size:11px;color:#92400e;">${ftDetail}</span>
+    </div>`;
+  }
+  const body=ogmHtml+otherHtml+facTruckNote+(ogmHtml||otherHtml?grandHtml:'');
   const html=`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
     <title>บริษัทขนส่งตามเดือน — ${he2(moLabel)}</title>
     <style>${css}</style></head><body>
