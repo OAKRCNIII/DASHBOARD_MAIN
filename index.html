@@ -2908,7 +2908,8 @@ function showInvDetail(id,panelId){
   if(invPendCtrs.length)out+=`<span class="pv-badge" style="background:#fef9c3;color:#92400e;border:1px solid #fcd34d;">⏳ +${invPendCtrs.length} PENDING</span>`;
   if(d.destination&&d.destination!=='-')out+=`<span class="pv-badge" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;">🚢 ${h(d.destination)}</span>`;
   out+=`</div>`;
-  if(VESSEL.length){const vr=VESSEL.find(r=>normInv(r.inv)===normInv(d.inv));if(vr)out+=`<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span style="font-size:20px;">🚢</span><div><div style="font-size:12px;font-weight:700;color:#1e40af;">${h(vr.vessel)}</div><div style="font-size:10px;color:#64748b;margin-top:2px;">ETD: <b>${h(vr.date)}</b> · BKG: <b>${h(vr.bkg)}</b> · <b>${h(vr.des)}</b></div></div></div>`;}
+  if(_canSeeFees()&&(d.prefix==='INV'||d.prefix==='SHL'))out+=`<div style="margin-bottom:10px;"><button onclick="openQuotationModal('${d.inv.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="padding:6px 14px;background:#1e3a5f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🖨️ ใบเสนอราคา</button></div>`;
+  if(VESSEL.length){const vr=VESSEL.find(r=>normInv(r.inv)===normInv(d.inv));if(vr)out+=`<a href="https://www.marinetraffic.com/en/ais/details/ships/shipname:${encodeURIComponent(vr.vessel)}" target="_blank" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;margin-bottom:10px;text-decoration:none;cursor:pointer;" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'"><span style="font-size:20px;">🚢</span><div style="flex:1;"><div style="font-size:12px;font-weight:700;color:#1e40af;">${h(vr.vessel)} <span style="font-size:11px;opacity:.7;">🛰️ ดูสถานะเรือ</span></div><div style="font-size:10px;color:#64748b;margin-top:2px;">ETD: <b>${h(vr.date)}</b> · BKG: <b>${h(vr.bkg)}</b> · <b>${h(vr.des)}</b></div></div></a>`;}
   const tr=TRANSPORT[normInv(d.inv)];
   if(Object.keys(TRANSPORT).length>0){if(tr&&tr.total>0){out+=`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin-bottom:10px;"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;"><span style="font-size:12px;font-weight:700;color:#166534;">🚛 ค่าขนส่ง — จ่ายแล้ว</span><span style="font-size:13px;font-weight:800;color:#16a34a;">${fm(tr.total)} บาท</span></div><div style="font-size:10px;color:#4ade80;margin-top:2px;">${tr.count} ตู้ · ${[...new Set(tr.records.map(r=>r.billNo).filter(Boolean))].join(', ')}</div><details style="margin-top:6px;"><summary style="font-size:10px;color:#16a34a;cursor:pointer;">ดูรายละเอียด (${tr.count})</summary><table class="det-tbl" style="margin-top:4px;"><thead><tr><th>วันที่</th><th>โรงงาน</th><th>เบอร์ตู้</th><th>ราคา</th><th>AL</th></tr></thead><tbody>`;tr.records.forEach(r=>{out+=`<tr><td>${h(r.date)}</td><td>${h(r.factory)}</td><td style="font-family:monospace;font-size:10px;">${h(r.container)}</td><td style="text-align:right;font-weight:600;">${fm(r.price)}</td><td style="color:#94a3b8;font-size:10px;">${h(r.al)}</td></tr>`;});out+='</tbody></table></details></div>';}else{out+='<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;"><span style="font-size:18px;">🚛</span><span style="font-size:12px;font-weight:700;color:#dc2626;">ค่าขนส่ง — ยังไม่มีข้อมูล</span></div>';}}
   /* === วางบิลโรงงาน (OGM(A) / ID / JM — factory type) === */
@@ -2995,6 +2996,151 @@ function showInvDetail(id,panelId){
   }
   else if(!invPendCtrs.length){out+='<div style="color:#94a3b8;font-size:12px;">ยังไม่มีข้อมูลตู้</div>';}
   document.getElementById(panelId).innerHTML=out;
+}
+
+/* =====================================================
+   QUOTATION PRINT
+===================================================== */
+function openQuotationModal(invNo){
+  const d=FLAT.find(f=>normInv(f.inv)===normInv(invNo));
+  if(!d)return;
+  const isSHL=d.prefix==='SHL';
+  const pe=findPriceEntry(d.inv);
+  let defaultPrice=0;
+  if(pe&&pe.type==='simple')defaultPrice=pe.price||0;
+  else if(pe&&pe.type==='tiered'&&pe.tiers&&pe.tiers.length)defaultPrice=pe.tiers[0].price||0;
+  const haulageSet=new Set((d.details||[]).filter(r=>r.trMatch&&!r.trMatch._prePaid&&!r.trMatch._factoryTruck&&r.trMatch.price>0).map(r=>r.trMatch.price));
+  const haulagePrices=[...haulageSet].sort((a,b)=>a-b);
+  const existing=document.getElementById('quotModalBg');if(existing)existing.remove();
+  const now=new Date();
+  const thDate=`${now.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][now.getMonth()]} ${now.getFullYear()+543}`;
+  const defaultContact=isSHL?'บริษัท เอส.เอช.แอล. พาราวู้ด จก.':'คุณ ธวัชชัย เหลืองวรพันธ์';
+  /* build searchable datalist for same-prefix INVs */
+  const samePfx=FLAT.filter(f=>f.prefix===d.prefix&&normInv(f.inv)!==normInv(invNo));
+  window._quotPriceMap={};
+  samePfx.forEach(f=>{
+    const fp=findPriceEntry(f.inv);
+    window._quotPriceMap[f.inv]=fp&&fp.type==='simple'?fp.price:fp&&fp.type==='tiered'&&fp.tiers?.[0]?fp.tiers[0].price:0;
+  });
+  let dl=document.getElementById('quotInvList');
+  if(dl)dl.remove();
+  dl=document.createElement('datalist');dl.id='quotInvList';
+  samePfx.forEach(f=>{const o=document.createElement('option');o.value=f.inv;dl.appendChild(o);});
+  document.body.appendChild(dl);
+  const INP='padding:7px 10px;border:1.5px solid #d1d5db;border-radius:7px;font-size:13px;font-family:monospace;font-weight:700;';
+  window._addQuotRow=function(){
+    const g=document.getElementById('qRows');
+    const inv=document.createElement('input');
+    inv.className='qRowInvSel';inv.setAttribute('list','quotInvList');inv.placeholder='พิมพ์ INV...';
+    inv.style.cssText=INP+'font-family:Sarabun,sans-serif;box-sizing:border-box;width:100%;';
+    const price=document.createElement('input');
+    price.className='qRowPrice';price.type='number';price.step='100';price.placeholder='ราคา/ตู้';
+    price.style.cssText=INP+'font-family:monospace;font-weight:700;box-sizing:border-box;width:100%;';
+    inv.addEventListener('input',()=>{const p=window._quotPriceMap[inv.value];if(p>0)price.value=p;});
+    const btn=document.createElement('button');
+    btn.textContent='✕';
+    btn.style.cssText='width:28px;border:1px solid #fca5a5;background:#fee2e2;color:#dc2626;border-radius:6px;cursor:pointer;font-size:11px;padding:4px 0;';
+    btn.onclick=()=>{g.removeChild(inv);g.removeChild(price);g.removeChild(btn);};
+    g.appendChild(inv);g.appendChild(price);g.appendChild(btn);
+  };
+  const el=document.createElement('div');el.id='quotModalBg';
+  el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9200;display:flex;align-items:center;justify-content:center;';
+  const IS='padding:5px 8px;border:1.5px solid #d1d5db;border-radius:6px;font-size:12px;width:100%;box-sizing:border-box;';
+  el.innerHTML=`<div style="background:#fff;border-radius:12px;width:440px;max-width:95vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="padding:16px 18px 0;flex-shrink:0;">
+      <div style="font-size:14px;font-weight:800;color:#1e3a5f;margin-bottom:8px;">🖨️ พิมพ์ใบเสนอราคา</div>
+      <div style="font-size:10px;color:#64748b;background:#f1f5f9;padding:4px 8px;border-radius:5px;font-family:monospace;margin-bottom:10px;">${h(invNo)} · ${d.total_actual} ตู้ · ${h(d.destination||'-')}</div>
+    </div>
+    <div style="padding:0 18px 8px;overflow-y:auto;flex:1;min-height:0;">
+      <label style="display:block;font-size:11px;font-weight:700;color:#374151;margin-bottom:8px;">วันที่<input id="qDate" value="${thDate}" style="display:block;margin-top:2px;${IS}font-family:Sarabun,sans-serif;"></label>
+      <label style="display:block;font-size:11px;font-weight:700;color:#374151;margin-bottom:8px;">เรียน<input id="qContact" value="${defaultContact}" style="display:block;margin-top:2px;${IS}font-family:Sarabun,sans-serif;"></label>
+      <div style="margin-bottom:8px;">
+        <div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:3px;">อินวอยซ์ / ราคา/ตู้ (฿)</div>
+        <div id="qRows" style="display:grid;grid-template-columns:2fr 1fr 28px;gap:4px 5px;align-items:center;">
+          <div style="padding:5px 8px;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:6px;font-size:11px;font-weight:700;box-sizing:border-box;">${h(invNo)}</div>
+          <input class="qRowPrice" type="number" value="${defaultPrice}" step="100" placeholder="ราคา/ตู้" style="${IS}font-family:monospace;font-weight:700;">
+          <div></div>
+        </div>
+        ${samePfx.length?`<button onclick="window._addQuotRow()" style="width:100%;padding:5px;border:1.5px dashed #94a3b8;border-radius:6px;background:transparent;color:#64748b;font-size:11px;font-weight:700;cursor:pointer;margin-top:1px;">+ เพิ่ม INV</button>`:''}
+      </div>
+      ${isSHL?`<div style="font-size:11px;font-weight:700;color:#374151;">🚛 HAULAGE (บาท/ตู้)<div style="display:flex;gap:6px;margin-top:2px;align-items:center;"><input id="qH1" type="number" value="${haulagePrices[0]||''}" min="0" step="100" placeholder="ราคา 1" style="flex:1;${IS}font-family:monospace;font-weight:700;"><span style="color:#94a3b8;font-size:11px;">/</span><input id="qH2" type="number" value="${haulagePrices[1]||''}" min="0" step="100" placeholder="ราคา 2 (ถ้ามี)" style="flex:1;${IS}font-family:monospace;font-weight:700;"></div></div>`:''}
+    </div>
+    <div style="padding:12px 18px;display:flex;gap:8px;flex-shrink:0;border-top:1px solid #f1f5f9;margin-top:8px;">
+      <button onclick="document.getElementById('quotModalBg').remove()" style="flex:1;padding:8px;border:1.5px solid #d1d5db;border-radius:8px;background:#fff;color:#374151;font-weight:700;font-size:12px;cursor:pointer;">ยกเลิก</button>
+      <button onclick="execPrintQuotation('${invNo.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="flex:2;padding:8px;background:#1e3a5f;border:none;border-radius:8px;color:#fff;font-weight:800;font-size:12px;cursor:pointer;">🖨️ พิมพ์</button>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+}
+
+function execPrintQuotation(invNo){
+  const d=FLAT.find(f=>normInv(f.inv)===normInv(invNo));if(!d)return;
+  const qDate=document.getElementById('qDate').value.trim();
+  const qContact=document.getElementById('qContact').value.trim();
+  const _h1=parseFloat((document.getElementById('qH1')||{}).value)||0;
+  const _h2=parseFloat((document.getElementById('qH2')||{}).value)||0;
+  const haulagePrices=[_h1,_h2].filter(p=>p>0);
+  /* collect all rows — grid cells come in triplets: invCell, priceInput, btn/spacer */
+  const allRows=[];
+  const cells=[...document.getElementById('qRows').children];
+  for(let i=0;i<cells.length;i+=3){
+    const invEl=cells[i];const priceEl=cells[i+1];
+    const inv=(invEl.tagName==='INPUT'?invEl.value:invEl.textContent).trim();
+    const price=parseFloat(priceEl?.value)||0;
+    if(inv&&price>0)allRows.push({inv,price});
+  }
+  document.getElementById('quotModalBg').remove();
+  const isSHL=d.prefix==='SHL';
+  const he2=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const fm=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0}):'-';
+  const _dest=(d.destination||'').toUpperCase();
+  const destCountry=_dest.includes('CHINA')||_dest.includes('จีน')||['NANSHA','SHEKOU','YANTIAN','CHIWAN','GUANGZHOU','SHANGHAI','NINGBO','TIANJIN','QINGDAO','XIAMEN','SHENZHEN'].some(p=>_dest.includes(p))?'จีน':'ปลายทาง';
+  const haulageNote=haulagePrices.length?`(ราคารวม HAULAGE CHARGE ${haulagePrices.map(p=>fm(p)).join(' / ')} บาท / ตู้)`:'';
+  const CSS=`@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
+    @page{size:A4 portrait;margin:18mm 20mm 22mm;}
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Sarabun',sans-serif;font-size:14px;line-height:1.7;color:#111;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .co-eng{text-align:center;font-size:15px;font-weight:700;letter-spacing:.04em;}
+    .co-th{text-align:center;font-size:18px;font-weight:800;margin:3px 0;}
+    .co-addr{text-align:center;font-size:12px;color:#374151;}
+    hr{border:none;border-top:2.5px solid #1e3a5f;margin:10px 0 14px;}
+    .doc-date{text-align:right;margin-bottom:16px;}
+    .lbl{font-weight:700;min-width:70px;display:inline-block;}
+    .body-text{margin:16px 0 6px;text-indent:2.5em;line-height:1.85;}
+    table{width:100%;border-collapse:collapse;margin:14px 0 6px;}
+    th{background:#1e3a5f;color:#fff;padding:8px 10px;font-size:13px;border:1px solid #1e3a5f;text-align:left;}
+    td{border:1px solid #cbd5e1;padding:9px 12px;font-size:14px;vertical-align:middle;}
+    .remark{font-size:12px;color:#374151;margin-top:6px;line-height:1.9;}
+    .closing{margin-top:22px;line-height:1.85;}
+    .sig{margin-top:55px;text-align:right;}
+    .sig-line{border-top:1px solid #111;width:200px;display:inline-block;margin-bottom:4px;}`;
+  const HEADER=`<div class="co-eng">A.N.T.S. STAR TRANSIT CO., LTD.</div>
+  <div class="co-th">บริษัท เอ.เอ็น.ที.เอส. สตาร์ ทรานสิท จำกัด</div>
+  <div class="co-addr">85 ถนนคลองเรียน 2 ซอย 8 อำเภอหาดใหญ่ จังหวัดสงขลา 90110 &nbsp;&nbsp; โทร. 074-357758 &nbsp;&nbsp; โทรสาร. 074-356037</div>
+  <hr>
+  <div class="doc-date">วันที่ ${he2(qDate)}</div>
+  <div><span class="lbl">เรื่อง</span>เสนอราคาค่าใช้จ่ายในการส่งออก</div>
+  <div style="margin-top:4px;"><span class="lbl">เรียน</span>${he2(qContact)}</div>`;
+  const FOOTER=`<div class="closing">จึงเรียนมาเพื่อโปรดพิจารณาและบริษัทฯหวังเป็นอย่างยิ่งว่าจะได้รับการสนับสนุนและมอบความไว้วางใจให้บริษัทฯได้เป็นผู้ดูแลและให้บริการแก่ท่าน</div>
+  <div class="sig"><div>ขอแสดงความนับถือ</div><div style="margin:50px 0 2px;"><div class="sig-line"></div></div><div>(นายสุพรรณ จงสุวิวัฒน์วงศ์)</div></div>`;
+  const tableRows=allRows.map(r=>`<tr><td>${he2(r.inv)}</td><td style="text-align:right;font-weight:700;">${fm(r.price)}</td></tr>`).join('');
+  const table=`<table><thead><tr><th style="width:70%">เลขอินวอยซ์</th><th style="text-align:right;width:30%">ราคา/ตู้ (฿)</th></tr></thead><tbody>${tableRows}</tbody></table>`;
+  let body='';
+  if(isSHL){
+    const penang='ท่าเรือปีนัง ประเทศมาเลเซีย';
+    body=`<div class="body-text">บริษัทฯมีความยินดีที่จะเสนอราคาค่าบริการสำหรับสินค้าขาออก ขนาดตู้ 40 ฟุต ที่${penang} ไปยังปลายทาง ประเทศ${destCountry} ดังนี้</div>
+    ${table}
+    <div class="remark">หมายเหตุ : ราคารวม HAULAGE CHARGE แล้ว<br>${haulageNote?haulageNote+'<br>':''} (ไม่รวมค่าประกันภัย)</div>`;
+  }else{
+    body=`<div class="body-text">บริษัทฯมีความยินดีที่จะเสนอราคาค่าบริการสำหรับสินค้าขาออก ขนาดตู้ 40 ฟุต ที่ Penang Port ไปยังปลายทาง ประเทศ${destCountry} ดังนี้</div>
+    ${table}
+    <div class="remark">หมายเหตุ : ราคารวมภาษีมูลค่าเพิ่มแล้ว / ไม่รวมค่าประกันภัย</div>`;
+  }
+  const html=`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>ใบเสนอราคา — ${he2(invNo)}</title><style>${CSS}</style></head><body>${HEADER}${body}${FOOTER}</body></html>`;
+  const win=window.open('','_blank','width=860,height=720');
+  if(!win){alert('⚠️ กรุณาอนุญาต Pop-up ก่อนนะครับ');return;}
+  win.document.open();win.document.write(html);win.document.close();
+  win.focus();setTimeout(()=>{try{win.print();}catch(e){}},700);
 }
 
 /* =====================================================
