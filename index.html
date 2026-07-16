@@ -2971,7 +2971,8 @@ function showInvDetail(id,panelId){
   {const _tA=d.total_actual||0,_tE=d.total_expected||0;
   const _tDoc=d.doc_status==='ปล่อยเอกสารแล้ว';
   const _tVr=VESSEL.find(r=>normInv(r.inv)===normInv(d.inv));
-  const _tDep=_tVr&&pDate(_tVr.date)<Date.now();
+  const _today=(()=>{const n=new Date();return n.getFullYear()*10000+(n.getMonth()+1)*100+n.getDate();})();
+  const _tDep=_tVr&&pDate(_tVr.date)>0&&pDate(_tVr.date)<_today;
   const _ST=[
     {l:'เปิดออเดอร์',ok:true},
     {l:'กำลังขึ้นตู้',ok:_tA>0},
