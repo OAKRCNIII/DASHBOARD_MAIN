@@ -2967,6 +2967,33 @@ function showInvDetail(id,panelId){
   if(invPendCtrs.length)out+=`<span class="pv-badge" style="background:#fef9c3;color:#92400e;border:1px solid #fcd34d;">⏳ +${invPendCtrs.length} PENDING</span>`;
   if(d.destination&&d.destination!=='-')out+=`<span class="pv-badge" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;">🚢 ${h(d.destination)}</span>`;
   out+=`</div>`;
+  /* ── Shipment Timeline ── */
+  {const _tA=d.total_actual||0,_tE=d.total_expected||0;
+  const _tDoc=d.doc_status==='ปล่อยเอกสารแล้ว';
+  const _tVr=VESSEL.find(r=>normInv(r.inv)===normInv(d.inv));
+  const _tDep=_tVr&&pDate(_tVr.date)<Date.now();
+  const _ST=[
+    {l:'เปิดออเดอร์',ok:true},
+    {l:'กำลังขึ้นตู้',ok:_tA>0},
+    {l:'ขึ้นตู้ครบ',ok:_tE>0&&_tA>=_tE&&invPendCtrs.length===0},
+    {l:'ปล่อยเอกสาร',ok:_tDoc},
+    {l:'ลงเรือแล้ว',ok:_tDoc&&!!_tVr},
+    {l:'เรือออกแล้ว',ok:!!_tDep},
+  ];
+  const _actSt=_ST.findIndex(s=>!s.ok);
+  out+=`<div style="display:flex;align-items:flex-start;margin:10px 0 14px;overflow-x:auto;padding-bottom:4px;">`;
+  _ST.forEach((s,i)=>{
+    const done=s.ok,active=!done&&i===_actSt;
+    const dc=done?'#16a34a':active?'#2563eb':'#d1d5db';
+    const tc=done?'#15803d':active?'#1d4ed8':'#9ca3af';
+    out+=`<div style="display:flex;flex-direction:column;align-items:center;min-width:48px;">`;
+    out+=`<div style="width:22px;height:22px;border-radius:50%;background:${done?'#16a34a':active?'#dbeafe':'#f3f4f6'};border:2px solid ${dc};display:flex;align-items:center;justify-content:center;flex-shrink:0;">`;
+    if(done)out+=`<span style="color:#fff;font-size:11px;font-weight:800;">✓</span>`;
+    else if(active)out+=`<span style="width:8px;height:8px;border-radius:50%;background:#2563eb;display:block;"></span>`;
+    out+=`</div><div style="font-size:9px;text-align:center;margin-top:4px;color:${tc};font-weight:${done||active?700:400};line-height:1.3;">${s.l}</div></div>`;
+    if(i<_ST.length-1)out+=`<div style="height:2px;background:${s.ok?'#16a34a':'#e5e7eb'};flex:1;margin-top:10px;min-width:8px;flex-shrink:0;"></div>`;
+  });
+  out+=`</div>`;}
   if(_canSeeFees()&&(d.prefix==='INV'||d.prefix==='SHL'))out+=`<div style="margin-bottom:10px;"><button onclick="openQuotationModal('${d.inv.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="padding:6px 14px;background:#1e3a5f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🖨️ ใบเสนอราคา</button></div>`;
   let _curMmsi=null;
   if(VESSEL.length){const vr=VESSEL.find(r=>normInv(r.inv)===normInv(d.inv));if(vr){const _vn=vr.vessel.replace(/\s+\d+[NSEW](\s*\([^)]*\))?$/i,'').trim();const _mmsi=VESSEL_MMSI[_vn.trim().toUpperCase()]||VESSEL_MMSI[_vn.trim()];_curMmsi=_mmsi||null;const _trackUrl=_mmsi?'https://www.vesselfinder.com/vessels/details/'+_mmsi:'https://www.vesselfinder.com/?name='+encodeURIComponent(_vn);out+=`<div onclick="window.open('${_trackUrl}','_blank','noopener,noreferrer')" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;margin-bottom:10px;text-decoration:none;cursor:pointer;" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'"><span style="font-size:20px;">🚢</span><div style="flex:1;"><div style="font-size:12px;font-weight:700;color:#1e40af;">${h(vr.vessel)} <span style="font-size:11px;opacity:.7;">🛰️</span></div><div style="font-size:10px;color:#64748b;margin-top:2px;">ETD: <b>${h(vr.date)}</b> · BKG: <b>${h(vr.bkg)}</b> · <b>${h(vr.des)}</b></div>${_mmsi?`<div id="vstatus_${_mmsi}" style="font-size:11px;font-weight:600;margin-top:4px;color:#94a3b8;">⏳ กำลังโหลดสถานะ...</div>`:''}</div></div>`;}}
