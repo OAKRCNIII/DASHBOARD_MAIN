@@ -1218,7 +1218,8 @@ function initAISStream(){
   if(!mmsis.length)return;
   try{
     _aisWs=new WebSocket('wss://stream.aisstream.io/v0/stream');
-    _aisWs.onopen=()=>{_aisWs.send(JSON.stringify({APIKey:AIS_KEY,BoundingBoxes:[[[-90,-180],[90,180]]],FilterMessageTypes:['PositionReport','ShipStaticData'],Mmsi:mmsis}));};
+    _aisWs.onopen=()=>{_aisWs.send(JSON.stringify({APIKey:AIS_KEY,BoundingBoxes:[[[-5,90],[45,145]],[[-90,-180],[90,180]]],FilterMessageTypes:['PositionReport','ShipStaticData']}));};
+
     _aisWs.onmessage=(e)=>{try{
       const msg=JSON.parse(e.data);
       const mmsi=String(msg.MetaData?.MMSI||'');if(!mmsi)return;
@@ -3044,7 +3045,10 @@ function showInvDetail(id,panelId){
   else if(!invPendCtrs.length){out+='<div style="color:#94a3b8;font-size:12px;">ยังไม่มีข้อมูลตู้</div>';}
   document.getElementById(panelId).innerHTML=out;
   initAISStream();
-  if(_curMmsi) setTimeout(()=>_updateVslStatusEl(_curMmsi),0);
+  if(_curMmsi){
+    setTimeout(()=>_updateVslStatusEl(_curMmsi),0);
+    setTimeout(()=>{const el=document.getElementById('vstatus_'+_curMmsi);if(el&&el.textContent.includes('กำลังโหลด'))el.innerHTML='<span style="opacity:.55;font-size:10px;">🛰️ คลิกการ์ดเพื่อดูสถานะสด</span>';},20000);
+  }
 }
 
 /* =====================================================
