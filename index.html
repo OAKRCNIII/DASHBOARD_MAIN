@@ -3048,7 +3048,7 @@ function showInvDetail(id,panelId){
       const rowBg=isPend?'background:#fffbeb;':'';
       const pendBadge=isPend?`<span style="display:inline-block;margin-left:5px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:4px;padding:1px 5px;font-size:9px;font-weight:700;vertical-align:middle;">⏳ PENDING</span>`:'';
       const _ctr=(r.เบอร์ตู้||'').trim();
-      const _ctrHtml=_ctr?`<span onclick="window.open('https://www.track-trace.com/ct/?${encodeURIComponent(_ctr)}','_blank','noopener,noreferrer')" style="cursor:pointer;color:#1d4ed8;text-decoration:underline dotted;font-weight:600;" title="ติดตามตู้ ${_ctr}">${h(_ctr)}</span>`:'-';
+      const _ctrHtml=_ctr?`<span onclick="navigator.clipboard.writeText('${_ctr}').catch(()=>{});window.open('https://shipsgo.com/en/container-tracking/${encodeURIComponent(_ctr)}','_blank','noopener,noreferrer')" style="cursor:pointer;color:#1d4ed8;text-decoration:underline dotted;font-weight:600;" title="ติดตามตู้ ${_ctr}">${h(_ctr)}</span>`:'-';
       out+=`<tr style="${rowBg}"><td>${h(r.ทะเบียนรถ)}</td><td style="font-family:monospace">${_ctrHtml}${pendBadge}</td><td>${h(r.โรงงาน)}</td><td>${h(r.เข้าโรงงาน)}</td><td>${h(r.DATE_PICKUP)}</td><td>${h(r.CADO)}</td></tr>`;
     });
     out+='</tbody></table>';
