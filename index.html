@@ -1819,11 +1819,19 @@ function parsePaidAnts(wb){
   }
   return map;
 }
-async function loadData(){
-  setLoad('📡 กำลังเชื่อมต่อ Supabase...','โหลดข้อมูลทั้งหมด 11 ตาราง');
-  /* ── Fetch all tables in parallel ── */
-  const [invRows,ctrRows,trBillRows,billingAntsRows,paidAntsRows,vesselRows,stmtRows,bkgRows,vesselPlanRows,priceUpdateRows,ogmPriceRows,shipPaidRows,bankBalRows]=
-    await Promise.all([
+const _DB_CACHE_KEY='ants_raw_v2';const _DB_CACHE_TTL=10*60*1000;
+async function loadData(forceRefresh=false){
+  /* ── Cache check ── */
+  let _rows=null;
+  if(!forceRefresh){
+    try{
+      const c=JSON.parse(sessionStorage.getItem(_DB_CACHE_KEY)||'null');
+      if(c&&c.ts&&(Date.now()-c.ts)<_DB_CACHE_TTL){_rows=c.rows;setLoad('⚡ โหลดจาก cache...','กด 🔄 รีเฟรช เพื่อดึงข้อมูลใหม่');}
+    }catch(e){}
+  }
+  if(!_rows){
+    setLoad('📡 กำลังเชื่อมต่อ Supabase...','โหลดข้อมูลทั้งหมด 11 ตาราง');
+    _rows=await Promise.all([
       sbFetch('invoices','order=id'),
       sbFetch('containers','order=id'),
       sbFetch('transport_bills','order=id'),
@@ -1838,6 +1846,10 @@ async function loadData(){
       sbFetch('ship_paid_log','select=prefix,month,paid,paid_date').catch(()=>[]),
       sbFetch('bank_balance','order=bank').catch(()=>[]),
     ]);
+    try{sessionStorage.setItem(_DB_CACHE_KEY,JSON.stringify({ts:Date.now(),rows:_rows}));}catch(e){}
+  }
+  /* ── Fetch all tables in parallel ── */
+  const [invRows,ctrRows,trBillRows,billingAntsRows,paidAntsRows,vesselRows,stmtRows,bkgRows,vesselPlanRows,priceUpdateRows,ogmPriceRows,shipPaidRows,bankBalRows]=_rows;
   /* build SHIP_PAID_CACHE จาก Supabase rows */
   SHIP_PAID_CACHE={};
   (shipPaidRows||[]).forEach(r=>{
@@ -8344,7 +8356,7 @@ document.getElementById('refreshBtn').addEventListener('click',async()=>{
   document.getElementById('spinner').style.display='block';document.getElementById('loadTxt').style.display='block';
   document.getElementById('permBox').style.display='none';document.getElementById('errBox').style.display='none';
   setLoad('📡 กำลังรีเฟรชจาก Supabase...');
-  try{const data=await loadData();showDashboard(data);}catch(e){showErr(e.message);}
+  try{const data=await loadData(true);showDashboard(data);}catch(e){showErr(e.message);}
 });
 document.getElementById('settingsBtn').addEventListener('click',()=>{alert('🔒 ANTS DASHBOARD อ่านข้อมูลจาก Supabase โดยตรง\nหากต้องการอัปเดตข้อมูล ให้รัน sync_excel_to_db.py แล้วกด 🔄 รีเฟรช');});
 document.getElementById('retryBtn').addEventListener('click',async()=>{document.getElementById('errBox').style.display='none';document.getElementById('spinner').style.display='block';document.getElementById('loadTxt').style.display='block';setLoad('กำลังลองใหม่...');try{const data=await loadData();showDashboard(data);}catch(e){showErr(e.message);}});
