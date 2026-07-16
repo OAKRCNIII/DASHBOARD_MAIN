@@ -3036,7 +3036,7 @@ function showInvDetail(id,panelId){
       const rowBg=isPend?'background:#fffbeb;':'';
       const pendBadge=isPend?`<span style="display:inline-block;margin-left:5px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:4px;padding:1px 5px;font-size:9px;font-weight:700;vertical-align:middle;">⏳ PENDING</span>`:'';
       const _ctr=(r.เบอร์ตู้||'').trim();
-      const _ctrHtml=_ctr?`<span onclick="window.open('https://www.oocl.com/eng/ourservices/eservices/cargotracking/Pages/cargotracking.aspx?ContainerNo=${encodeURIComponent(_ctr)}','_blank','noopener,noreferrer')" style="cursor:pointer;color:#1d4ed8;text-decoration:underline dotted;font-weight:600;" title="ติดตามตู้ ${_ctr} บน OOCL">${h(_ctr)}</span>`:'-';
+      const _ctrHtml=_ctr?`<span onclick="navigator.clipboard.writeText('${_ctr}');window.open('https://www.oocl.com/eng/ourservices/eservices/cargotracking/Pages/cargotracking.aspx','_blank','noopener,noreferrer');const t=document.createElement('div');t.textContent='📋 คัดลอก ${_ctr} แล้ว — วางในช่อง OOCL ได้เลย';t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:8px 18px;border-radius:20px;font-size:13px;z-index:9999;pointer-events:none;';document.body.appendChild(t);setTimeout(()=>t.remove(),3000);" style="cursor:pointer;color:#1d4ed8;text-decoration:underline dotted;font-weight:600;" title="คลิกเพื่อ copy เบอร์ตู้ + เปิด OOCL Tracking">${h(_ctr)}</span>`:'-';
       out+=`<tr style="${rowBg}"><td>${h(r.ทะเบียนรถ)}</td><td style="font-family:monospace">${_ctrHtml}${pendBadge}</td><td>${h(r.โรงงาน)}</td><td>${h(r.เข้าโรงงาน)}</td><td>${h(r.DATE_PICKUP)}</td><td>${h(r.CADO)}</td></tr>`;
     });
     out+='</tbody></table>';
