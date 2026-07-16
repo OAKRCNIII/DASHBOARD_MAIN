@@ -1194,6 +1194,42 @@ const VESSEL_MMSI = {
   'SINAR SUMATERA':563242400,'SALAM MAJU':533132085,'M.ODYSSEY':352006460,
   'MAO GANG GUANG ZHOU':352002539,'CELSIUS EMMEN':538011198,
 };
+/* === AIS STREAM === */
+const AIS_KEY='85af255cccc01d260751332555d1e3eadc96fb0e';
+let _aisWs=null, VESSEL_STATUS={};
+function _navText(nav,spd){
+  if(nav===5)return'🔵 จอดท่า';
+  if(nav===1)return'⚓ ทอดสมอ';
+  if(nav===3||nav===4)return'🔴 จำกัดการเคลื่อน';
+  return(spd||0)>0.5?`🟢 แล่น ${(spd||0).toFixed(1)} kn`:'⚪ หยุด';
+}
+function _updateVslStatusEl(mmsi){
+  const el=document.getElementById('vstatus_'+mmsi);if(!el)return;
+  const s=VESSEL_STATUS[String(mmsi)]||{};
+  if(!s.ts)return;
+  let txt=_navText(s.nav,s.spd);
+  if(s.dest)txt+=' → '+s.dest;
+  el.textContent=txt;
+  el.style.color=s.nav===5||s.nav===1?'#64748b':'#16a34a';
+}
+function initAISStream(){
+  if(_aisWs&&_aisWs.readyState<2)return;
+  const mmsis=Object.values(VESSEL_MMSI).map(String);
+  if(!mmsis.length)return;
+  try{
+    _aisWs=new WebSocket('wss://stream.aisstream.io/v0/stream');
+    _aisWs.onopen=()=>{_aisWs.send(JSON.stringify({APIKey:AIS_KEY,BoundingBoxes:[[[-90,-180],[90,180]]],FilterMessageTypes:['PositionReport','ShipStaticData'],Mmsi:mmsis}));};
+    _aisWs.onmessage=(e)=>{try{
+      const msg=JSON.parse(e.data);
+      const mmsi=String(msg.MetaData?.MMSI||'');if(!mmsi)return;
+      if(!VESSEL_STATUS[mmsi])VESSEL_STATUS[mmsi]={};
+      if(msg.MessageType==='PositionReport'){const pr=msg.Message?.PositionReport||{};VESSEL_STATUS[mmsi].nav=pr.NavigationalStatus;VESSEL_STATUS[mmsi].spd=pr.Sog;VESSEL_STATUS[mmsi].ts=Date.now();}
+      if(msg.MessageType==='ShipStaticData'){const sd=msg.Message?.ShipStaticData||{};VESSEL_STATUS[mmsi].dest=(sd.Destination||'').trim().replace(/^@+/,'');VESSEL_STATUS[mmsi].ts=VESSEL_STATUS[mmsi].ts||Date.now();}
+      _updateVslStatusEl(mmsi);
+    }catch(e){}};
+    _aisWs.onerror=()=>{};_aisWs.onclose=()=>{_aisWs=null;};
+  }catch(e){}
+}
 const SB_URL = 'https://ywslgrusflfuxtrtvlfu.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3c2xncnVzZmxmdXh0cnR2bGZ1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Njk5NjY2NCwiZXhwIjoyMDkyNTcyNjY0fQ.V3scJCzBmmF_Fgr3qrgCCWJDY2OLlIeKwcWtMPcVGvc';
 const sbFetch = async (table, params = '') => {
@@ -2919,7 +2955,8 @@ function showInvDetail(id,panelId){
   if(d.destination&&d.destination!=='-')out+=`<span class="pv-badge" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;">🚢 ${h(d.destination)}</span>`;
   out+=`</div>`;
   if(_canSeeFees()&&(d.prefix==='INV'||d.prefix==='SHL'))out+=`<div style="margin-bottom:10px;"><button onclick="openQuotationModal('${d.inv.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="padding:6px 14px;background:#1e3a5f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🖨️ ใบเสนอราคา</button></div>`;
-  if(VESSEL.length){const vr=VESSEL.find(r=>normInv(r.inv)===normInv(d.inv));if(vr){const _vn=vr.vessel.replace(/\s+\d+[NSEW](\s*\([^)]*\))?$/i,'').trim();const _mmsi=VESSEL_MMSI[_vn.trim().toUpperCase()]||VESSEL_MMSI[_vn.trim()];const _trackUrl=_mmsi?'https://www.vesselfinder.com/vessels/details/'+_mmsi:'https://www.vesselfinder.com/?name='+encodeURIComponent(_vn);out+=`<a href="${_trackUrl}" target="_blank" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;margin-bottom:10px;text-decoration:none;cursor:pointer;" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'"><span style="font-size:20px;">🚢</span><div style="flex:1;"><div style="font-size:12px;font-weight:700;color:#1e40af;">${h(vr.vessel)} <span style="font-size:11px;opacity:.7;">🛰️ ดูสถานะเรือ</span></div><div style="font-size:10px;color:#64748b;margin-top:2px;">ETD: <b>${h(vr.date)}</b> · BKG: <b>${h(vr.bkg)}</b> · <b>${h(vr.des)}</b></div></div></a>`;}}
+  let _curMmsi=null;
+  if(VESSEL.length){const vr=VESSEL.find(r=>normInv(r.inv)===normInv(d.inv));if(vr){const _vn=vr.vessel.replace(/\s+\d+[NSEW](\s*\([^)]*\))?$/i,'').trim();const _mmsi=VESSEL_MMSI[_vn.trim().toUpperCase()]||VESSEL_MMSI[_vn.trim()];_curMmsi=_mmsi||null;const _trackUrl=_mmsi?'https://www.vesselfinder.com/vessels/details/'+_mmsi:'https://www.vesselfinder.com/?name='+encodeURIComponent(_vn);out+=`<a href="${_trackUrl}" target="_blank" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;margin-bottom:10px;text-decoration:none;cursor:pointer;" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'"><span style="font-size:20px;">🚢</span><div style="flex:1;"><div style="font-size:12px;font-weight:700;color:#1e40af;">${h(vr.vessel)} <span style="font-size:11px;opacity:.7;">🛰️</span></div><div style="font-size:10px;color:#64748b;margin-top:2px;">ETD: <b>${h(vr.date)}</b> · BKG: <b>${h(vr.bkg)}</b> · <b>${h(vr.des)}</b></div>${_mmsi?`<div id="vstatus_${_mmsi}" style="font-size:11px;font-weight:600;margin-top:4px;color:#94a3b8;">⏳ กำลังโหลดสถานะ...</div>`:''}</div></a>`;}}
   const tr=TRANSPORT[normInv(d.inv)];
   if(Object.keys(TRANSPORT).length>0){if(tr&&tr.total>0){out+=`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin-bottom:10px;"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;"><span style="font-size:12px;font-weight:700;color:#166534;">🚛 ค่าขนส่ง — จ่ายแล้ว</span><span style="font-size:13px;font-weight:800;color:#16a34a;">${fm(tr.total)} บาท</span></div><div style="font-size:10px;color:#4ade80;margin-top:2px;">${tr.count} ตู้ · ${[...new Set(tr.records.map(r=>r.billNo).filter(Boolean))].join(', ')}</div><details style="margin-top:6px;"><summary style="font-size:10px;color:#16a34a;cursor:pointer;">ดูรายละเอียด (${tr.count})</summary><table class="det-tbl" style="margin-top:4px;"><thead><tr><th>วันที่</th><th>โรงงาน</th><th>เบอร์ตู้</th><th>ราคา</th><th>AL</th></tr></thead><tbody>`;tr.records.forEach(r=>{out+=`<tr><td>${h(r.date)}</td><td>${h(r.factory)}</td><td style="font-family:monospace;font-size:10px;">${h(r.container)}</td><td style="text-align:right;font-weight:600;">${fm(r.price)}</td><td style="color:#94a3b8;font-size:10px;">${h(r.al)}</td></tr>`;});out+='</tbody></table></details></div>';}else{out+='<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;"><span style="font-size:18px;">🚛</span><span style="font-size:12px;font-weight:700;color:#dc2626;">ค่าขนส่ง — ยังไม่มีข้อมูล</span></div>';}}
   /* === วางบิลโรงงาน (OGM(A) / ID / JM — factory type) === */
@@ -3006,6 +3043,8 @@ function showInvDetail(id,panelId){
   }
   else if(!invPendCtrs.length){out+='<div style="color:#94a3b8;font-size:12px;">ยังไม่มีข้อมูลตู้</div>';}
   document.getElementById(panelId).innerHTML=out;
+  initAISStream();
+  if(_curMmsi) setTimeout(()=>_updateVslStatusEl(_curMmsi),0);
 }
 
 /* =====================================================
