@@ -562,17 +562,22 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
   /* 2-col grid for home cards on fold */
   #mhomeWrap .mhome-grid{grid-template-columns:1fr 1fr;}
 }
-/* ===== LOGIN ===== */
-#loginScreen{position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f 0%,#0f2a52 100%);display:none;align-items:center;justify-content:center;z-index:99999;}
-.login-card{background:#fff;border-radius:20px;padding:36px 32px;width:320px;box-shadow:0 20px 60px rgba(0,0,0,.35);text-align:center;}
-.login-logo{font-size:40px;margin-bottom:8px;}
-.login-title{font-size:18px;font-weight:900;color:#0f2a52;margin-bottom:4px;}
-.login-sub{font-size:11px;color:#94a3b8;margin-bottom:24px;}
-.login-inp{width:100%;box-sizing:border-box;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;margin-bottom:10px;outline:none;transition:border .15s;}
-.login-inp:focus{border-color:#1e3a5f;}
-.login-btn{width:100%;padding:11px;border:none;border-radius:10px;background:#1e3a5f;color:#fff;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px;transition:background .15s;}
-.login-btn:hover{background:#2563eb;}
-.login-err{font-size:11px;color:#dc2626;margin-top:8px;min-height:16px;}
+/* ===== LOGIN — Retro Shipping Poster ===== */
+#loginScreen{position:fixed;inset:0;background:#20303c;display:none;align-items:center;justify-content:center;z-index:99999;overflow:hidden;}
+#loginArt{position:absolute;left:0;right:0;bottom:0;width:100%;height:min(38vh,290px);pointer-events:none;}
+.login-card{position:relative;background:#f6ead8;border-radius:8px;padding:0 0 24px;width:330px;max-width:92vw;box-shadow:0 24px 70px rgba(0,0,0,.55);text-align:center;overflow:hidden;border:3px solid #1a2833;z-index:1;}
+.login-band{background:#c1442e;padding:20px 16px 16px;border-bottom:3px solid #1a2833;}
+.login-logo{font-size:30px;margin-bottom:4px;}
+.login-title{font-size:24px;font-weight:900;color:#f6ead8;letter-spacing:.1em;line-height:1;}
+.login-sub{font-size:9.5px;color:#d99a3d;font-weight:700;letter-spacing:.32em;margin-top:6px;}
+.login-sub2{font-size:11px;color:#8c7a5b;font-weight:600;margin:18px 0 14px;}
+.login-inp{width:calc(100% - 48px);box-sizing:border-box;padding:11px 14px;border:2px solid #20303c;border-radius:4px;font-size:13.5px;font-weight:600;margin-bottom:10px;outline:none;background:#fdfaf2;color:#20303c;transition:border .15s,box-shadow .15s;}
+.login-inp::placeholder{color:#b3a58a;font-weight:400;}
+.login-inp:focus{border-color:#c1442e;box-shadow:0 0 0 3px rgba(193,68,46,.18);}
+.login-btn{width:calc(100% - 48px);padding:12px;border:2px solid #1a2833;border-radius:4px;background:#c1442e;color:#f6ead8;font-size:13.5px;font-weight:900;letter-spacing:.12em;cursor:pointer;margin-top:4px;transition:background .15s,transform .1s;box-shadow:0 3px 0 #1a2833;}
+.login-btn:hover{background:#a63525;}
+.login-btn:active{transform:translateY(2px);box-shadow:0 1px 0 #1a2833;}
+.login-err{font-size:11px;color:#c1442e;font-weight:700;margin-top:10px;min-height:16px;}
 #userChip{font-size:11px;background:rgba(255,255,255,.12);color:rgba(255,255,255,.85);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:3px 10px;cursor:pointer;white-space:nowrap;}
 #userChip:hover{background:rgba(255,255,255,.2);}
 
@@ -611,11 +616,86 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
 <body>
 
 <!-- LOGIN -->
-<div id="loginScreen" style="position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f 0%,#0f2a52 100%);display:flex;align-items:center;justify-content:center;z-index:99999;">
+<div id="loginScreen" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:99999;">
+  <svg id="loginArt" viewBox="0 0 900 190" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    <circle cx="716" cy="54" r="36" fill="#d99a3d"/>
+    <circle cx="716" cy="54" r="46" fill="none" stroke="#d99a3d" stroke-width="2" opacity=".35"/>
+    <g fill="#f6ead8" opacity=".16">
+      <rect x="80" y="34" width="110" height="10" rx="5"/>
+      <rect x="108" y="22" width="66" height="10" rx="5"/>
+      <rect x="600" y="20" width="84" height="9" rx="4.5"/>
+      <rect x="806" y="88" width="70" height="9" rx="4.5"/>
+    </g>
+    <g stroke="#f6ead8" stroke-width="2.5" fill="none" opacity=".8" stroke-linecap="round">
+      <path d="M120 62 q 7 -7 14 0 q 7 -7 14 0"/>
+      <path d="M175 84 q 5 -5 10 0 q 5 -5 10 0"/>
+      <path d="M92 100 q 5 -5 10 0 q 5 -5 10 0"/>
+    </g>
+    <g>
+      <line x1="640" y1="118" x2="640" y2="52" stroke="#f6ead8" stroke-width="3"/>
+      <line x1="640" y1="58" x2="620" y2="66" stroke="#f6ead8" stroke-width="2"/>
+      <rect x="642" y="52" width="16" height="9" fill="#c1442e"/>
+      <line x1="300" y1="118" x2="300" y2="76" stroke="#f6ead8" stroke-width="2.5"/>
+      <line x1="300" y1="76" x2="322" y2="88" stroke="#f6ead8" stroke-width="2"/>
+      <rect x="330" y="52" width="58" height="66" fill="#f6ead8"/>
+      <rect x="324" y="46" width="70" height="10" fill="#f6ead8"/>
+      <g fill="#20303c">
+        <rect x="330" y="58" width="58" height="7"/>
+        <rect x="338" y="74" width="9" height="8"/><rect x="354" y="74" width="9" height="8"/><rect x="370" y="74" width="9" height="8"/>
+        <rect x="338" y="90" width="9" height="8"/><rect x="354" y="90" width="9" height="8"/><rect x="370" y="90" width="9" height="8"/>
+      </g>
+      <rect x="342" y="22" width="30" height="26" fill="#c1442e"/>
+      <rect x="342" y="28" width="30" height="7" fill="#d99a3d"/>
+      <rect x="345" y="14" width="24" height="8" fill="#1a2833"/>
+      <g fill="#f6ead8" opacity=".3">
+        <circle cx="368" cy="10" r="7"/><circle cx="384" cy="4" r="9"/><circle cx="404" cy="0" r="11"/>
+      </g>
+      <g>
+        <rect x="402" y="96" width="36" height="20" fill="#2f6f8f"/>
+        <rect x="441" y="96" width="36" height="20" fill="#4a7c59"/>
+        <rect x="480" y="96" width="36" height="20" fill="#c96f2f"/>
+        <rect x="519" y="96" width="36" height="20" fill="#8a5a44"/>
+        <rect x="558" y="96" width="36" height="20" fill="#2f6f8f"/>
+        <rect x="421" y="74" width="36" height="20" fill="#d99a3d"/>
+        <rect x="460" y="74" width="36" height="20" fill="#2f6f8f"/>
+        <rect x="499" y="74" width="36" height="20" fill="#4a7c59"/>
+        <rect x="538" y="74" width="36" height="20" fill="#c1442e"/>
+        <g fill="rgba(0,0,0,.14)">
+          <rect x="408" y="96" width="3" height="20"/><rect x="418" y="96" width="3" height="20"/><rect x="428" y="96" width="3" height="20"/>
+          <rect x="447" y="96" width="3" height="20"/><rect x="457" y="96" width="3" height="20"/><rect x="467" y="96" width="3" height="20"/>
+          <rect x="486" y="96" width="3" height="20"/><rect x="496" y="96" width="3" height="20"/><rect x="506" y="96" width="3" height="20"/>
+          <rect x="525" y="96" width="3" height="20"/><rect x="535" y="96" width="3" height="20"/><rect x="545" y="96" width="3" height="20"/>
+          <rect x="564" y="96" width="3" height="20"/><rect x="574" y="96" width="3" height="20"/><rect x="584" y="96" width="3" height="20"/>
+          <rect x="427" y="74" width="3" height="20"/><rect x="437" y="74" width="3" height="20"/><rect x="447" y="74" width="3" height="20"/>
+          <rect x="466" y="74" width="3" height="20"/><rect x="476" y="74" width="3" height="20"/><rect x="486" y="74" width="3" height="20"/>
+          <rect x="505" y="74" width="3" height="20"/><rect x="515" y="74" width="3" height="20"/><rect x="525" y="74" width="3" height="20"/>
+          <rect x="544" y="74" width="3" height="20"/><rect x="554" y="74" width="3" height="20"/><rect x="564" y="74" width="3" height="20"/>
+        </g>
+      </g>
+      <polygon points="286,118 664,118 636,152 312,152" fill="#c1442e"/>
+      <polygon points="664,118 692,112 664,134" fill="#c1442e"/>
+      <rect x="286" y="118" width="384" height="8" fill="#f6ead8"/>
+      <polygon points="300,144 648,144 636,152 312,152" fill="#7a2418"/>
+      <text x="612" y="139" text-anchor="end" font-family="Georgia,serif" font-size="13" font-weight="700" fill="#f6ead8" letter-spacing="3">ANTS LINE</text>
+      <circle cx="652" cy="130" r="3.5" fill="#20303c"/>
+    </g>
+    <path d="M0 148 Q 110 138 220 148 T 440 148 T 660 146 T 900 148 V 190 H 0 Z" fill="#2e4a63"/>
+    <path d="M0 166 Q 140 156 280 166 T 560 164 T 900 166 V 190 H 0 Z" fill="#1a2833"/>
+    <g fill="#f6ead8" opacity=".85">
+      <circle cx="676" cy="150" r="6"/><circle cx="690" cy="154" r="4.5"/><circle cx="702" cy="150" r="3"/>
+      <circle cx="296" cy="152" r="4"/><circle cx="284" cy="155" r="3"/>
+    </g>
+    <g stroke="#f6ead8" stroke-width="2" opacity=".25" fill="none" stroke-linecap="round">
+      <path d="M60 158 q 10 -6 20 0"/><path d="M180 154 q 10 -6 20 0"/><path d="M790 156 q 10 -6 20 0"/><path d="M850 172 q 10 -6 20 0"/><path d="M120 176 q 10 -6 20 0"/>
+    </g>
+  </svg>
   <div class="login-card">
-    <div class="login-logo">🔐</div>
-    <div class="login-title">Logistics Dashboard</div>
-    <div class="login-sub">กรุณาเข้าสู่ระบบ</div>
+    <div class="login-band">
+      <div class="login-logo">⚓</div>
+      <div class="login-title">ANTS LINE</div>
+      <div class="login-sub">SONGKHLA — NANSHA SERVICE</div>
+    </div>
+    <div class="login-sub2">กรุณาเข้าสู่ระบบเพื่อใช้งาน</div>
     <form onsubmit="doLogin();return false;" autocomplete="on">
       <input class="login-inp" id="loginUser" type="text" placeholder="ชื่อผู้ใช้" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()">
       <input class="login-inp" id="loginPass" type="password" placeholder="รหัสผ่าน" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
