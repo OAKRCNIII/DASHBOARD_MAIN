@@ -732,6 +732,67 @@ body{background:var(--rp-cream);color:var(--rp-navy);}
 .dash-toggle-btn:hover{background:rgba(246,234,216,.14)!important;border-color:var(--rp-gold)!important;}
 #debtDashBtn{border-color:rgba(217,154,61,.6)!important;color:var(--rp-gold)!important;}
 #financeBtn{border-color:rgba(127,216,168,.5)!important;color:#9fe0b8!important;}
+
+/* ═════════════════════════════════════════════════
+   TRANSPORT DASH — HIGHWAY TRUCKING THEME
+   asphalt #2b2a26 · road-yellow #e8b23a · cream #f4efe4
+   ═════════════════════════════════════════════════ */
+:root{
+  --tk-asphalt:#2b2a26;--tk-asphalt2:#3a3833;--tk-yellow:#e8b23a;
+  --tk-cream:#f4efe4;--tk-paper:#fbf8f0;--tk-line:#d9d0bb;--tk-mut:#8a8272;
+  --tk-green:#2d6a4f;
+}
+#trDash{background:var(--tk-cream)!important;}
+/* hazard stripe bar — signature */
+#trDash .bill-info-bar{background:var(--tk-asphalt)!important;border-bottom:none!important;position:relative;}
+#trDash .bill-info-bar>span:first-child{color:var(--tk-yellow)!important;letter-spacing:.14em!important;}
+#trDash .bill-chip{background:var(--tk-asphalt2)!important;border:1.5px solid var(--tk-yellow)!important;border-radius:4px!important;}
+#trDash .bill-chip .lbl{color:var(--tk-yellow)!important;}
+#trDash .bill-chip .val{color:var(--tk-cream)!important;}
+/* stats — road-sign cards */
+#trDash .stats-bar{background:var(--tk-asphalt)!important;border-bottom:none!important;padding:12px 16px!important;position:relative;}
+#trDash .stats-bar::after{content:'';position:absolute;left:0;right:0;bottom:-8px;height:8px;background:repeating-linear-gradient(45deg,var(--tk-yellow) 0 14px,var(--tk-asphalt) 14px 28px);z-index:5;}
+#trDash .sc{background:var(--tk-paper)!important;border:2px solid var(--tk-asphalt)!important;border-left:6px solid var(--tk-yellow)!important;border-radius:5px!important;box-shadow:2px 2px 0 rgba(0,0,0,.35)!important;}
+#trDash .sc .lbl{color:var(--tk-mut)!important;}
+#trDash .sc .sub2{color:#b3a992!important;}
+/* filter bar — asphalt with dashed center line */
+#trDash .filter-bar{background:var(--tk-cream)!important;border-bottom:2px dashed var(--tk-mut)!important;padding-top:16px!important;}
+#trDash .ftab{background:var(--tk-paper)!important;border:1.5px solid var(--tk-asphalt)!important;border-radius:4px!important;color:var(--tk-asphalt)!important;}
+#trDash .ftab.active{box-shadow:2px 2px 0 rgba(43,42,38,.3)!important;}
+#trDash .search-inp{border:1.5px solid var(--tk-asphalt)!important;border-radius:4px!important;background:var(--tk-paper)!important;}
+#trDash .search-inp:focus{border-color:var(--tk-yellow)!important;box-shadow:0 0 0 3px rgba(232,178,58,.25)!important;}
+#trDash .prefix-bar{background:var(--tk-cream)!important;border-bottom:1px solid var(--tk-line)!important;}
+#trDash .pfx-tab{border-radius:4px!important;}
+#trDash .pfx-tab-all.active{background:var(--tk-asphalt)!important;color:var(--tk-yellow)!important;}
+/* main table — road sign header */
+#trDash .inv-tbl{background:var(--tk-paper)!important;border:2px solid var(--tk-asphalt)!important;border-radius:6px!important;box-shadow:4px 4px 0 rgba(43,42,38,.2)!important;}
+#trDash .inv-tbl th{background:var(--tk-asphalt)!important;color:var(--tk-yellow)!important;letter-spacing:.1em!important;}
+#trDash .inv-tbl td{border-bottom:1px dashed var(--tk-line)!important;}
+#trDash .inv-row:hover td{background:var(--tk-cream)!important;}
+#trDash .inv-row.open td{background:#efe6cf!important;}
+#trDash .detail-cell{background:var(--tk-cream)!important;}
+#trDash .det-inner{border-top:3px dashed var(--tk-yellow)!important;}
+#trDash .det-tbl th{background:#e9e2cf!important;color:#6b6353!important;border-bottom:2px solid var(--tk-asphalt)!important;}
+#trDash .det-tbl td{border-bottom:1px dashed var(--tk-line)!important;}
+#trDash .det-tbl tbody tr:hover td{background:var(--tk-cream)!important;}
+#trDash .det-sum{background:var(--tk-paper)!important;border:1.5px solid var(--tk-asphalt)!important;border-left:5px solid var(--tk-yellow)!important;border-radius:5px!important;}
+#trDash .det-sum span{color:var(--tk-green)!important;}
+/* AL summary modal — matches trucking */
+.tr-al-modal{border:2.5px solid var(--tk-asphalt)!important;border-radius:10px!important;}
+.tr-al-hdr{background:var(--tk-asphalt)!important;border-radius:7px 7px 0 0!important;}
+.tr-al-title{color:var(--tk-yellow)!important;letter-spacing:.06em!important;}
+.tr-al-info{background:var(--tk-cream)!important;border-bottom:2px dashed var(--tk-mut)!important;color:#6b6353!important;}
+.tr-al-info .ia{background:var(--tk-paper)!important;border:1.5px solid var(--tk-asphalt)!important;border-radius:4px!important;}
+.tr-al-info .ia-amt{color:var(--tk-green)!important;}
+.tral-tbl thead tr{background:var(--tk-asphalt)!important;}
+.tral-tbl th{color:var(--tk-yellow)!important;}
+.tral-tbl tbody tr{border-bottom:1px dashed var(--tk-line)!important;}
+.tral-tbl tbody tr:nth-child(even){background:var(--tk-cream)!important;}
+.tral-tbl tbody tr:hover{background:#efe6cf!important;}
+.tral-badge{background:var(--tk-asphalt)!important;color:var(--tk-yellow)!important;border-radius:4px!important;}
+.tral-sum{background:#efe6cf!important;border-top:2.5px solid var(--tk-yellow)!important;}
+.tral-sum td{color:var(--tk-asphalt)!important;}
+/* month-card hover hint (main→transport modal) keep green money */
 </style>
 </head>
 <body>
