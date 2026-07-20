@@ -6,7 +6,7 @@
 <title>🚢 ANTS DASHBOARD — นำเข้า-ส่งออก</title>
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1e3a5f">
+<meta name="theme-color" content="#20303c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Dashboard">
@@ -611,6 +611,125 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
 .det-tbl th{font-size:10.5px!important;letter-spacing:.4px!important;}
 .det-tbl td{font-size:12px!important;}
 .stats-bar{gap:10px!important;padding:9px 14px!important;}
+
+/* ═════════════════════════════════════════════════
+   THEME F — RETRO SHIPPING POSTER
+   navy #20303c · cream #f6ead8 · red #c1442e · gold #d99a3d
+   ═════════════════════════════════════════════════ */
+:root{
+  --rp-navy:#20303c;--rp-navy-deep:#1a2833;--rp-navy-soft:#2e4a63;
+  --rp-cream:#f6ead8;--rp-cream-dark:#efdfc4;--rp-paper:#fdfaf2;
+  --rp-red:#c1442e;--rp-red-dark:#a63525;--rp-gold:#d99a3d;
+  --rp-tan:#8c7a5b;--rp-line:#dcc9a4;--rp-green:#4a7c59;
+}
+body{background:var(--rp-cream);color:var(--rp-navy);}
+/* ── Header ── */
+.header{background:var(--rp-navy)!important;border-bottom:3px solid var(--rp-red)!important;box-shadow:none!important;}
+.hdr-left h1{letter-spacing:.06em;color:var(--rp-cream);}
+.hdr-left .sub{color:var(--rp-gold);opacity:.9;letter-spacing:.18em;font-weight:700;}
+.hdr-btn{background:transparent!important;border:1.5px solid rgba(246,234,216,.4)!important;color:var(--rp-cream)!important;border-radius:4px!important;}
+.hdr-btn:hover{background:rgba(246,234,216,.14)!important;border-color:var(--rp-gold)!important;}
+#userChip{background:transparent!important;border:1.5px solid rgba(217,154,61,.55)!important;color:var(--rp-gold)!important;border-radius:4px!important;}
+/* ── Tabs ── */
+.htabs{background:var(--rp-cream-dark)!important;border-bottom:2px solid var(--rp-navy)!important;}
+.htab{background:transparent!important;color:var(--rp-tan)!important;border-radius:4px 4px 0 0!important;font-weight:800!important;}
+.htab:hover{background:rgba(32,48,60,.08)!important;color:var(--rp-navy)!important;}
+.htab.active{background:var(--rp-navy)!important;color:var(--rp-cream)!important;box-shadow:none!important;}
+.htab:not(.active) .htab-badge{background:var(--rp-red)!important;}
+/* ── Stats bar ── */
+.stats-bar{background:var(--rp-cream)!important;border-bottom:2px solid var(--rp-navy)!important;}
+.sc{background:var(--rp-paper)!important;border:2px solid var(--rp-navy)!important;border-radius:5px!important;box-shadow:3px 3px 0 rgba(26,40,51,.22)!important;}
+.sc .lbl2{color:var(--rp-tan)!important;font-weight:800!important;}
+.sc .sub2{color:#b3a58a!important;}
+.sc-click:hover{transform:translate(-1px,-1px)!important;box-shadow:4px 4px 0 rgba(26,40,51,.3)!important;border-color:var(--rp-navy)!important;}
+/* ── Month sidebar ── */
+.month-tabs{background:var(--rp-navy)!important;}
+.mtab{color:rgba(246,234,216,.45)!important;}
+.mtab:hover{color:rgba(246,234,216,.85)!important;background:rgba(246,234,216,.07)!important;}
+.mtab.active{color:var(--rp-cream)!important;background:rgba(217,154,61,.16)!important;border-left-color:var(--rp-gold)!important;}
+/* ── Mid panel / lists ── */
+.mid-panel{background:var(--rp-paper)!important;}
+.mid-hdr{background:var(--rp-cream-dark)!important;border-bottom:1.5px solid var(--rp-navy)!important;color:var(--rp-tan)!important;letter-spacing:.18em!important;}
+.mid-resize{border-right-color:var(--rp-line)!important;}
+.mid-resize:hover,.mid-resize.dragging{background:rgba(193,68,46,.25)!important;border-right-color:var(--rp-red)!important;}
+.pfx-row,.ir{border-bottom:1px dashed var(--rp-line)!important;}
+.pfx-row:hover,.ir:hover{background:var(--rp-cream-dark)!important;}
+.ir-inv{color:var(--rp-navy)!important;}
+.bc-cur{color:var(--rp-navy)!important;}
+.bc-item:hover{color:var(--rp-red)!important;}
+/* ── Detail panel & tables ── */
+.det-title{color:var(--rp-navy)!important;border-bottom:2px solid var(--rp-navy)!important;}
+.det-tbl th{background:var(--rp-navy)!important;}
+.det-tbl td{border-bottom:1px dashed var(--rp-line)!important;}
+.det-tbl tr:hover td{background:var(--rp-cream-dark)!important;}
+.placeholder{color:#b3a58a!important;}
+/* ── Pending view ── */
+.pv-list{background:var(--rp-paper)!important;border-right:1.5px solid var(--rp-navy)!important;}
+.pv-list-hdr{background:var(--rp-cream-dark)!important;border-bottom:1.5px solid var(--rp-navy)!important;color:var(--rp-tan)!important;letter-spacing:.18em!important;}
+.pv-card{border-bottom:1px dashed var(--rp-line)!important;}
+.pv-card:hover{background:var(--rp-cream-dark)!important;}
+.pv-card.active{background:var(--rp-cream-dark)!important;border-left-color:var(--rp-red)!important;}
+.pv-inv{color:var(--rp-navy)!important;}
+/* ── Stock view ── */
+.stock-left{background:var(--rp-cream)!important;}
+.stock-lhdr{background:var(--rp-cream-dark)!important;border-bottom:1.5px solid var(--rp-navy)!important;color:var(--rp-tan)!important;letter-spacing:.18em!important;}
+.stock-lbody{background:var(--rp-line)!important;}
+.bkg-group{background:var(--rp-paper)!important;}
+.bkg-group:hover{background:var(--rp-cream-dark)!important;}
+.bkg-no{color:var(--rp-navy)!important;}
+.bkg-avail{color:var(--rp-green)!important;}
+/* ── Vessel view ── */
+.vessel-view{background:var(--rp-cream)!important;}
+.vessel-card{background:var(--rp-paper)!important;border:2px solid var(--rp-navy)!important;border-radius:8px!important;box-shadow:4px 4px 0 rgba(26,40,51,.18)!important;}
+.vessel-head{background:var(--rp-navy)!important;}
+.vessel-badge{background:rgba(217,154,61,.2)!important;border:1px solid rgba(217,154,61,.5)!important;color:var(--rp-gold)!important;border-radius:4px!important;}
+.vtbl th{background:var(--rp-cream-dark)!important;color:var(--rp-tan)!important;border-bottom:2px solid var(--rp-navy)!important;}
+.vtbl td{border-bottom:1px dashed var(--rp-line)!important;}
+.vtbl tbody tr:hover td{background:var(--rp-cream-dark)!important;}
+/* ── Factory view ── */
+.factory-view{background:var(--rp-cream)!important;}
+.ftbl-wrap{background:var(--rp-paper)!important;border:2px solid var(--rp-navy)!important;border-radius:8px!important;box-shadow:4px 4px 0 rgba(26,40,51,.18)!important;}
+.ftbl th{background:var(--rp-navy)!important;}
+.ftbl td{border-bottom:1px dashed var(--rp-line)!important;}
+.ftbl .fdate-hd td{background:var(--rp-cream-dark)!important;color:var(--rp-navy)!important;border-bottom:2px solid var(--rp-navy)!important;}
+.ftbl tbody tr:hover td{background:var(--rp-cream-dark)!important;}
+.fqbtn{background:var(--rp-paper)!important;border:1.5px solid var(--rp-navy)!important;border-radius:4px!important;color:var(--rp-navy)!important;}
+.fqbtn:hover,.fqbtn.fqfac-active{background:var(--rp-navy)!important;color:var(--rp-cream)!important;}
+.fdate-bar input[type=date]{border:1.5px solid var(--rp-navy)!important;border-radius:4px!important;background:var(--rp-paper)!important;}
+.fdate-clr{border:1.5px solid var(--rp-line)!important;border-radius:4px!important;background:var(--rp-paper)!important;}
+/* ── Modals ── */
+.modal,.smodal{background:var(--rp-paper)!important;border:2.5px solid var(--rp-navy)!important;border-radius:10px!important;}
+.modal-head,.smodal-head{background:var(--rp-cream-dark)!important;border-bottom:2px solid var(--rp-navy)!important;border-radius:8px 8px 0 0!important;}
+.modal-title,.smodal-title{color:var(--rp-navy)!important;}
+.modal-bg,.smodal-bg{background:rgba(26,40,51,.72)!important;}
+.sm-row{border-bottom:1px dashed var(--rp-line)!important;}
+.sm-row:hover{background:var(--rp-cream-dark)!important;}
+.sm-inv{color:var(--rp-navy)!important;}
+.ctr-row{border-bottom:1px dashed var(--rp-line)!important;}
+/* ── Views with inline bg ── */
+#priceView{background:var(--rp-cream)!important;}
+#reportView{background:var(--rp-cream)!important;}
+#financeView,#billingView{background:var(--rp-cream)!important;}
+/* ── Mobile ── */
+.mob-tabs{background:rgba(246,234,216,.94)!important;border-top:2px solid var(--rp-navy)!important;}
+.mob-tab.active{color:var(--rp-red)!important;}
+.mob-badge{background:var(--rp-red)!important;border-color:var(--rp-cream)!important;}
+.mhome-inv-card{background:var(--rp-paper)!important;border:2px solid var(--rp-navy)!important;border-radius:8px!important;box-shadow:3px 3px 0 rgba(26,40,51,.18)!important;}
+/* ── Pending containers panel ── */
+.pend-panel{background:var(--rp-cream-dark)!important;border-bottom:2px solid var(--rp-gold)!important;}
+.pend-panel-hdr{background:rgba(217,154,61,.28)!important;border-bottom:1px solid var(--rp-gold)!important;color:#7a5518!important;}
+.pend-card{background:var(--rp-paper)!important;border:1.5px solid var(--rp-gold)!important;border-radius:6px!important;}
+/* ── Load screen ── */
+#loadScreen{background:var(--rp-navy)!important;}
+.spinner{border-color:rgba(246,234,216,.18)!important;border-top-color:var(--rp-gold)!important;}
+/* ── Setup screen ── */
+#setupScreen{background:var(--rp-navy)!important;}
+.setup-card{background:var(--rp-paper)!important;border:3px solid var(--rp-navy-deep)!important;border-radius:10px!important;}
+/* ── Header toggle buttons ── */
+.dash-toggle-btn{background:transparent!important;border:1.5px solid rgba(246,234,216,.4)!important;color:var(--rp-cream)!important;border-radius:4px!important;}
+.dash-toggle-btn:hover{background:rgba(246,234,216,.14)!important;border-color:var(--rp-gold)!important;}
+#debtDashBtn{border-color:rgba(217,154,61,.6)!important;color:var(--rp-gold)!important;}
+#financeBtn{border-color:rgba(127,216,168,.5)!important;color:#9fe0b8!important;}
 </style>
 </head>
 <body>
@@ -787,8 +906,8 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
   <div class="header">
     <div class="hdr-left">
       <h1 style="display:flex;align-items:center;gap:8px;">
-        <span style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border-radius:10px;padding:3px 8px;font-size:13px;font-weight:900;letter-spacing:.5px;">🚢 ANTS</span>
-        <span style="font-size:14px;font-weight:700;color:#0f172a;">Logistics Dashboard</span>
+        <span style="background:#c1442e;color:#f6ead8;border:1.5px solid #1a2833;border-radius:4px;padding:3px 9px;font-size:13px;font-weight:900;letter-spacing:.1em;">⚓ ANTS LINE</span>
+        <span style="font-size:11px;font-weight:700;color:#d99a3d;letter-spacing:.22em;">SONGKHLA — NANSHA</span>
       </h1>
       <div class="sub" id="lastUpd" style="padding-left:2px;">—</div>
     </div>
