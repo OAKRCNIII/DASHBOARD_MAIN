@@ -107,7 +107,7 @@ const SB_ANON_KEY='sb_publishable_nrjNNyA08-GCRphIQuzvvg_YpGxiYeY';
 
 const h=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const THM=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-let ACC=null,INV=[],CTR={},VSL={},CUR_M='',PRICES=[],FILTER='all',BILLS=[],PAYS=[],ACCT=false;
+let ACC=null,INV=[],CTR={},VSL={},CUR_M='',PRICES=[],FILTER='all',BILLS=[],PAYS=[],TRANS=[],ACCT=false;
 
 async function sb(path){
   /* ดึงครบทุกแถว (PostgREST จำกัด 1000 แถว/ครั้ง — ต้องแบ่งหน้า) */
@@ -166,12 +166,14 @@ async function enter(){
       if(pr.ok)PRICES=await pr.json();
     }catch(e){}
     try{
-      const [b,p]=await Promise.all([
+      const [b,p,t]=await Promise.all([
         fetch(`${SB_URL}/rest/v1/rpc/customer_billing`,{method:'POST',headers:rpcH,body:rpcBody}),
         fetch(`${SB_URL}/rest/v1/rpc/customer_payments`,{method:'POST',headers:rpcH,body:rpcBody}),
+        fetch(`${SB_URL}/rest/v1/rpc/customer_transport`,{method:'POST',headers:rpcH,body:rpcBody}),
       ]);
       if(b.ok)BILLS=await b.json();
       if(p.ok)PAYS=await p.json();
+      if(t.ok)TRANS=await t.json();
     }catch(e){}
     renderMonths();
   }catch(e){
@@ -224,6 +226,9 @@ function renderAcct(){
   out+=`<div style="flex:1;min-width:140px;background:#fff;border:1.5px solid #fde68a;border-radius:14px;padding:14px 16px;"><div style="font-size:11px;color:#92400e;font-weight:700;">ยอดค้างชำระ</div><div style="font-size:22px;font-weight:900;color:#b45309;margin-top:2px;">${fm2(debtTotal)}</div><div style="font-size:10px;color:#94a3b8;">บาท · ${debt.length} อินวอยซ์</div></div>`;
   const lastPay=pays[0];
   out+=`<div style="flex:1;min-width:140px;background:#fff;border:1.5px solid #bbf7d0;border-radius:14px;padding:14px 16px;"><div style="font-size:11px;color:#166534;font-weight:700;">ชำระล่าสุด</div><div style="font-size:22px;font-weight:900;color:#16a34a;margin-top:2px;">${lastPay?fm2(lastPay.amount):'-'}</div><div style="font-size:10px;color:#94a3b8;">${lastPay?'บาท · '+fmtDate(lastPay.paid_date):'ยังไม่มีรายการ'}</div></div>`;
+  const trUnpaid=TRANS.filter(t=>!t.is_paid);
+  const trUnpaidTotal=trUnpaid.reduce((s,t)=>s+(+t.total||0),0);
+  if(TRANS.length)out+=`<div style="flex:1;min-width:140px;background:#fff;border:1.5px solid #c7d2fe;border-radius:14px;padding:14px 16px;"><div style="font-size:11px;color:#3730a3;font-weight:700;">ค่าขนส่งค้างชำระ</div><div style="font-size:22px;font-weight:900;color:#4338ca;margin-top:2px;">${fm2(trUnpaidTotal)}</div><div style="font-size:10px;color:#94a3b8;">บาท · ${trUnpaid.length} บิล</div></div>`;
   out+=`</div>`;
   /* debt table */
   out+=`<div class="card" style="cursor:default;"><div style="font-size:13px;font-weight:800;color:#b45309;margin-bottom:8px;">📋 รายการค้างชำระ</div>`;
@@ -235,6 +240,18 @@ function renderAcct(){
     out+='</tbody></table>';
   }
   out+=`</div>`;
+  /* ค่าขนส่ง (transport bills) */
+  if(TRANS.length){
+    const trs=[...TRANS].sort((a,b)=>String(b.bill_date||'').localeCompare(String(a.bill_date||'')));
+    out+=`<div class="card" style="cursor:default;"><div style="font-size:13px;font-weight:800;color:#3730a3;margin-bottom:8px;">🚛 รายการค่าขนส่ง</div>`;
+    out+='<table><thead><tr><th style="background:#3730a3;">เลขที่บิล</th><th style="background:#3730a3;">วันที่</th><th style="background:#3730a3;">อินวอยซ์</th><th style="background:#3730a3;text-align:center;">ตู้</th><th style="background:#3730a3;text-align:right;">ยอด (บาท)</th><th style="background:#3730a3;text-align:center;">สถานะ</th></tr></thead><tbody>';
+    trs.forEach(t=>{
+      const st=t.is_paid?'<span style="font-size:10px;background:#dcfce7;color:#166534;border-radius:8px;padding:2px 8px;font-weight:700;">ชำระแล้ว</span>':'<span style="font-size:10px;background:#fef3c7;color:#92400e;border-radius:8px;padding:2px 8px;font-weight:700;">ค้างชำระ</span>';
+      out+=`<tr><td style="font-weight:700;">${h(t.bill_no)}</td><td>${t.bill_date?fmtDate(t.bill_date):'-'}</td><td style="font-size:10.5px;">${h(t.invoice_list)}</td><td style="text-align:center;">${t.ctr_count}</td><td style="text-align:right;font-family:monospace;font-weight:700;color:#4338ca;">${fm2(t.total)}</td><td style="text-align:center;">${st}</td></tr>`;
+    });
+    if(trUnpaidTotal>0)out+=`<tr><td colspan="4" style="font-weight:800;background:#eef2ff;">รวมค่าขนส่งค้างชำระ</td><td style="text-align:right;font-family:monospace;font-weight:900;color:#4338ca;background:#eef2ff;">${fm2(trUnpaidTotal)}</td><td style="background:#eef2ff;"></td></tr>`;
+    out+='</tbody></table></div>';
+  }
   /* PENDING — มีตู้แล้วแต่ยังไม่วางบิลจริง (ประมาณการ) */
   const billedSet=new Set(BILLS.map(b=>nrm(b.invoice_no)));
   const pend=[];
