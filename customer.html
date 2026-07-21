@@ -72,10 +72,11 @@ tr:last-child td{border-bottom:none;}
   <div class="login-card">
     <div class="login-logo">📦</div>
     <div class="login-title">ติดตามออเดอร์</div>
-    <div class="login-sub">ใส่รหัสลูกค้าของท่านเพื่อดูสถานะ</div>
-    <form onsubmit="doLogin();return false;">
-      <input class="login-inp" id="codeInp" type="text" placeholder="รหัสลูกค้า" autocomplete="off">
-      <button class="login-btn" type="submit">เข้าดูสถานะ</button>
+    <div class="login-sub">เข้าสู่ระบบเพื่อดูสถานะออเดอร์ของท่าน</div>
+    <form onsubmit="doLogin();return false;" autocomplete="on">
+      <input class="login-inp" id="userInp" type="text" placeholder="ชื่อผู้ใช้ (ID)" autocomplete="username" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('codeInp').focus();}">
+      <input class="login-inp" id="codeInp" type="password" placeholder="รหัสผ่าน" autocomplete="current-password">
+      <button class="login-btn" type="submit">เข้าสู่ระบบ</button>
     </form>
     <div class="login-err" id="loginErr"></div>
   </div>
@@ -110,19 +111,20 @@ async function sb(path){
   return r.json();
 }
 async function doLogin(){
+  const user=document.getElementById('userInp').value.trim();
   const code=document.getElementById('codeInp').value.trim();
   const err=document.getElementById('loginErr');
-  if(!code){err.textContent='กรุณาใส่รหัสลูกค้า';return;}
+  if(!user||!code){err.textContent='กรุณาใส่ชื่อผู้ใช้และรหัสผ่าน';return;}
   err.textContent='';
   try{
     const r=await fetch(`${SB_URL}/rest/v1/rpc/customer_login`,{
       method:'POST',
       headers:{apikey:SB_ANON_KEY,Authorization:`Bearer ${SB_ANON_KEY}`,'Content-Type':'application/json'},
-      body:JSON.stringify({p_code:code})
+      body:JSON.stringify({p_user:user,p_code:code})
     });
     const rows=await r.json();
-    if(!Array.isArray(rows)||!rows.length){err.textContent='รหัสไม่ถูกต้อง กรุณาลองใหม่';return;}
-    ACC=rows[0];ACC.code=code;
+    if(!Array.isArray(rows)||!rows.length){err.textContent='ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';return;}
+    ACC=rows[0];ACC.user=user;ACC.code=code;
     sessionStorage.setItem('cust_acc',JSON.stringify(ACC));
     enter();
   }catch(e){err.textContent='เชื่อมต่อไม่ได้ กรุณาลองใหม่';}
@@ -149,7 +151,7 @@ async function enter(){
       const pr=await fetch(`${SB_URL}/rest/v1/rpc/customer_prices`,{
         method:'POST',
         headers:{apikey:SB_ANON_KEY,Authorization:`Bearer ${SB_ANON_KEY}`,'Content-Type':'application/json'},
-        body:JSON.stringify({p_code:ACC.code||''})
+        body:JSON.stringify({p_user:ACC.user||'',p_code:ACC.code||''})
       });
       if(pr.ok)PRICES=await pr.json();
     }catch(e){}
