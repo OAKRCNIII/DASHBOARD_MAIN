@@ -227,6 +227,44 @@ function renderAcct(){
     out+='</tbody></table>';
   }
   out+=`</div>`;
+  /* PENDING — มีตู้แล้วแต่ยังไม่วางบิลจริง (ประมาณการ) */
+  const billedSet=new Set(BILLS.map(b=>nrm(b.invoice_no)));
+  const pend=[];
+  INV.forEach(r=>{
+    if(!r.month)return;
+    const nk=nrm(r.invoice_no);
+    if(billedSet.has(nk)||paidSet.has(nk))return;
+    const ctrs=CTR[r.invoice_no]||[];
+    const n=ctrs.length||r.container_count||0;
+    if(!n)return;
+    const pe=findPrice(r.invoice_no);
+    let est=0,noPrice=!pe;
+    if(pe){
+      if(pe.price_type==='simple')est=(parseFloat(pe.price)||0)*n;
+      else if(pe.price_type==='tiered'){
+        let trs=pe.tiers;if(typeof trs==='string'){try{trs=JSON.parse(trs)}catch(e){trs=[]}}
+        (trs||[]).forEach(t=>{const from=+t.from||0,to=+t.to||0;const c=Math.max(0,Math.min(n,to)-from+1);if(c>0)est+=c*(+t.price||0);});
+      }else if(pe.price_type==='factory'){
+        let fac=pe.factories;if(typeof fac==='string'){try{fac=JSON.parse(fac)}catch(e){fac={}}}fac=fac||{};
+        ctrs.forEach(c=>{est+=(+fac[c.factory]||0);});
+      }
+      if(!est)noPrice=true;
+    }
+    pend.push({inv:r.invoice_no,n,est,noPrice});
+  });
+  if(pend.length){
+    const pendTotal=pend.reduce((s,x)=>s+x.est,0);
+    out+=`<div class="card" style="cursor:default;background:#fffbeb;border-color:#fde68a;"><div style="font-size:13px;font-weight:800;color:#92400e;margin-bottom:8px;">⏳ PENDING — ประมาณการ (ยังไม่วางบิล)</div>`;
+    out+='<table><thead><tr><th style="background:#92400e;">อินวอยซ์</th><th style="background:#92400e;text-align:center;">ตู้</th><th style="background:#92400e;text-align:right;">ยอดประมาณการ (บาท)</th></tr></thead><tbody>';
+    pend.forEach(x=>{
+      const amt=x.noPrice?'<span style="font-size:10px;background:#fee2e2;color:#dc2626;border-radius:4px;padding:1px 6px;font-weight:700;">ไม่มีราคา</span>':fm2(x.est);
+      out+=`<tr><td style="font-weight:700;">${h(x.inv)}</td><td style="text-align:center;">${x.n}</td><td style="text-align:right;font-family:monospace;font-weight:700;color:#92400e;">${amt}</td></tr>`;
+    });
+    if(pendTotal>0)out+=`<tr><td colspan="2" style="font-weight:800;background:#fef3c7;">ยอดประมาณการรวม</td><td style="text-align:right;font-family:monospace;font-weight:900;color:#92400e;background:#fef3c7;">${fm2(pendTotal)}</td></tr>`;
+    out+='</tbody></table>';
+    out+=`<div style="font-size:10px;color:#92400e;opacity:.75;margin-top:6px;">⚠️ ยอด PENDING เป็นประมาณการจากจำนวนตู้ × ราคา — ยังไม่ใช่ยอดวางบิลจริง</div>`;
+    out+=`</div>`;
+  }
   /* recent payments */
   out+=`<div class="card" style="cursor:default;"><div style="font-size:13px;font-weight:800;color:#166534;margin-bottom:8px;">💰 รายการชำระล่าสุด</div>`;
   if(!pays.length)out+=`<div style="font-size:12.5px;color:#94a3b8;text-align:center;padding:14px;">ยังไม่มีรายการชำระ</div>`;
