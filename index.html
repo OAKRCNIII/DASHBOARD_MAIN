@@ -3451,7 +3451,11 @@ async function openDocsModal(inv){
   document.getElementById('docsModalTitle').textContent='📎 เอกสาร — '+inv;
   document.getElementById('docsModalBody').innerHTML='<div style="text-align:center;color:#64748b;padding:24px;">⏳ กำลังโหลด...</div>';
   bg.style.display='flex';
-  const results=await Promise.all(DOC_TYPES.map(t=>_storList(docSafe(inv)+'/'+t.key).then(files=>({type:t.key,label:t.label,files:_docLatestOnly(files),allCount:files.length}))));
+  const [results,_logRows]=await Promise.all([
+    Promise.all(DOC_TYPES.map(t=>_storList(docSafe(inv)+'/'+t.key).then(files=>({type:t.key,label:t.label,files:_docLatestOnly(files),allCount:files.length})))),
+    sbFetch(`doc_upload_log`,`invoice_no=eq.${encodeURIComponent(inv)}&action=eq.upload&order=id.desc&limit=200`).catch(()=>[]),
+  ]);
+  const _upMap={};(_logRows||[]).forEach(l=>{const k=l.doc_type+'|'+l.file_name;if(!(k in _upMap))_upMap[k]=l.uploaded_by;});
   _docsModalFiles[inv]=results;
   const total=results.reduce((s,r)=>s+r.files.length,0);
   const complete=results.every(r=>r.files.length>0);
@@ -3465,7 +3469,8 @@ async function openDocsModal(inv){
       r.files.forEach(f=>{
         const p=(docSafe(inv)+'/'+r.type+'/'+f.name).replace(/'/g,"\\'");
         const isVer=r.allCount>1;
-        html+=`<div style="display:flex;align-items:center;gap:8px;margin-top:4px;"><span style="font-size:11px;color:#475569;">${/\.pdf$/i.test(f.name)?'📄':'🖼️'} ${h(docBaseName(f.name))}${isVer?' <span style="font-size:9px;background:#dcfce7;color:#166534;border-radius:4px;padding:1px 5px;">อัพเดตล่าสุด</span>':''}</span><span onclick="_docOpen('${p}')" style="cursor:pointer;font-size:10px;font-weight:700;color:#1d4ed8;background:#dbeafe;border-radius:5px;padding:2px 8px;">⬇️ ดาวน์โหลด</span></div>`;
+        const _upBy=_upMap[r.type+'|'+f.name];
+        html+=`<div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap;"><span style="font-size:11px;color:#475569;">${/\.pdf$/i.test(f.name)?'📄':'🖼️'} ${h(docBaseName(f.name))}${isVer?' <span style="font-size:9px;background:#dcfce7;color:#166534;border-radius:4px;padding:1px 5px;">อัพเดตล่าสุด</span>':''}</span>${_upBy?`<span style="font-size:9.5px;color:#0e7490;font-weight:700;">👤 ${h(_upBy)}</span>`:''}<span onclick="_docOpen('${p}')" style="cursor:pointer;font-size:10px;font-weight:700;color:#1d4ed8;background:#dbeafe;border-radius:5px;padding:2px 8px;">⬇️ ดาวน์โหลด</span></div>`;
       });
       if(r.allCount>r.files.length)html+=`<div style="font-size:9.5px;color:#94a3b8;margin-top:3px;">🕐 มีเวอร์ชันเก่าอีก ${r.allCount-r.files.length} ไฟล์ (ดู/ลบได้ที่หน้า ENTRY)</div>`;
     }else html+=`<div style="font-size:10.5px;color:#b91c1c;margin-top:2px;">ยังไม่มีเอกสาร — อัพโหลดที่หน้า ENTRY</div>`;
