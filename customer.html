@@ -173,7 +173,9 @@ async function enter(){
       ]);
       if(b.ok)BILLS=await b.json();
       if(p.ok)PAYS=await p.json();
-      if(t.ok)TRANS=await t.json();
+      /* หนี้ค่าขนส่งรายเดือนมีเฉพาะบางเจ้า (ตอนนี้: TWI) — เจ้าอื่นค่าขนส่งรวมในราคาแล้ว */
+      const TR_SHIP_PFXS=['TWI'];
+      if(t.ok)TRANS=(await t.json()).filter(x=>TR_SHIP_PFXS.includes(x.prefix));
     }catch(e){}
     renderMonths();
   }catch(e){
