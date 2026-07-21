@@ -1830,7 +1830,7 @@ async function loadData(forceRefresh=false){
     }catch(e){}
   }
   if(!_rows){
-    setLoad('📡 กำลังเชื่อมต่อ Supabase...','โหลดข้อมูลทั้งหมด 11 ตาราง');
+    setLoad('LOADING...');
     _rows=await Promise.all([
       sbFetch('invoices','order=id'),
       sbFetch('containers','order=id'),
@@ -8325,7 +8325,7 @@ async function initApp(){
   document.getElementById('loadScreen').style.display='flex';
   document.getElementById('permBox').style.display='none';
   document.getElementById('errBox').style.display='none';
-  setLoad('📡 กำลังโหลดข้อมูลจาก Supabase...');
+  setLoad('LOADING...');
   /* sync manual_paid: ดัน localStorage ขึ้นก่อน แล้วดึงกลับมา merge */
   await pushLocalManualPaidToSupabase();
   await loadManualPaidFromSupabase();
@@ -8382,7 +8382,7 @@ document.getElementById('refreshBtn').addEventListener('click',async()=>{
   document.getElementById('app').style.display='none';document.getElementById('loadScreen').style.display='flex';
   document.getElementById('spinner').style.display='block';document.getElementById('loadTxt').style.display='block';
   document.getElementById('permBox').style.display='none';document.getElementById('errBox').style.display='none';
-  setLoad('📡 กำลังรีเฟรชจาก Supabase...');
+  setLoad('LOADING...');
   try{const data=await loadData(true);showDashboard(data);}catch(e){showErr(e.message);}
 });
 document.getElementById('settingsBtn').addEventListener('click',()=>{alert('🔒 ANTS DASHBOARD อ่านข้อมูลจาก Supabase โดยตรง\nหากต้องการอัปเดตข้อมูล ให้รัน sync_excel_to_db.py แล้วกด 🔄 รีเฟรช');});
