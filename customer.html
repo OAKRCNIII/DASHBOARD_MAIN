@@ -308,20 +308,20 @@ function renderList(){
     if(pe){
       if(pe.price_type==='simple'){
         const pp=parseFloat(pe.price)||0;const n=act||exp;
-        if(pp>0&&n>0){cardPrice=` · 💰 <b style="color:#166534;">${fmB(pp*n)} บาท</b>`;
+        if(pp>0&&n>0){cardPrice=` · 💰 ประมาณการวางบิล <b style="color:#166534;">${fmB(pp*n)} บาท</b>`;
           priceDet=`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:#166534;">💰 ค่าขนส่ง ${fmB(pp)} บาท/ตู้ × ${n} ตู้ = <b>${fmB(pp*n)} บาท</b></div>`;}
       }else if(pe.price_type==='tiered'){
         let trs=pe.tiers;if(typeof trs==='string'){try{trs=JSON.parse(trs)}catch(e){trs=[]}}trs=trs||[];
         let tot=0,rows='';
         trs.forEach(t=>{const c=t.to-t.from+1;const s2=c*(+t.price||0);tot+=s2;rows+=`<tr><td>ตู้ที่ ${t.from}–${t.to}</td><td>${fmB(t.price)}</td><td style="text-align:right;">${fmB(s2)}</td></tr>`;});
-        if(tot>0){cardPrice=` · 💰 <b style="color:#166534;">${fmB(tot)} บาท</b>`;
+        if(tot>0){cardPrice=` · 💰 ประมาณการวางบิล <b style="color:#166534;">${fmB(tot)} บาท</b>`;
           priceDet=`<table style="margin-bottom:10px;"><thead><tr><th>ช่วงตู้</th><th>ราคา/ตู้</th><th style="text-align:right;">รวม (บาท)</th></tr></thead><tbody>${rows}<tr><td colspan="2"><b>ยอดรวม</b></td><td style="text-align:right;"><b>${fmB(tot)}</b></td></tr></tbody></table>`;}
       }else if(pe.price_type==='factory'){
         let fac=pe.factories;if(typeof fac==='string'){try{fac=JSON.parse(fac)}catch(e){fac={}}}fac=fac||{};
         const cnt={};ctrs.forEach(c=>{const f=c.factory||'-';cnt[f]=(cnt[f]||0)+1;});
         let tot=0,rows='';
         Object.keys(cnt).forEach(f=>{const pp=+fac[f]||0;const s2=pp*cnt[f];tot+=s2;rows+=`<tr><td>${h(f)}</td><td>${cnt[f]}</td><td>${pp?fmB(pp):'-'}</td><td style="text-align:right;">${s2?fmB(s2):'-'}</td></tr>`;});
-        if(tot>0){cardPrice=` · 💰 <b style="color:#166534;">${fmB(tot)} บาท</b>`;
+        if(tot>0){cardPrice=` · 💰 ประมาณการวางบิล <b style="color:#166534;">${fmB(tot)} บาท</b>`;
           priceDet=`<table style="margin-bottom:10px;"><thead><tr><th>โรงงาน</th><th>ตู้</th><th>ราคา/ตู้</th><th style="text-align:right;">รวม (บาท)</th></tr></thead><tbody>${rows}<tr><td colspan="3"><b>ยอดรวม</b></td><td style="text-align:right;"><b>${fmB(tot)}</b></td></tr></tbody></table>`;}
       }
     }
