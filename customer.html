@@ -159,7 +159,14 @@ function renderMonths(){
   renderList();
 }
 function selM(m){CUR_M=m;renderMonths();}
-function parseDMY(s){const m=String(s||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(!m)return null;return new Date(+m[3],+m[2]-1,+m[1]);}
+function parseDMY(s){
+  let m=String(s||'').match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m)return new Date(+m[1],+m[2]-1,+m[3]);
+  m=String(s||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m)return new Date(+m[3],+m[2]-1,+m[1]);
+  return null;
+}
+function fmtDate(s){const d=parseDMY(s);return d?`${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`:String(s||'-');}
 function renderList(){
   const list=INV.filter(r=>mkey(r)===CUR_M).sort((a,b)=>String(a.invoice_no).localeCompare(String(b.invoice_no)));
   const el=document.getElementById('invList');
@@ -188,16 +195,16 @@ function renderList(){
     });
     tl+='</div>';
     let det='<div class="detail">';
-    if(v)det+=`<div class="vsl"><span style="font-size:18px;">🚢</span><div><div class="n">${h(v.vessel_name)}</div><div class="d">กำหนดเรือออก: <b>${h(v.sail_date)}</b> · ปลายทาง: <b>${h(v.destination)}</b></div></div></div>`;
+    if(v)det+=`<div class="vsl"><span style="font-size:18px;">🚢</span><div><div class="n">${h(v.vessel_name)}</div><div class="d">กำหนดเรือออก: <b>${fmtDate(v.sail_date)}</b> · BKG: <b>${h(v.booking_no)}</b> · ปลายทาง: <b>${h(v.destination)}</b></div></div></div>`;
     if(ctrs.length){
       det+='<table><thead><tr><th>เบอร์ตู้</th><th>เข้าโรงงาน</th><th>วันที่</th></tr></thead><tbody>';
-      ctrs.forEach(c=>{det+=`<tr><td class="ctrno">${h(c.container_no)}</td><td>${h(c.factory||'-')}</td><td>${h(c.factory_date||'-')}</td></tr>`;});
+      ctrs.forEach(c=>{det+=`<tr><td class="ctrno">${h(c.container_no)}</td><td>${h(c.factory||'-')}</td><td>${c.factory_date?fmtDate(c.factory_date):'-'}</td></tr>`;});
       det+='</tbody></table>';
     }else det+='<div style="font-size:12px;color:#94a3b8;text-align:center;padding:8px;">ยังไม่มีตู้เข้าโรงงาน</div>';
     det+='</div>';
     return `<div class="card" id="c${idx}" onclick="this.classList.toggle('open')">
       <div class="top"><span class="inv">${h(r.invoice_no)}</span>${badge}</div>
-      <div class="meta">${exp?act+'/'+exp+' ตู้':''}${r.destination?' · '+h(r.destination):''}</div>
+      <div class="meta">${exp?act+'/'+exp+' ตู้':''}${r.destination?' · '+h(r.destination):''}${v?` · 🚢 <b style="color:#1e40af;">${h(v.vessel_name)}</b> · ออก ${fmtDate(v.sail_date)}`:''}</div>
       ${tl}${det}</div>`;
   }).join('');
 }
