@@ -138,8 +138,8 @@ async function enter(){
   try{
     const [inv,ctr,vsl]=await Promise.all([
       sb('customer_invoices?order=invoice_no'),
-      sb('customer_containers?order=id'),
-      sb('customer_vessels?order=id'),
+      sb('customer_containers?order=invoice_no'),
+      sb('customer_vessels?order=invoice_no'),
     ]);
     INV=inv.filter(r=>mine(r.invoice_no));
     ctr.filter(r=>mine(r.invoice_no)).forEach(r=>{(CTR[r.invoice_no]=CTR[r.invoice_no]||[]).push(r);});
