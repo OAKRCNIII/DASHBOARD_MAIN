@@ -617,6 +617,58 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
 .det-tbl th{font-size:10.5px!important;letter-spacing:.4px!important;}
 .det-tbl td{font-size:12px!important;}
 .stats-bar{gap:10px!important;padding:9px 14px!important;}
+
+/* ═════════════════════════════════════════════════
+   THEME — YELLOW/NAVY (ล้อโลโก้ ANTS)
+   navy #0a1628 · เหลืองทอง #ffc422 · เหลืองอ่อน #fff8e1
+   ═════════════════════════════════════════════════ */
+:root{
+  --th-navy:#0a1628;--th-navy2:#10284d;
+  --th-yel:#ffc422;--th-yel-dark:#d99e00;--th-yel-soft:#fff8e1;--th-yel-line:#ffe08a;
+}
+/* ── Header ── */
+.header{border-bottom:3px solid var(--th-yel)!important;}
+.hdr-btn:hover{border-color:var(--th-yel)!important;color:var(--th-yel)!important;}
+#userChip{border-color:rgba(255,196,34,.5)!important;color:var(--th-yel)!important;}
+/* ── Tabs ── */
+.htab.active{background:var(--th-navy)!important;color:var(--th-yel)!important;box-shadow:0 2px 8px rgba(10,22,40,.25)!important;}
+.htab:hover{color:var(--th-navy)!important;background:var(--th-yel-soft)!important;}
+/* ── Stat cards ── */
+.sc{border-left:3px solid var(--th-yel)!important;}
+.sc-click:hover{border-color:var(--th-yel)!important;box-shadow:0 3px 12px rgba(255,196,34,.35)!important;}
+/* ── Month sidebar ── */
+.mtab.active{background:rgba(255,196,34,.16)!important;border-left-color:var(--th-yel)!important;color:var(--th-yel)!important;}
+.mtab:hover{color:rgba(255,255,255,.9)!important;}
+/* ── Mid panel ── */
+.mid-hdr{background:var(--th-yel-soft)!important;border-bottom:1px solid var(--th-yel-line)!important;color:#8a6400!important;}
+.mid-resize:hover,.mid-resize.dragging{background:rgba(255,196,34,.3)!important;border-right-color:var(--th-yel)!important;}
+.pfx-row:hover,.ir:hover{background:var(--th-yel-soft)!important;}
+.bc-item:hover{color:var(--th-yel-dark)!important;}
+/* ── Detail ── */
+.det-title{border-bottom:2px solid var(--th-yel-line)!important;}
+.det-tbl tr:hover td{background:var(--th-yel-soft)!important;}
+/* ── Pending view ── */
+.pv-card.active{background:var(--th-yel-soft)!important;border-left-color:var(--th-yel)!important;}
+.pv-card:hover{background:#fffdf4!important;}
+.pv-list-hdr{background:var(--th-yel-soft)!important;border-bottom:1px solid var(--th-yel-line)!important;color:#8a6400!important;}
+/* ── Stock ── */
+.stock-lhdr{background:var(--th-yel-soft)!important;border-bottom:1px solid var(--th-yel-line)!important;color:#8a6400!important;}
+.bkg-group:hover{background:var(--th-yel-soft)!important;}
+/* ── Vessel ── */
+.vessel-head{border-bottom:2px solid var(--th-yel)!important;}
+.vessel-badge{background:rgba(255,196,34,.18)!important;border:1px solid rgba(255,196,34,.4)!important;color:var(--th-yel)!important;}
+.vtbl th{background:var(--th-yel-soft)!important;color:#8a6400!important;border-bottom:2px solid var(--th-yel-line)!important;}
+.vtbl tbody tr:hover td{background:var(--th-yel-soft)!important;}
+/* ── Factory ── */
+.ftbl tbody tr:hover td{background:var(--th-yel-soft)!important;}
+.fqbtn:hover,.fqbtn.fqfac-active{background:var(--th-navy)!important;color:var(--th-yel)!important;}
+.fdate-bar input[type=date]:focus{border-color:var(--th-yel)!important;}
+/* ── Modals / rows hover ── */
+.sm-row:hover{background:var(--th-yel-soft)!important;}
+/* ── Load & spinner ── */
+.spinner{border-top-color:var(--th-yel)!important;}
+/* ── Mobile ── */
+.mob-tab.active{color:var(--th-yel-dark)!important;}
 </style>
 </head>
 <body>
@@ -728,7 +780,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
   <div class="header">
     <div class="hdr-left">
       <h1 style="display:flex;align-items:center;gap:8px;">
-        <span style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border-radius:10px;padding:3px 8px;font-size:13px;font-weight:900;letter-spacing:.5px;">🚢 ANTS</span>
+        <span style="background:#ffc422;color:#0a1628;border-radius:10px;padding:3px 8px;font-size:13px;font-weight:900;letter-spacing:.5px;">🚢 ANTS</span>
         <span style="font-size:14px;font-weight:700;color:#0f172a;">Logistics Dashboard</span>
       </h1>
       <div class="sub" id="lastUpd" style="padding-left:2px;">—</div>
