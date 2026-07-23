@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="Dashboard">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Poppins:wght@600;700;800;900&display=swap" rel="stylesheet">
 <!-- Supabase REST API — no library needed, we use fetch directly -->
 <style>
 /* === RESET & BASE === */
@@ -49,7 +49,12 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
 
 /* ===== LOAD SCREEN ===== */
 #loadScreen{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100dvh;background:linear-gradient(135deg,#0a1628,#0e2d5a);gap:16px;}
-.spinner{width:48px;height:48px;border:4px solid rgba(255,255,255,.15);border-top-color:#0ea5e9;border-radius:50%;animation:spin .7s linear infinite;}
+.spinner{width:120px;height:120px;position:relative;display:flex;align-items:center;justify-content:center;}
+.spinner svg{width:100%;height:100%;overflow:visible;}
+.star-base{fill:none;stroke:rgba(245,185,33,.18);stroke-width:3.5;stroke-linejoin:round;}
+.star-chase{fill:none;stroke:#f5b921;stroke-width:4;stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:55 340;filter:drop-shadow(0 0 6px #f5b921) drop-shadow(0 0 12px #fbbf24);animation:star-chase 2.2s linear infinite;}
+.star-fill{fill:rgba(245,185,33,.06);}
+@keyframes star-chase{from{stroke-dashoffset:0;}to{stroke-dashoffset:-395;}}
 @keyframes spin{to{transform:rotate(360deg);}}
 .load-txt{font-size:15px;color:rgba(255,255,255,.9);font-weight:700;}
 .load-sub{font-size:11px;color:rgba(255,255,255,.45);}
@@ -117,9 +122,11 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
 .ir-inv{font-size:11px;font-weight:600;color:#1a202c;flex:1;}
 .ir-badge{font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700;}
 .dp{flex:1;overflow-y:auto;padding:14px 16px;}
-.placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#b0bec5;gap:10px;}
-.placeholder .ico{font-size:42px;opacity:.6;}
-.placeholder p{font-size:12px;text-align:center;}
+.placeholder{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#b0bec5;gap:10px;overflow:hidden;}
+.placeholder::before{content:"";position:absolute;inset:0;background:url("logo-watermark.jpg") center/40% no-repeat;opacity:.08;pointer-events:none;filter:grayscale(.2);}
+.placeholder>*{position:relative;z-index:1;}
+.placeholder .ico{display:none;}
+.placeholder p{display:none;}
 .bc{display:flex;gap:4px;align-items:center;flex-wrap:wrap;}
 .bc-item{font-size:10px;color:#64748b;cursor:pointer;}
 .bc-item:hover{color:#0ea5e9;text-decoration:underline;}
@@ -565,7 +572,11 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
 /* ===== LOGIN ===== */
 #loginScreen{position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f 0%,#0f2a52 100%);display:none;align-items:center;justify-content:center;z-index:99999;}
 .login-card{background:#fff;border-radius:20px;padding:36px 32px;width:320px;box-shadow:0 20px 60px rgba(0,0,0,.35);text-align:center;}
-.login-logo{font-size:40px;margin-bottom:8px;}
+.login-logo{margin:0 auto 4px;width:110px;height:110px;display:flex;align-items:center;justify-content:center;}
+.login-logo img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 4px 10px rgba(15,42,82,.2));}
+.brand-name{text-align:center;margin-bottom:14px;font-family:'Poppins','Inter',sans-serif;}
+.brand-ants{font-size:26px;font-weight:900;color:#1e3a5f;letter-spacing:2.5px;line-height:1;}
+.brand-star{font-size:11px;font-weight:600;color:#f5b921;letter-spacing:6.5px;margin-top:5px;text-indent:6.5px;}
 .login-title{font-size:18px;font-weight:900;color:#0f2a52;margin-bottom:4px;}
 .login-sub{font-size:11px;color:#94a3b8;margin-bottom:24px;}
 .login-inp{width:100%;box-sizing:border-box;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;margin-bottom:10px;outline:none;transition:border .15s;}
@@ -613,7 +624,11 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
 <!-- LOGIN -->
 <div id="loginScreen" style="position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f 0%,#0f2a52 100%);display:flex;align-items:center;justify-content:center;z-index:99999;">
   <div class="login-card">
-    <div class="login-logo">🔐</div>
+    <div class="login-logo"><img src="logo-ants-star.png" alt="ANTS STAR TRANSIT"></div>
+    <div class="brand-name">
+      <div class="brand-ants">A.N.T.S</div>
+      <div class="brand-star">STAR TRANSIT</div>
+    </div>
     <div class="login-title">Logistics Dashboard</div>
     <div class="login-sub">กรุณาเข้าสู่ระบบ</div>
     <form onsubmit="doLogin();return false;" autocomplete="on">
@@ -686,7 +701,13 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
 
 <!-- LOAD -->
 <div id="loadScreen">
-  <div class="spinner" id="spinner"></div>
+  <div class="spinner" id="spinner">
+    <svg viewBox="-8 -8 116 116" xmlns="http://www.w3.org/2000/svg">
+      <polygon class="star-fill" points="50,5 60.6,35.4 92.8,36.1 67.1,55.6 76.4,86.4 50,68 23.6,86.4 32.9,55.6 7.2,36.1 39.4,35.4"/>
+      <polygon class="star-base" points="50,5 60.6,35.4 92.8,36.1 67.1,55.6 76.4,86.4 50,68 23.6,86.4 32.9,55.6 7.2,36.1 39.4,35.4"/>
+      <polygon class="star-chase" points="50,5 60.6,35.4 92.8,36.1 67.1,55.6 76.4,86.4 50,68 23.6,86.4 32.9,55.6 7.2,36.1 39.4,35.4"/>
+    </svg>
+  </div>
   <div class="load-txt" id="loadTxt">กำลังโหลดข้อมูล...</div>
   <div class="load-sub" id="loadSub"></div>
   <div id="permBox">
