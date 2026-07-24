@@ -3265,7 +3265,7 @@ function execPrintQuotation(invNo){
     const invEl=cells[i];const priceEl=cells[i+1];
     const inv=(invEl.tagName==='INPUT'?invEl.value:invEl.textContent).trim();
     const price=parseFloat(priceEl?.value)||0;
-    if(inv&&price>0)allRows.push({inv,price});
+    if(inv&&price>0){const fr=FLAT.find(f=>normInv(f.inv)===normInv(inv));allRows.push({inv,price,dest:(fr&&fr.destination)||d.destination||'-'});}
   }
   document.getElementById('quotModalBg').remove();
   const isSHL=d.prefix==='SHL';
@@ -3301,8 +3301,8 @@ function execPrintQuotation(invNo){
   <div style="margin-top:4px;"><span class="lbl">เรียน</span>${he2(qContact)}</div>`;
   const FOOTER=`<div class="closing">จึงเรียนมาเพื่อโปรดพิจารณาและบริษัทฯหวังเป็นอย่างยิ่งว่าจะได้รับการสนับสนุนและมอบความไว้วางใจให้บริษัทฯได้เป็นผู้ดูแลและให้บริการแก่ท่าน</div>
   <div class="sig"><div>ขอแสดงความนับถือ</div><div style="margin:50px 0 2px;"><div class="sig-line"></div></div><div>(นายสุพรรณ จงสุวิวัฒน์วงศ์)</div></div>`;
-  const tableRows=allRows.map(r=>`<tr><td>${he2(r.inv)}</td><td style="text-align:right;font-weight:700;">${fm(r.price)}</td></tr>`).join('');
-  const table=`<table><thead><tr><th style="width:70%">เลขอินวอยซ์</th><th style="text-align:right;width:30%">ราคา/ตู้ (฿)</th></tr></thead><tbody>${tableRows}</tbody></table>`;
+  const tableRows=allRows.map(r=>`<tr><td>${he2(r.inv)}</td><td>${he2(r.dest)}</td><td style="text-align:right;font-weight:700;">${fm(r.price)}</td></tr>`).join('');
+  const table=`<table><thead><tr><th style="width:42%">เลขอินวอยซ์</th><th style="width:33%">ปลายทาง</th><th style="text-align:right;width:25%">ราคา/ตู้ (฿)</th></tr></thead><tbody>${tableRows}</tbody></table>`;
   let body='';
   if(isSHL){
     const penang='ท่าเรือปีนัง ประเทศมาเลเซีย';
