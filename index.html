@@ -3273,7 +3273,7 @@ function execPrintQuotation(invNo){
   const fm=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0}):'-';
   const _dest=(d.destination||'').toUpperCase();
   const destCountry=_dest.includes('CHINA')||_dest.includes('จีน')||['NANSHA','SHEKOU','YANTIAN','CHIWAN','GUANGZHOU','SHANGHAI','NINGBO','TIANJIN','QINGDAO','XIAMEN','SHENZHEN'].some(p=>_dest.includes(p))?'จีน':'ปลายทาง';
-  const haulageNote=haulagePrices.length?`(ราคารวม HAULAGE CHARGE ${haulagePrices.map(p=>fm(p)).join(' / ')} บาท / ตู้)`:'';
+  const haulageNote=haulagePrices.length?`(ราคาค่ารถหัวลาก ${haulagePrices.map(p=>fm(p)).join(' / ')} บาท/ตู้)`:'';
   const CSS=`@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
     @page{size:A4 portrait;margin:18mm 20mm 22mm;}
     *{box-sizing:border-box;margin:0;padding:0;}
@@ -3294,7 +3294,7 @@ function execPrintQuotation(invNo){
     .sig-line{border-top:1px solid #111;width:200px;display:inline-block;margin-bottom:4px;}`;
   const HEADER=`<div class="co-eng">A.N.T.S. STAR TRANSIT CO., LTD.</div>
   <div class="co-th">บริษัท เอ.เอ็น.ที.เอส. สตาร์ ทรานสิท จำกัด</div>
-  <div class="co-addr">85 ถนนคลองเรียน 2 ซอย 8 อำเภอหาดใหญ่ จังหวัดสงขลา 90110 &nbsp;&nbsp; โทร. 074-357758 &nbsp;&nbsp; โทรสาร. 074-356037</div>
+  <div class="co-addr">85 ถนนคลองเรียน 2 ซอย 8 อำเภอหาดใหญ่ จังหวัดสงขลา 90110 &nbsp;&nbsp; โทร. (081)478-2107</div>
   <hr>
   <div class="doc-date">วันที่ ${he2(qDate)}</div>
   <div><span class="lbl">เรื่อง</span>เสนอราคาค่าใช้จ่ายในการส่งออก</div>
@@ -3308,7 +3308,7 @@ function execPrintQuotation(invNo){
     const penang='ท่าเรือปีนัง ประเทศมาเลเซีย';
     body=`<div class="body-text">บริษัทฯมีความยินดีที่จะเสนอราคาค่าบริการสำหรับสินค้าขาออก ขนาดตู้ 40 ฟุต ที่${penang} ไปยังปลายทาง ประเทศ${destCountry} ดังนี้</div>
     ${table}
-    <div class="remark">หมายเหตุ : ราคารวม HAULAGE CHARGE แล้ว<br>${haulageNote?haulageNote+'<br>':''} (ไม่รวมค่าประกันภัย)</div>`;
+    <div class="remark">หมายเหตุ : ราคารวมค่ารถหัวลากแล้ว<div style="padding-left:4.8em;">${haulageNote?haulageNote+'<br>':''}(ไม่รวมค่าประกันภัย)</div></div>`;
   }else{
     body=`<div class="body-text">บริษัทฯมีความยินดีที่จะเสนอราคาค่าบริการสำหรับสินค้าขาออก ขนาดตู้ 40 ฟุต ที่ Penang Port ไปยังปลายทาง ประเทศ${destCountry} ดังนี้</div>
     ${table}
