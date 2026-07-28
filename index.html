@@ -3191,7 +3191,7 @@ function openQuotationModal(invNo){
   const haulagePrices=[...haulageSet].sort((a,b)=>a-b);
   const existing=document.getElementById('quotModalBg');if(existing)existing.remove();
   const now=new Date();
-  const thDate=`${now.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][now.getMonth()]} ${now.getFullYear()+543}`;
+  const thDate=`${now.getDate()} ${['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'][now.getMonth()]} ${now.getFullYear()+543}`;
   const defaultContact=isSHL?'บริษัท เอส.เอช.แอล. พาราวู้ด จก.':'คุณ ธวัชชัย เหลืองวรพันธ์';
   const defaultCompany=isSHL?'':'บริษัท เดอะวันพาราวู้ด จก.';
   /* build searchable datalist for same-prefix INVs */
