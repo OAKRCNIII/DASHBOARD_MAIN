@@ -3260,6 +3260,7 @@ function execPrintQuotation(invNo){
   const qDate=document.getElementById('qDate').value.trim();
   const qContact=document.getElementById('qContact').value.trim();
   const qCompany=(document.getElementById('qCompany')||{}).value?.trim()||'';
+  const useStamp=(document.getElementById('qStamp')||{}).checked;
   const _h1=parseFloat((document.getElementById('qH1')||{}).value)||0;
   const _h2=parseFloat((document.getElementById('qH2')||{}).value)||0;
   const haulagePrices=[_h1,_h2].filter(p=>p>0);
@@ -3307,7 +3308,6 @@ function execPrintQuotation(invNo){
   <div><span class="lbl">เรื่อง</span>เสนอราคาค่าใช้จ่ายในการส่งออก</div>
   <div style="margin-top:4px;"><span class="lbl">เรียน</span>${he2(qContact)}</div>
   ${qCompany?`<div><span class="lbl">&nbsp;</span>${he2(qCompany)}</div>`:''}`;
-  const useStamp=(document.getElementById('qStamp')||{}).checked;
   const stampImg=(useStamp&&window.QUOT_STAMP_B64)?`<img src="${window.QUOT_STAMP_B64}" class="stamp-img" alt="ตราบริษัท">`:'';
   const FOOTER=`<div class="closing">จึงเรียนมาเพื่อโปรดพิจารณาและบริษัทฯหวังเป็นอย่างยิ่งว่าจะได้รับการสนับสนุนและมอบความไว้วางใจให้บริษัทฯได้เป็นผู้ดูแลและให้บริการแก่ท่าน</div>
   <div class="sig"><div>ขอแสดงความนับถือ</div><div class="sig-block">${stampImg}<div style="margin:50px 0 2px;"><div class="sig-line"></div></div><div>(นายสุพรรณ จงสุวิวัฒน์วงศ์)</div></div></div>`;
