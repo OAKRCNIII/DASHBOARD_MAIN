@@ -3193,6 +3193,7 @@ function openQuotationModal(invNo){
   const now=new Date();
   const thDate=`${now.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][now.getMonth()]} ${now.getFullYear()+543}`;
   const defaultContact=isSHL?'บริษัท เอส.เอช.แอล. พาราวู้ด จก.':'คุณ ธวัชชัย เหลืองวรพันธ์';
+  const defaultCompany=isSHL?'':'บริษัท เดอะวันพาราวู้ด จก.';
   /* build searchable datalist for same-prefix INVs */
   const samePfx=FLAT.filter(f=>f.prefix===d.prefix&&normInv(f.inv)!==normInv(invNo));
   window._quotPriceMap={};
@@ -3232,6 +3233,7 @@ function openQuotationModal(invNo){
     <div style="padding:0 18px 8px;overflow-y:auto;flex:1;min-height:0;">
       <label style="display:block;font-size:11px;font-weight:700;color:#374151;margin-bottom:8px;">วันที่<input id="qDate" value="${thDate}" style="display:block;margin-top:2px;${IS}font-family:Sarabun,sans-serif;"></label>
       <label style="display:block;font-size:11px;font-weight:700;color:#374151;margin-bottom:8px;">เรียน<input id="qContact" value="${defaultContact}" style="display:block;margin-top:2px;${IS}font-family:Sarabun,sans-serif;"></label>
+      <label style="display:block;font-size:11px;font-weight:700;color:#374151;margin-bottom:8px;">บริษัท (เว้นว่าง = ไม่แสดง)<input id="qCompany" value="${defaultCompany}" style="display:block;margin-top:2px;${IS}font-family:Sarabun,sans-serif;"></label>
       <div style="margin-bottom:8px;">
         <div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:3px;">อินวอยซ์ / ราคา/ตู้ (฿)</div>
         <div id="qRows" style="display:grid;grid-template-columns:2fr 1fr 28px;gap:4px 5px;align-items:center;">
@@ -3255,6 +3257,7 @@ function execPrintQuotation(invNo){
   const d=FLAT.find(f=>normInv(f.inv)===normInv(invNo));if(!d)return;
   const qDate=document.getElementById('qDate').value.trim();
   const qContact=document.getElementById('qContact').value.trim();
+  const qCompany=(document.getElementById('qCompany')||{}).value?.trim()||'';
   const _h1=parseFloat((document.getElementById('qH1')||{}).value)||0;
   const _h2=parseFloat((document.getElementById('qH2')||{}).value)||0;
   const haulagePrices=[_h1,_h2].filter(p=>p>0);
@@ -3298,7 +3301,8 @@ function execPrintQuotation(invNo){
   <hr>
   <div class="doc-date">วันที่ ${he2(qDate)}</div>
   <div><span class="lbl">เรื่อง</span>เสนอราคาค่าใช้จ่ายในการส่งออก</div>
-  <div style="margin-top:4px;"><span class="lbl">เรียน</span>${he2(qContact)}</div>`;
+  <div style="margin-top:4px;"><span class="lbl">เรียน</span>${he2(qContact)}</div>
+  ${qCompany?`<div><span class="lbl">&nbsp;</span>${he2(qCompany)}</div>`:''}`;
   const FOOTER=`<div class="closing">จึงเรียนมาเพื่อโปรดพิจารณาและบริษัทฯหวังเป็นอย่างยิ่งว่าจะได้รับการสนับสนุนและมอบความไว้วางใจให้บริษัทฯได้เป็นผู้ดูแลและให้บริการแก่ท่าน</div>
   <div class="sig"><div>ขอแสดงความนับถือ</div><div style="margin:50px 0 2px;"><div class="sig-line"></div></div><div>(นายสุพรรณ จงสุวิวัฒน์วงศ์)</div></div>`;
   const tableRows=allRows.map(r=>`<tr><td>${he2(r.inv)}</td><td>${he2(r.dest)}</td><td style="text-align:right;font-weight:700;">${fm(r.price)}</td></tr>`).join('');
