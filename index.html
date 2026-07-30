@@ -3578,7 +3578,7 @@ async function openDocsModal(inv){
         const f=r.files[0];
         const p=(f.folder+'/'+f.name).replace(/'/g,"\\'");
         const _by=upBy(t.key+'|'+f.name);
-        html+=`<div style="text-align:center;"><span onclick="_docOpen('${p}')" title="${_by?'โดย '+h(_by):''}" style="cursor:pointer;font-size:10px;font-weight:700;color:#166534;background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:3px 9px;display:inline-block;">✓ ดาวน์โหลด</span></div>`;
+        html+=`<div style="text-align:center;"><span onclick="_docOpen('${p}')" title="${_by?'โดย '+h(_by):''}" style="cursor:pointer;font-size:10px;font-weight:700;color:#166534;background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:3px 9px;display:inline-block;">✓ เปิดดู</span></div>`;
       }else{
         html+=`<div style="text-align:center;"><span style="font-size:11px;color:#cbd5e0;">❌ ยังไม่มี</span></div>`;
       }
@@ -3587,14 +3587,20 @@ async function openDocsModal(inv){
   html+=`</div>`;
   /* ปุ่มพิมพ์รวม 2 ปุ่ม */
   html+=`<div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">`;
+  const invEsc=inv.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   DOC_STAGES.forEach(st=>{
     const complete=byStage[st.key].every(r=>r.files.length>0);
     const missN=byStage[st.key].filter(r=>!r.files.length).length;
-    const fnLabel=st.key==='DRAFT'?'ออก DRAFT':'ออกตั๋วตัวจริง';
+    const stName=st.key==='DRAFT'?'DRAFT':'ตั๋วตัวจริง';
+    const base=st.key==='DRAFT'?'#d97706':'#16a34a';
     if(complete){
-      html+=`<button onclick="makeStage('${inv.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}','${st.key}')" id="stampBtn_${st.key}" style="padding:9px 18px;background:${st.key==='DRAFT'?'#d97706':'#16a34a'};border:none;border-radius:8px;color:#fff;font-size:12.5px;font-weight:800;cursor:pointer;">📑 ${fnLabel} (รวม PDF 7 หน้า)</button>`;
+      html+=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="font-size:11.5px;font-weight:800;color:${st.color};min-width:78px;">${st.key==='DRAFT'?'📝':'📋'} ${stName}</span>
+        <button onclick="makeStage('${invEsc}','${st.key}','preview')" id="stampBtn_${st.key}_preview" style="padding:8px 16px;background:${base};border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:800;cursor:pointer;">🖨️ พรีวิว + พิมพ์</button>
+        <button onclick="makeStage('${invEsc}','${st.key}','download')" id="stampBtn_${st.key}_download" style="padding:8px 14px;background:#fff;border:1.5px solid ${base};border-radius:8px;color:${base};font-size:12px;font-weight:700;cursor:pointer;">⬇️ ดาวน์โหลด</button>
+      </div>`;
     }else{
-      html+=`<div style="font-size:11.5px;color:#b45309;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:7px 12px;">⚠️ ${st.label} ยังไม่ครบ (ขาด ${missN} ประเภท) — ครบแล้วจะมีปุ่ม${fnLabel}</div>`;
+      html+=`<div style="font-size:11.5px;color:#b45309;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:7px 12px;">⚠️ ${stName} ยังไม่ครบ (ขาด ${missN} ประเภท)</div>`;
     }
   });
   html+=`<span id="draftMsg" style="font-size:11px;color:#64748b;"></span></div>`;
@@ -3614,8 +3620,9 @@ function _loadPdfLib(){
     document.head.appendChild(s);
   });
 }
-async function makeStage(inv,stage){
-  const btn=document.getElementById('stampBtn_'+stage);
+async function makeStage(inv,stage,mode){
+  mode=mode||'preview';
+  const btn=document.getElementById('stampBtn_'+stage+'_'+mode);
   const msg=document.getElementById('draftMsg');
   const suffix=stage==='DRAFT'?'_DRAFT':'_ORIGINAL';
   try{
@@ -3648,12 +3655,21 @@ async function makeStage(inv,stage){
     msg.textContent='⏳ กำลังสร้างไฟล์...';
     const pdfBytes=await out.save();
     const blob=new Blob([pdfBytes],{type:'application/pdf'});
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download=docSafe(inv)+suffix+'.pdf';
-    a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href),10000);
-    msg.textContent='✅ ดาวน์โหลด '+docSafe(inv)+suffix+'.pdf แล้ว';
+    const url=URL.createObjectURL(blob);
+    const title=docSafe(inv)+suffix;
+    if(mode==='download'){
+      const a=document.createElement('a');a.href=url;a.download=title+'.pdf';a.click();
+      msg.textContent='✅ ดาวน์โหลด '+title+'.pdf แล้ว';
+    }else{
+      const w=window.open('','_blank');
+      if(!w){ msg.textContent='⚠️ กรุณาอนุญาต Pop-up เพื่อเปิดหน้าพรีวิว'; }
+      else{
+        w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title></head><body style="margin:0;background:#525659;"><iframe src="${url}" style="border:0;width:100vw;height:100vh;" onload="setTimeout(()=>{try{this.contentWindow.focus();this.contentWindow.print();}catch(e){}},600)"></iframe></body></html>`);
+        w.document.close();
+        msg.textContent='✅ เปิดหน้าพรีวิวแล้ว — กล่องพิมพ์จะเด้งขึ้นเอง (หรือกด Ctrl+P)';
+      }
+    }
+    setTimeout(()=>URL.revokeObjectURL(url),120000);
   }catch(e){
     console.error('makeStage',e);
     msg.textContent='⚠️ '+(e.message||'รวมไฟล์ไม่สำเร็จ');
