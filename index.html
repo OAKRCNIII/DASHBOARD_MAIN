@@ -3299,7 +3299,7 @@ function execPrintQuotation(invNo){
     .sig{margin-top:55px;text-align:right;}
     .sig-line{border-top:1px solid #111;width:200px;display:inline-block;margin-bottom:4px;}
     .sig-block{position:relative;display:inline-block;text-align:center;}
-    .stamp-img{position:absolute;left:-3.4cm;top:-0.9cm;width:3cm;height:3cm;object-fit:contain;opacity:.92;pointer-events:none;}`;
+    .stamp-img{position:absolute;left:-3.7cm;top:-1.05cm;width:3.3cm;height:3.3cm;object-fit:contain;opacity:.92;pointer-events:none;}`;
   const HEADER=`<div class="co-eng">A.N.T.S. STAR TRANSIT CO., LTD.</div>
   <div class="co-th">บริษัท เอ.เอ็น.ที.เอส. สตาร์ ทรานสิท จำกัด</div>
   <div class="co-addr">85 ถนนคลองเรียน 2 ซอย 8 อำเภอหาดใหญ่ จังหวัดสงขลา 90110 &nbsp;&nbsp; โทร. (081)478-2107</div>
@@ -3505,20 +3505,31 @@ const DOC_TYPES=[
   {key:'IPPC',label:'IPPC'},
   {key:'MOSQUITO',label:'ใบฉีดยุง'},
 ];
+const DOC_STAGES=[
+  {key:'DRAFT',label:'DRAFT',color:'#b45309',bg:'#fffbeb',bd:'#fcd34d'},
+  {key:'FINAL',label:'ตั๋วตัวจริง',color:'#166534',bg:'#f0fdf4',bd:'#86efac'},
+];
 const docSafe=inv=>String(inv||'').trim().replace(/[\/\\#?%]/g,'_');
 /* ชื่อฐาน (ตัด ~timestamp ที่ ENTRY ต่อท้ายตอนอัพชื่อซ้ำ) */
 const docBaseName=n=>String(n||'').replace(/~\d+(\.[^.]*)$/,'$1').replace(/~\d+$/,'');
-/* 1 ประเภท = เอกสารเดียว → เอาเฉพาะไฟล์อัพล่าสุดของกล่องนั้น ไม่สนชื่อ */
-function _docLatestOnly(files){
-  const newest=files.reduce((a,f)=>!a||String(f.created_at)>String(a.created_at)?f:a,null);
-  return newest?[newest]:[];
+/* prefix ที่ต้อง list — FINAL รวม legacy {inv}/{type} เดิม */
+function docFolders(inv,stage,type){
+  const base=docSafe(inv);
+  if(stage==='FINAL')return [base+'/FINAL/'+type, base+'/'+type];
+  return [base+'/DRAFT/'+type];
 }
 async function _storList(prefix){
   const r=await fetch(`${SB_URL}/storage/v1/object/list/invoice_docs`,{method:'POST',
     headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,'Content-Type':'application/json'},
     body:JSON.stringify({prefix,limit:100,sortBy:{column:'name',order:'asc'}})});
   if(!r.ok)return[];
-  return(await r.json()).filter(f=>f.name&&!f.name.startsWith('.')&&f.id);
+  return(await r.json()).filter(f=>f.name&&!f.name.startsWith('.')&&f.id).map(f=>({...f,folder:prefix}));
+}
+/* ไฟล์ล่าสุดของ stage+type (ข้ามหลายโฟลเดอร์รวม legacy) */
+async function _docStageType(inv,stage,type){
+  const arr=(await Promise.all(docFolders(inv,stage,type).map(_storList))).flat();
+  const newest=arr.reduce((a,f)=>!a||String(f.created_at)>String(a.created_at)?f:a,null);
+  return {stage,type,files:newest?[newest]:[],allCount:arr.length};
 }
 async function _storSign(path){
   const r=await fetch(`${SB_URL}/storage/v1/object/sign/invoice_docs/${encodeURIComponent(path).replace(/%2F/g,'/')}`,{method:'POST',
@@ -3541,39 +3552,52 @@ async function openDocsModal(inv){
   document.getElementById('docsModalTitle').textContent='📎 เอกสาร — '+inv;
   document.getElementById('docsModalBody').innerHTML='<div style="text-align:center;color:#64748b;padding:24px;">⏳ กำลังโหลด...</div>';
   bg.style.display='flex';
-  const [results,_logRows]=await Promise.all([
-    Promise.all(DOC_TYPES.map(t=>_storList(docSafe(inv)+'/'+t.key).then(files=>({type:t.key,label:t.label,files:_docLatestOnly(files),allCount:files.length})))),
-    sbFetch(`doc_upload_log`,`invoice_no=eq.${encodeURIComponent(inv)}&action=eq.upload&order=id.desc&limit=200`).catch(()=>[]),
+  const jobs=[];DOC_STAGES.forEach(st=>DOC_TYPES.forEach(t=>jobs.push(_docStageType(inv,st.key,t.key))));
+  const [jobRes,_logRows]=await Promise.all([
+    Promise.all(jobs),
+    sbFetch(`doc_upload_log`,`invoice_no=eq.${encodeURIComponent(inv)}&action=eq.upload&order=id.desc&limit=300`).catch(()=>[]),
   ]);
   const _upMap={};(_logRows||[]).forEach(l=>{const k=l.doc_type+'|'+l.file_name;if(!(k in _upMap))_upMap[k]=l.uploaded_by;});
-  _docsModalFiles[inv]=results;
-  const total=results.reduce((s,r)=>s+r.files.length,0);
-  const complete=results.every(r=>r.files.length>0);
+  /* จัดเก็บต่อ stage: _docsModalFiles[inv][STAGE] = [{type,label,files,allCount},...] */
+  const byStage={};DOC_STAGES.forEach(st=>byStage[st.key]=DOC_TYPES.map(t=>{
+    const j=jobRes.find(x=>x.stage===st.key&&x.type===t.key)||{files:[],allCount:0};
+    return {type:t.key,label:t.label,files:j.files,allCount:j.allCount};
+  }));
+  _docsModalFiles[inv]=byStage;
+  const upBy=(f)=>_upMap['DRAFT/'+f]||_upMap['FINAL/'+f]||_upMap[f]; /* key = type|name */
   let html='';
-  results.forEach((r,i)=>{
-    const has=r.files.length>0;
-    html+=`<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px dashed #e2e8f0;">`;
-    html+=`<span style="font-size:16px;flex-shrink:0;width:22px;text-align:center;">${has?'✅':'❌'}</span>`;
-    html+=`<div style="flex:1;"><div style="font-size:12.5px;font-weight:800;color:${has?'#166534':'#94a3b8'};">${i+1}. ${r.label}</div>`;
-    if(has){
-      r.files.forEach(f=>{
-        const p=(docSafe(inv)+'/'+r.type+'/'+f.name).replace(/'/g,"\\'");
-        const isVer=r.allCount>1;
-        const _upBy=_upMap[r.type+'|'+f.name];
-        html+=`<div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap;"><span style="font-size:11px;color:#475569;">${/\.pdf$/i.test(f.name)?'📄':'🖼️'} ${h(docBaseName(f.name))}${isVer?' <span style="font-size:9px;background:#dcfce7;color:#166534;border-radius:4px;padding:1px 5px;">อัพเดตล่าสุด</span>':''}</span>${_upBy?`<span style="font-size:9.5px;color:#0e7490;font-weight:700;">👤 ${h(_upBy)}</span>`:''}<span onclick="_docOpen('${p}')" style="cursor:pointer;font-size:10px;font-weight:700;color:#1d4ed8;background:#dbeafe;border-radius:5px;padding:2px 8px;">⬇️ ดาวน์โหลด</span></div>`;
-      });
-      if(r.allCount>r.files.length)html+=`<div style="font-size:9.5px;color:#94a3b8;margin-top:3px;">🕐 มีเวอร์ชันเก่าอีก ${r.allCount-r.files.length} ไฟล์ (ดู/ลบได้ที่หน้า ENTRY)</div>`;
-    }else html+=`<div style="font-size:10.5px;color:#b91c1c;margin-top:2px;">ยังไม่มีเอกสาร — อัพโหลดที่หน้า ENTRY</div>`;
-    html+=`</div></div>`;
+  /* ตารางเช็คลิสต์: แถวละประเภท 2 คอลัมน์ (DRAFT / ตัวจริง) */
+  html+=`<div style="display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:6px 10px;align-items:center;">`;
+  html+=`<div></div>`+DOC_STAGES.map(st=>`<div style="font-size:10.5px;font-weight:800;color:${st.color};text-align:center;">${st.key==='DRAFT'?'📝':'📋'} ${st.label}</div>`).join('');
+  DOC_TYPES.forEach((t,i)=>{
+    html+=`<div style="font-size:11.5px;font-weight:700;color:#374151;">${i+1}. ${t.label}</div>`;
+    DOC_STAGES.forEach(st=>{
+      const r=byStage[st.key].find(x=>x.type===t.key);
+      const has=r.files.length>0;
+      if(has){
+        const f=r.files[0];
+        const p=(f.folder+'/'+f.name).replace(/'/g,"\\'");
+        const _by=upBy(t.key+'|'+f.name);
+        html+=`<div style="text-align:center;"><span onclick="_docOpen('${p}')" title="${_by?'โดย '+h(_by):''}" style="cursor:pointer;font-size:10px;font-weight:700;color:#166534;background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:3px 9px;display:inline-block;">✓ ดาวน์โหลด</span></div>`;
+      }else{
+        html+=`<div style="text-align:center;"><span style="font-size:11px;color:#cbd5e0;">❌ ยังไม่มี</span></div>`;
+      }
+    });
   });
-  html+=`<div style="margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">`;
-  if(complete){
-    html+=`<button onclick="makeDraft('${inv.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" id="draftBtn" style="padding:9px 18px;background:#16a34a;border:none;border-radius:8px;color:#fff;font-size:12.5px;font-weight:800;cursor:pointer;">📑 ออก DRAFT เอกสาร (รวม PDF)</button>`;
-    html+=`<span id="draftMsg" style="font-size:11px;color:#64748b;"></span>`;
-  }else{
-    html+=`<span style="font-size:11.5px;color:#b45309;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:6px 12px;">⚠️ ยังไม่ครบ ${results.filter(r=>!r.files.length).length} ประเภท — ครบเมื่อไหร่จะมีปุ่มออก DRAFT</span>`;
-  }
   html+=`</div>`;
+  /* ปุ่มพิมพ์รวม 2 ปุ่ม */
+  html+=`<div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">`;
+  DOC_STAGES.forEach(st=>{
+    const complete=byStage[st.key].every(r=>r.files.length>0);
+    const missN=byStage[st.key].filter(r=>!r.files.length).length;
+    const fnLabel=st.key==='DRAFT'?'ออก DRAFT':'ออกตั๋วตัวจริง';
+    if(complete){
+      html+=`<button onclick="makeStage('${inv.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}','${st.key}')" id="stampBtn_${st.key}" style="padding:9px 18px;background:${st.key==='DRAFT'?'#d97706':'#16a34a'};border:none;border-radius:8px;color:#fff;font-size:12.5px;font-weight:800;cursor:pointer;">📑 ${fnLabel} (รวม PDF 7 หน้า)</button>`;
+    }else{
+      html+=`<div style="font-size:11.5px;color:#b45309;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:7px 12px;">⚠️ ${st.label} ยังไม่ครบ (ขาด ${missN} ประเภท) — ครบแล้วจะมีปุ่ม${fnLabel}</div>`;
+    }
+  });
+  html+=`<span id="draftMsg" style="font-size:11px;color:#64748b;"></span></div>`;
   document.getElementById('docsModalBody').innerHTML=html;
 }
 async function _docOpen(path){
@@ -3590,27 +3614,27 @@ function _loadPdfLib(){
     document.head.appendChild(s);
   });
 }
-async function makeDraft(inv){
-  const btn=document.getElementById('draftBtn');
+async function makeStage(inv,stage){
+  const btn=document.getElementById('stampBtn_'+stage);
   const msg=document.getElementById('draftMsg');
+  const suffix=stage==='DRAFT'?'_DRAFT':'_ORIGINAL';
   try{
-    btn.disabled=true;btn.style.opacity='.6';
+    if(btn){btn.disabled=true;btn.style.opacity='.6';}
     msg.textContent='⏳ กำลังรวมไฟล์...';
     await _loadPdfLib();
     const {PDFDocument}=window.PDFLib;
     const out=await PDFDocument.create();
-    const results=_docsModalFiles[inv]||[];
+    const results=(_docsModalFiles[inv]||{})[stage]||[];
     for(const r of results){
       for(const f of r.files){
         msg.textContent=`⏳ กำลังรวม ${r.label} — ${f.name}`;
-        const url=await _storSign(docSafe(inv)+'/'+r.type+'/'+f.name);
+        const url=await _storSign(f.folder+'/'+f.name);
         const bytes=await(await fetch(url)).arrayBuffer();
         if(/\.pdf$/i.test(f.name)){
           const src=await PDFDocument.load(bytes,{ignoreEncryption:true});
           const pages=await out.copyPages(src,src.getPageIndices());
           pages.forEach(p=>out.addPage(p));
         }else{
-          /* รูปภาพ → หน้า A4 */
           let img;
           try{img=await out.embedJpg(bytes);}catch(e){img=await out.embedPng(bytes);}
           const A4W=595.28,A4H=841.89,M=24;
@@ -3626,15 +3650,15 @@ async function makeDraft(inv){
     const blob=new Blob([pdfBytes],{type:'application/pdf'});
     const a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
-    a.download=docSafe(inv)+'_DRAFT.pdf';
+    a.download=docSafe(inv)+suffix+'.pdf';
     a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href),10000);
-    msg.textContent='✅ ดาวน์โหลด '+docSafe(inv)+'_DRAFT.pdf แล้ว';
+    msg.textContent='✅ ดาวน์โหลด '+docSafe(inv)+suffix+'.pdf แล้ว';
   }catch(e){
-    console.error('makeDraft',e);
+    console.error('makeStage',e);
     msg.textContent='⚠️ '+(e.message||'รวมไฟล์ไม่สำเร็จ');
   }finally{
-    btn.disabled=false;btn.style.opacity='1';
+    if(btn){btn.disabled=false;btn.style.opacity='1';}
   }
 }
 function renderPriceLatest(){
