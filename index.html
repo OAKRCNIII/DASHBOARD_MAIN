@@ -3511,8 +3511,8 @@ const DOC_STAGES=[
   {key:'FINAL',label:'ตั๋วตัวจริง',color:'#166534',bg:'#f0fdf4',bd:'#86efac'},
 ];
 const docSafe=inv=>String(inv||'').trim().replace(/[\/\\#?%]/g,'_');
-/* ชื่อฐาน (ตัด ~timestamp ที่ ENTRY ต่อท้ายตอนอัพชื่อซ้ำ) */
-const docBaseName=n=>String(n||'').replace(/~\d+(\.[^.]*)$/,'$1').replace(/~\d+$/,'');
+/* ชื่อฐาน (ตัด _v{timestamp} ที่ ENTRY ต่อท้ายตอนอัพชื่อซ้ำ; รองรับ ~ เก่า) */
+const docBaseName=n=>String(n||'').replace(/(?:~|_v)\d+(\.[^.]*)$/,'$1').replace(/(?:~|_v)\d+$/,'');
 /* prefix ที่ต้อง list — FINAL รวม legacy {inv}/{type} เดิม */
 function docFolders(inv,stage,type){
   const base=docSafe(inv);
