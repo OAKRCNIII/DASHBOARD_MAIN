@@ -5849,15 +5849,15 @@ function trPrintAlMonthXref(){
   const he2=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   /* fmap[fk].months[mo].cos[co].als[al] = {billNo,ctr,amount} */
   const fmap={
-    ogm:{label:'OGM&KNT',sublabel:'(เลขลำดับ AL)',color:'#065f46',light:'#d1fae5',months:{},monthIns:[]},
-    other:{label:'โรงงานอื่นๆ',sublabel:'(ไม่รวม OGM)',color:'#1e3a5f',light:'#dbeafe',months:{},monthIns:[]}
+    ogm:{label:TR_NOWHT.join(' & '),sublabel:'(เลขลำดับ AL)',color:'#065f46',light:'#d1fae5',months:{},monthIns:[]},
+    other:{label:'โรงงานอื่นๆ',sublabel:'(ไม่รวม '+TR_NOWHT.join('/')+')',color:'#1e3a5f',light:'#dbeafe',months:{},monthIns:[]}
   };
   /* สร้าง global map: al → month สำหรับทุกเดือน (เพื่อเติมช่องว่าง) */
   const globalAlMonthMap={ogm:{},other:{}};
   TR_DATA.forEach(d=>{
     if(!matchTrPrefix(d))return;
     const _p2=(d.prefix||'').trim().toUpperCase();
-    const fk2=(_p2==='OGM'||_p2==='KNT')?'ogm':'other';
+    const fk2=TR_NOWHT.includes(_p2)?'ogm':'other';
     d.details.forEach(row=>{
       if(!row.trMatch||row.trMatch._prePaid)return;
       const al=(row.trMatch.al||row.trMatch.seq||'').trim();
@@ -5874,7 +5874,7 @@ function trPrintAlMonthXref(){
     if(d.month!==printMonth)return;
     if(!matchTrPrefix(d))return;
     const _p3=(d.prefix||'').trim().toUpperCase();
-    const fk=(_p3==='OGM'||_p3==='KNT')?'ogm':'other';
+    const fk=TR_NOWHT.includes(_p3)?'ogm':'other';
     const grp=fmap[fk];
     const mo=d.month;
     d.details.forEach(row=>{
