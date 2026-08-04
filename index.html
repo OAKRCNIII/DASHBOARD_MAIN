@@ -3554,11 +3554,20 @@ async function openDocsModal(inv){
   document.getElementById('docsModalBody').innerHTML='<div style="text-align:center;color:#64748b;padding:24px;">⏳ กำลังโหลด...</div>';
   bg.style.display='flex';
   const jobs=[];DOC_STAGES.forEach(st=>DOC_TYPES.forEach(t=>jobs.push(_docStageType(inv,st.key,t.key))));
-  const [jobRes,_logRows]=await Promise.all([
+  const [jobRes,_logRows,_rvRows]=await Promise.all([
     Promise.all(jobs),
     sbFetch(`doc_upload_log`,`invoice_no=eq.${encodeURIComponent(inv)}&action=eq.upload&order=id.desc&limit=300`).catch(()=>[]),
+    sbFetch(`doc_reviews`,`invoice_no=eq.${encodeURIComponent(inv)}`).catch(()=>[]),
   ]);
   const _upMap={};(_logRows||[]).forEach(l=>{const k=l.doc_type+'|'+l.file_name;if(!(k in _upMap))_upMap[k]=l.uploaded_by;});
+  const _rvMap={};(_rvRows||[]).forEach(r=>{_rvMap[r.doc_type]=r;});
+  /* สถานะตรวจ DRAFT ต่อประเภท (ต้องตรงชื่อไฟล์ล่าสุด ไม่งั้น=รอตรวจ) */
+  const draftReview=(type,latestName)=>{
+    const r=_rvMap[type];
+    if(!r) return {state:latestName?'pending':'none'};
+    if(r.file_name && latestName && r.file_name!==latestName) return {state:'pending'};
+    return {state:r.status==='rejected'?'rejected':'approved', by:r.reviewed_by, reason:r.reason};
+  };
   /* จัดเก็บต่อ stage: _docsModalFiles[inv][STAGE] = [{type,label,files,allCount},...] */
   const byStage={};DOC_STAGES.forEach(st=>byStage[st.key]=DOC_TYPES.map(t=>{
     const j=jobRes.find(x=>x.stage===st.key&&x.type===t.key)||{files:[],allCount:0};
@@ -3581,7 +3590,14 @@ async function openDocsModal(inv){
         const _by=upBy(t.key+'|'+f.name);
         const dt=f.created_at?new Date(f.created_at).toLocaleString('th-TH',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'';
         const ver=r.allCount>1?` <b style="font-size:8.5px;background:#fff;color:#166534;border:1px solid #86efac;border-radius:7px;padding:0 4px;">V.${r.allCount}</b>`:'';
-        html+=`<div style="text-align:center;"><span onclick="_docOpen('${p}')" title="${_by?'โดย '+h(_by):''}" style="cursor:pointer;font-size:10px;font-weight:700;color:#166534;background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:3px 9px;display:inline-block;">✓ เปิดดู${ver}</span>${dt?`<div style="font-size:8.5px;color:#c2ccd6;font-weight:400;margin-top:2px;">${dt}</div>`:''}</div>`;
+        let rvUI='';
+        if(st.key==='DRAFT'){
+          const rv=draftReview(t.key,f.name);
+          if(rv.state==='approved') rvUI=`<div style="margin-top:3px;"><span style="font-size:8.5px;font-weight:700;color:#166534;background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:1px 6px;">✅ ผ่าน${rv.by?' · '+h(rv.by):''}</span></div>`;
+          else if(rv.state==='rejected') rvUI=`<div style="margin-top:3px;"><span title="${h(rv.reason||'')}" style="font-size:8.5px;font-weight:700;color:#b91c1c;background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:1px 6px;">✗ ตีกลับ</span></div>`;
+          else rvUI=`<div style="margin-top:3px;"><span style="font-size:8.5px;font-weight:700;color:#b45309;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:1px 6px;">⏳ รอตรวจ</span></div>`;
+        }
+        html+=`<div style="text-align:center;"><span onclick="_docOpen('${p}')" title="${_by?'โดย '+h(_by):''}" style="cursor:pointer;font-size:10px;font-weight:700;color:#166534;background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:3px 9px;display:inline-block;">✓ เปิดดู${ver}</span>${rvUI}${dt?`<div style="font-size:8.5px;color:#c2ccd6;font-weight:400;margin-top:2px;">${dt}</div>`:''}</div>`;
       }else{
         html+=`<div style="text-align:center;"><span style="font-size:11px;color:#cbd5e0;">❌ ยังไม่มี</span></div>`;
       }
