@@ -3589,15 +3589,16 @@ async function openDocsModal(inv){
         const p=(f.folder+'/'+f.name).replace(/'/g,"\\'");
         const _by=upBy(t.key+'|'+f.name);
         const dt=f.created_at?new Date(f.created_at).toLocaleString('th-TH',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'';
-        const ver=r.allCount>1?` <b style="font-size:8.5px;background:#fff;color:#166534;border:1px solid #86efac;border-radius:7px;padding:0 4px;">V.${r.allCount}</b>`:'';
-        let rvUI='';
+        const ver=r.allCount>1?` <b style="font-size:8.5px;background:#fff;border-radius:7px;padding:0 4px;">V.${r.allCount}</b>`:'';
+        /* DRAFT: badge = สถานะตรวจ (คลิกเปิดพรีวิว) · FINAL: ✓ เปิดดู เหมือนเดิม */
+        let lbl='✓ เปิดดู', col='#166534', bg='#dcfce7', bd='#86efac', ttl=_by?'โดย '+h(_by):'';
         if(st.key==='DRAFT'){
           const rv=draftReview(t.key,f.name);
-          if(rv.state==='approved') rvUI=`<div style="margin-top:3px;"><span style="font-size:8.5px;font-weight:700;color:#166534;background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:1px 6px;">✅ ผ่าน${rv.by?' · '+h(rv.by):''}</span></div>`;
-          else if(rv.state==='rejected') rvUI=`<div style="margin-top:3px;"><span title="${h(rv.reason||'')}" style="font-size:8.5px;font-weight:700;color:#b91c1c;background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:1px 6px;">✗ ตีกลับ</span></div>`;
-          else rvUI=`<div style="margin-top:3px;"><span style="font-size:8.5px;font-weight:700;color:#b45309;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:1px 6px;">⏳ รอตรวจ</span></div>`;
+          if(rv.state==='approved'){ lbl='✅ APPROVED'; ttl='อนุมัติแล้ว'+(rv.by?' · '+h(rv.by):'')+' — คลิกเปิดพรีวิว'; }
+          else if(rv.state==='rejected'){ lbl='✗ REJECTED'; col='#b91c1c'; bg='#fee2e2'; bd='#fca5a5'; ttl='ตีกลับ'+(rv.reason?': '+h(rv.reason):'')+' — คลิกเปิดพรีวิว'; }
+          else { lbl='⏳ รอตรวจ'; col='#b45309'; bg='#fef3c7'; bd='#fcd34d'; ttl='ยังไม่ตรวจ — คลิกเปิดพรีวิว'; }
         }
-        html+=`<div style="text-align:center;"><span onclick="_docOpen('${p}')" title="${_by?'โดย '+h(_by):''}" style="cursor:pointer;font-size:10px;font-weight:700;color:#166534;background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:3px 9px;display:inline-block;">✓ เปิดดู${ver}</span>${rvUI}${dt?`<div style="font-size:8.5px;color:#c2ccd6;font-weight:400;margin-top:2px;">${dt}</div>`:''}</div>`;
+        html+=`<div style="text-align:center;"><span onclick="_docOpen('${p}')" title="${ttl}" style="cursor:pointer;font-size:10px;font-weight:700;color:${col};background:${bg};border:1px solid ${bd};border-radius:6px;padding:3px 9px;display:inline-block;">${lbl}${ver}</span>${dt?`<div style="font-size:8.5px;color:#c2ccd6;font-weight:400;margin-top:2px;">${dt}</div>`:''}</div>`;
       }else{
         html+=`<div style="text-align:center;"><span style="font-size:11px;color:#cbd5e0;">❌ ยังไม่มี</span></div>`;
       }
