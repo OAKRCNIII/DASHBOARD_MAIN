@@ -3580,7 +3580,8 @@ async function openDocsModal(inv){
         const p=(f.folder+'/'+f.name).replace(/'/g,"\\'");
         const _by=upBy(t.key+'|'+f.name);
         const dt=f.created_at?new Date(f.created_at).toLocaleString('th-TH',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'';
-        html+=`<div style="text-align:center;"><span onclick="_docOpen('${p}')" title="${_by?'โดย '+h(_by):''}" style="cursor:pointer;font-size:10px;font-weight:700;color:#166534;background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:3px 9px;display:inline-block;">✓ เปิดดู</span>${dt?`<div style="font-size:8.5px;color:#c2ccd6;font-weight:400;margin-top:2px;">${dt}</div>`:''}</div>`;
+        const ver=r.allCount>1?` <b style="font-size:8.5px;background:#fff;color:#166534;border:1px solid #86efac;border-radius:7px;padding:0 4px;">V.${r.allCount}</b>`:'';
+        html+=`<div style="text-align:center;"><span onclick="_docOpen('${p}')" title="${_by?'โดย '+h(_by):''}" style="cursor:pointer;font-size:10px;font-weight:700;color:#166534;background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:3px 9px;display:inline-block;">✓ เปิดดู${ver}</span>${dt?`<div style="font-size:8.5px;color:#c2ccd6;font-weight:400;margin-top:2px;">${dt}</div>`:''}</div>`;
       }else{
         html+=`<div style="text-align:center;"><span style="font-size:11px;color:#cbd5e0;">❌ ยังไม่มี</span></div>`;
       }
