@@ -5677,19 +5677,19 @@ function trPrintByFactoryReport(){
     if(q&&!d.inv.toUpperCase().includes(q)&&!(d.customer||'').toUpperCase().includes(q))return false;
     return true;
   });
-  /* ── split into 2 fixed groups: OGM vs โรงงานอื่นๆ ── */
+  /* ── split into 2 fixed groups: แก๊งไม่หัก ณ ที่จ่าย (OGM/KNT/KTW/HFI) vs โรงงานอื่นๆ ── */
   /* group by transport company — extract English letters from billNo */
   /* e.g. "2569-PIYA-001"→PIYA, "VT-04/69"→VT, "TWC 04/26"→TWC, "PTC 7/2569"→PTC */
   const extractTrCo=(bill)=>{const m=bill.match(/[A-Za-z]+/g);return m&&m.length?m.join('-').toUpperCase():'(ไม่ระบุ)';};
   const groups={
-    ogm: {label:'OGM&KNT',sublabel:'(เลขลำดับ AL)',color:'#065f46',light:'#d1fae5',cos:{},coIns:[],tot:{ctr:0,amount:0}},
-    other:{label:'โรงงานอื่นๆ (ไม่รวม OGM)',sublabel:'(แยกตามบริษัทขนส่ง)',color:'#1e3a5f',light:'#dbeafe',cos:{},coIns:[],tot:{ctr:0,amount:0}}
+    ogm: {label:TR_NOWHT.join(' & '),sublabel:'(เลขลำดับ AL)',color:'#065f46',light:'#d1fae5',cos:{},coIns:[],tot:{ctr:0,amount:0}},
+    other:{label:'โรงงานอื่นๆ (ไม่รวม '+TR_NOWHT.join('/')+')',sublabel:'(แยกตามบริษัทขนส่ง)',color:'#1e3a5f',light:'#dbeafe',cos:{},coIns:[],tot:{ctr:0,amount:0}}
   };
   let grandAmt=0,grandCtr=0;
   const pfxFacTruckByInv={};
   src.forEach(d=>{
     const _pfx=(d.prefix||'').trim().toUpperCase();
-    const grp=(_pfx==='OGM'||_pfx==='KNT')?groups.ogm:groups.other;
+    const grp=TR_NOWHT.includes(_pfx)?groups.ogm:groups.other;
     d.details.forEach(row=>{
       if(row.trMatch&&row.trMatch._factoryTruck&&grp===groups.other){
         if(!pfxFacTruckByInv[d.inv])pfxFacTruckByInv[d.inv]=0;
