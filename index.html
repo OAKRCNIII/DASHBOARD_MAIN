@@ -710,6 +710,17 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
   </div>
 </div>
 
+<!-- LOGIN LOG MODAL -->
+<div id="loginLogModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);align-items:center;justify-content:center;z-index:100001;padding:16px;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:#fff;border-radius:16px;width:760px;max-width:96vw;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.4);overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e2e8f0;">
+      <div style="font-size:15px;font-weight:900;color:#0f2a52;">📜 ประวัติการล็อกอิน</div>
+      <button onclick="document.getElementById('loginLogModal').style.display='none'" style="border:none;background:#f1f5f9;border-radius:8px;width:30px;height:30px;font-size:16px;cursor:pointer;color:#475569;">✕</button>
+    </div>
+    <div id="loginLogBody" style="overflow:auto;flex:1;"></div>
+  </div>
+</div>
+
 <!-- SETUP (hidden in Supabase version — kept for DOM compatibility) -->
 <div id="setupScreen" style="display:none!important;">
   <div class="setup-card">
@@ -811,6 +822,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
       <button class="hdr-btn" id="settingsBtn">⚙️ ตั้งค่า</button>
       <button class="hdr-btn" id="pushBtn" onclick="togglePush()" title="แจ้งเตือนตู้ว่างเหลือน้อยกว่า 50 (เด้งมือถือ)">🔇</button>
       <span id="userChip" style="display:none;"></span>
+      <button id="loginLogBtn" onclick="openLoginLog()" style="display:none;padding:5px 10px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#0f2a52;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;transition:all .15s;" title="ประวัติการล็อกอิน">📜 ล็อกอิน</button>
       <button id="maintBtn" onclick="toggleMaint()" style="display:none;padding:5px 10px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#0f2a52;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;transition:all .15s;">🟢 เว็บเปิด</button>
       <button id="logoutBtn" onclick="doLogout()" style="display:none;padding:5px 10px;border:1px solid #fca5a5;border-radius:10px;background:#fff1f2;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s;">🚪 ออกจากระบบ</button>
     </div>
@@ -2231,7 +2243,7 @@ async function doLogin(){
   const chip=document.getElementById('userChip');
   if(chip){chip.textContent='👤 '+cred.user+' ('+_roleLabel(cred.role)+')';chip.style.display='inline-flex';}
   const lb=document.getElementById('logoutBtn');if(lb)lb.style.display='inline-flex';
-  _updateMaintBtn();
+  _updateMaintBtn(); _updateLoginLogBtn(); _logLogin(cred.user);
   initApp();
 }
 function doLogout(){sessionStorage.removeItem('rcn_role');sessionStorage.removeItem('rcn_user');location.reload();}
@@ -2276,6 +2288,32 @@ setInterval(async()=>{
   await _loadMaintenance(); _updateMaintBtn();
   if(_MAINT_ON && USER_ROLE!=='admin') _showMaintScreen();
 }, 60000);
+/* ===== LOGIN LOG — บันทึกทุกครั้งที่ล็อกอินสำเร็จ (user/เวลา/IP/เครื่อง) ===== */
+function _deviceStr(){
+  const ua=navigator.userAgent||'';
+  let os='?'; if(/Windows/.test(ua))os='Windows'; else if(/iPhone|iPad|iPod/.test(ua))os='iOS'; else if(/Android/.test(ua))os='Android'; else if(/Macintosh|Mac OS/.test(ua))os='Mac'; else if(/Linux/.test(ua))os='Linux';
+  let br='?'; if(/Edg\//.test(ua))br='Edge'; else if(/OPR\//.test(ua))br='Opera'; else if(/Chrome\//.test(ua))br='Chrome'; else if(/Firefox\//.test(ua))br='Firefox'; else if(/Safari\//.test(ua))br='Safari';
+  return os+' · '+br;
+}
+async function _logLogin(user){
+  let ip=''; try{ const c=new AbortController(); setTimeout(()=>c.abort(),3000); const rr=await fetch('https://api.ipify.org?format=json',{signal:c.signal}); ip=(await rr.json()).ip||''; }catch(e){}
+  try{ await fetch(`${SB_URL}/rest/v1/login_log`,{method:'POST',headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify({user_name:user,ip:ip,device:_deviceStr(),app:'DASHBOARD',ua:navigator.userAgent})}); }catch(e){}
+}
+async function openLoginLog(){
+  const m=document.getElementById('loginLogModal'), body=document.getElementById('loginLogBody');
+  m.style.display='flex'; body.innerHTML='<div style="padding:24px;text-align:center;color:#64748b;">กำลังโหลด…</div>';
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/login_log?select=user_name,app,device,ip,at&order=at.desc&limit=300`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,Accept:'application/json'}});
+    const rows=await r.json();
+    if(!Array.isArray(rows)||!rows.length){ body.innerHTML='<div style="padding:24px;text-align:center;color:#64748b;">ยังไม่มีประวัติ (ตาราง login_log อาจยังไม่ถูกสร้าง)</div>'; return; }
+    const fmt=s=>{ try{ const d=new Date(s); return d.toLocaleString('th-TH',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){return s;} };
+    let h='<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#f1f5f9;position:sticky;top:0;">'
+      +['เวลา','ผู้ใช้','เว็บ','เครื่อง','IP'].map(x=>`<th style="text-align:left;padding:7px 9px;font-weight:800;color:#334155;border-bottom:1px solid #e2e8f0;">${x}</th>`).join('')+'</tr></thead><tbody>';
+    rows.forEach(r=>{ h+=`<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:6px 9px;white-space:nowrap;">${fmt(r.at)}</td><td style="padding:6px 9px;font-weight:700;">${r.user_name||'-'}</td><td style="padding:6px 9px;color:#64748b;">${r.app||'-'}</td><td style="padding:6px 9px;">${r.device||'-'}</td><td style="padding:6px 9px;font-family:monospace;color:#475569;">${r.ip||'-'}</td></tr>`; });
+    h+='</tbody></table>'; body.innerHTML=h;
+  }catch(e){ body.innerHTML='<div style="padding:24px;text-align:center;color:#b91c1c;">โหลดไม่สำเร็จ: '+String(e)+'</div>'; }
+}
+function _updateLoginLogBtn(){ const b=document.getElementById('loginLogBtn'); if(b)b.style.display=(LOGGED_USER==='OAK_THIRA')?'inline-flex':'none'; }
 function _canSeeFees(){return USER_ROLE==='admin';}
 function _canSeeBilledPaid(){return USER_ROLE==='admin';}
 function applyRoleRestrictions(){
@@ -8679,7 +8717,7 @@ async function initApp(){
     }
   }
   /* --- maintenance gate: คนทั่วไปโดนปิด, admin ผ่านได้ --- */
-  _updateMaintBtn();
+  _updateMaintBtn(); _updateLoginLogBtn();
   if(_MAINT_ON && USER_ROLE!=='admin'){ _showMaintScreen(); return; }
   /* ── Supabase version: skip file setup — go straight to load ── */
   document.getElementById('setupScreen').style.display='none';
