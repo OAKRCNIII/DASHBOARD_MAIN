@@ -690,12 +690,23 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <div class="login-divider"></div>
     <div class="login-title">Logistics Dashboard</div>
     <div class="login-sub">กรุณาเข้าสู่ระบบเพื่อใช้งาน</div>
+    <div id="loginMaint" style="display:none;font-size:11.5px;font-weight:700;color:#b45309;background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:8px 12px;margin-bottom:12px;line-height:1.5;"></div>
     <form onsubmit="doLogin();return false;" autocomplete="on">
       <input class="login-inp" id="loginUser" type="text" placeholder="ชื่อผู้ใช้" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()">
       <input class="login-inp" id="loginPass" type="password" placeholder="รหัสผ่าน" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
       <button class="login-btn" type="submit">เข้าสู่ระบบ</button>
     </form>
     <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- MAINTENANCE OVERLAY (ปิดเว็บชั่วคราว) -->
+<div id="maintScreen" style="display:none;position:fixed;inset:0;background:linear-gradient(150deg,#0a1628 0%,#10284d 55%,#0f2a52 100%);align-items:center;justify-content:center;z-index:100000;">
+  <div style="background:#fff;border-radius:22px;padding:38px 34px;width:360px;max-width:92vw;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.45);border-top:6px solid #f5b921;">
+    <div style="font-size:46px;margin-bottom:8px;">🔧</div>
+    <div style="font-size:17px;font-weight:900;color:#0f2a52;margin-bottom:8px;">ระบบปิดปรับปรุงชั่วคราว</div>
+    <div id="maintMsg" style="font-size:13px;color:#64748b;line-height:1.6;margin-bottom:18px;">กรุณากลับมาใหม่ภายหลัง</div>
+    <button onclick="location.reload()" style="padding:10px 22px;border:none;border-radius:12px;background:linear-gradient(135deg,#ffd04a,#f5b921);color:#0a1628;font-size:13px;font-weight:900;cursor:pointer;">↻ ลองใหม่</button>
   </div>
 </div>
 
@@ -800,6 +811,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
       <button class="hdr-btn" id="settingsBtn">⚙️ ตั้งค่า</button>
       <button class="hdr-btn" id="pushBtn" onclick="togglePush()" title="แจ้งเตือนตู้ว่างเหลือน้อยกว่า 50 (เด้งมือถือ)">🔇</button>
       <span id="userChip" style="display:none;"></span>
+      <button id="maintBtn" onclick="toggleMaint()" style="display:none;padding:5px 10px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#0f2a52;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;transition:all .15s;">🟢 เว็บเปิด</button>
       <button id="logoutBtn" onclick="doLogout()" style="display:none;padding:5px 10px;border:1px solid #fca5a5;border-radius:10px;background:#fff1f2;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s;">🚪 ออกจากระบบ</button>
     </div>
   </div>
@@ -2211,6 +2223,7 @@ async function doLogin(){
   const h=await _hashPass(user+':'+pass);
   const cred=_CREDS.find(c=>c.user===user&&c.hash===h);
   if(!cred){err.textContent='ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';return;}
+  if(_MAINT_ON && cred.role!=='admin'){err.textContent='🔧 ระบบปิดปรับปรุงชั่วคราว กรุณากลับมาใหม่ภายหลัง';return;}
   USER_ROLE=cred.role; LOGGED_USER=cred.user;
   sessionStorage.setItem('rcn_role',cred.role);
   sessionStorage.setItem('rcn_user',cred.user);
@@ -2218,10 +2231,51 @@ async function doLogin(){
   const chip=document.getElementById('userChip');
   if(chip){chip.textContent='👤 '+cred.user+' ('+_roleLabel(cred.role)+')';chip.style.display='inline-flex';}
   const lb=document.getElementById('logoutBtn');if(lb)lb.style.display='inline-flex';
+  _updateMaintBtn();
   initApp();
 }
 function doLogout(){sessionStorage.removeItem('rcn_role');sessionStorage.removeItem('rcn_user');location.reload();}
 function _roleLabel(r){return r==='admin'?'Admin':r==='transport'?'ขนส่ง':r==='manager'?'Manager':r;}
+/* ===== MAINTENANCE — ปิดเว็บชั่วคราว (สลับจาก Supabase, ปุ่มเฉพาะ OAK_THIRA) ===== */
+let _MAINT_ON=false, _MAINT_MSG='ระบบปิดปรับปรุงชั่วคราว กรุณากลับมาใหม่ภายหลัง';
+async function _loadMaintenance(){
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/app_config?id=eq.1&select=maintenance,message`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,Accept:'application/json'}});
+    const j=await r.json(); const c=Array.isArray(j)?j[0]:null;
+    _MAINT_ON=!!(c&&c.maintenance); if(c&&c.message)_MAINT_MSG=c.message;
+  }catch(e){ _MAINT_ON=false; }
+}
+function _showMaintScreen(){
+  const el=document.getElementById('maintScreen'); if(!el)return;
+  const m=document.getElementById('maintMsg'); if(m)m.textContent=_MAINT_MSG;
+  el.style.display='flex';
+  ['loginScreen','setupScreen','loadScreen','app'].forEach(id=>{const n=document.getElementById(id);if(n)n.style.display='none';});
+}
+function _updateMaintBtn(){
+  const b=document.getElementById('maintBtn'); if(!b)return;
+  if(LOGGED_USER==='OAK_THIRA'){ b.style.display='inline-flex';
+    b.textContent=_MAINT_ON?'🔴 เว็บปิดอยู่':'🟢 เว็บเปิด';
+    b.style.borderColor=_MAINT_ON?'#fca5a5':'#cbd5e1'; b.style.background=_MAINT_ON?'#fef2f2':'#fff'; b.style.color=_MAINT_ON?'#dc2626':'#0f2a52';
+    b.title=_MAINT_ON?'คลิกเพื่อเปิดเว็บให้ใช้งานปกติ':'คลิกเพื่อปิดเว็บชั่วคราว';
+  } else b.style.display='none';
+}
+async function toggleMaint(){
+  const turnOn=!_MAINT_ON;
+  if(turnOn && !confirm('ปิดเว็บชั่วคราว?\nคนทั่วไปจะเข้าใช้งานไม่ได้ (admin ยังเข้าได้)'))return;
+  if(!turnOn && !confirm('เปิดเว็บให้ใช้งานปกติ?'))return;
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/app_config?id=eq.1`,{method:'PATCH',headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify({maintenance:turnOn,updated_at:new Date().toISOString()})});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    _MAINT_ON=turnOn; _updateMaintBtn();
+    alert(turnOn?'🔴 ปิดเว็บแล้ว — คนทั่วไปเข้าไม่ได้':'🟢 เปิดเว็บแล้ว — ใช้งานได้ปกติ');
+  }catch(e){ alert('สลับสถานะไม่สำเร็จ: '+(e.message||e)); }
+}
+/* ตรวจซ้ำทุก 60 วิ — ถ้าโดนปิดระหว่างใช้งาน คนทั่วไปจะโดนเด้งหน้าปิดปรับปรุง */
+setInterval(async()=>{
+  if(!USER_ROLE)return;
+  await _loadMaintenance(); _updateMaintBtn();
+  if(_MAINT_ON && USER_ROLE!=='admin') _showMaintScreen();
+}, 60000);
 function _canSeeFees(){return USER_ROLE==='admin';}
 function _canSeeBilledPaid(){return USER_ROLE==='admin';}
 function applyRoleRestrictions(){
@@ -8603,6 +8657,7 @@ async function doLoad(){
   catch(e){showErr(e.message||'โหลดไม่สำเร็จ');}
 }
 async function initApp(){
+  await _loadMaintenance();
   /* --- role gate --- */
   if(!USER_ROLE){
     const sr=sessionStorage.getItem('rcn_role'),su=sessionStorage.getItem('rcn_user');
@@ -8614,6 +8669,8 @@ async function initApp(){
       document.getElementById('loginScreen').style.display='none';
     } else {
       /* show login screen */
+      const mb=document.getElementById('loginMaint');
+      if(mb){ if(_MAINT_ON){mb.style.display='block';mb.textContent='🔧 '+_MAINT_MSG+' — เฉพาะผู้ดูแลเข้าได้';} else mb.style.display='none'; }
       document.getElementById('loginScreen').style.display='flex';
       document.getElementById('setupScreen').style.display='none';
       document.getElementById('loadScreen').style.display='none';
@@ -8621,6 +8678,9 @@ async function initApp(){
       return;
     }
   }
+  /* --- maintenance gate: คนทั่วไปโดนปิด, admin ผ่านได้ --- */
+  _updateMaintBtn();
+  if(_MAINT_ON && USER_ROLE!=='admin'){ _showMaintScreen(); return; }
   /* ── Supabase version: skip file setup — go straight to load ── */
   document.getElementById('setupScreen').style.display='none';
   document.getElementById('loadScreen').style.display='flex';
