@@ -798,7 +798,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
       <button class="dash-toggle-btn" id="financeBtn" onclick="toggleFinanceDash()" style="background:#0f172a;border-color:#0f172a;display:none;">💵 FINANCE ANTS</button>
       <button class="hdr-btn" id="refreshBtn">🔄 รีเฟรช</button>
       <button class="hdr-btn" id="settingsBtn">⚙️ ตั้งค่า</button>
-      <button class="hdr-btn" id="pushBtn" onclick="togglePush()" title="แจ้งเตือนตู้ว่างเหลือน้อยกว่า 50 (เด้งมือถือ)">🔔</button>
+      <button class="hdr-btn" id="pushBtn" onclick="togglePush()" title="แจ้งเตือนตู้ว่างเหลือน้อยกว่า 50 (เด้งมือถือ)">🔇</button>
       <span id="userChip" style="display:none;"></span>
       <button id="logoutBtn" onclick="doLogout()" style="display:none;padding:5px 10px;border:1px solid #fca5a5;border-radius:10px;background:#fff1f2;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s;">🚪 ออกจากระบบ</button>
     </div>
@@ -9259,7 +9259,7 @@ async function _pushSb(method, path, body){
 }
 function _updatePushBtn(on){
   const b=document.getElementById('pushBtn'); if(!b) return;
-  b.textContent = on?'🔔✓':'🔔';
+  b.textContent = on?'🔊':'🔇';
   b.title = on?'แจ้งเตือนเปิดอยู่ (ตู้ว่าง<50 เด้งมือถือ) — กดเพื่อปิด':'แจ้งเตือนตู้ว่างเหลือน้อยกว่า 50 (เด้งมือถือ) — กดเพื่อเปิด';
   b.style.background = on?'#dcfce7':'';
 }
