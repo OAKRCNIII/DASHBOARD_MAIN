@@ -1342,7 +1342,7 @@ const VAPID_PUBLIC_KEY = 'BNGirqkNEe-IxAZ920-kfYiLqxCi16hHUlzFhOuwvL4Z4edGTT51M6
 const SB_URL = 'https://ywslgrusflfuxtrtvlfu.supabase.co';
 const SB_KEY = 'sb_publishable_nrjNNyA08-GCRphIQuzvvg_YpGxiYeY';  /* anon/publishable — ใช้เป็น apikey (เปิดเผยได้ปลอดภัย) */
 let   SB_TOKEN = SB_KEY;  /* Authorization: ก่อน login = anon, หลัง login = access token ของผู้ใช้ */
-const sbAuth = supabase.createClient(SB_URL, SB_KEY, {auth:{persistSession:true, autoRefreshToken:true}});
+const sbAuth = supabase.createClient(SB_URL, SB_KEY, {auth:{persistSession:false, autoRefreshToken:true}});  /* ไม่จำ login — ปิด/รีเฟรชแล้วต้องล็อกอินใหม่ */
 sbAuth.auth.onAuthStateChange((_e, session)=>{ SB_TOKEN = (session && session.access_token) ? session.access_token : SB_KEY; });
 const sbFetch = async (table, params = '') => {
   /* ดึงข้อมูลแบบ paginate (1000 rows/page) รองรับ table ที่มีข้อมูลเกิน 1000 rows */
