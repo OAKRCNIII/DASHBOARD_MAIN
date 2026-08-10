@@ -2235,7 +2235,7 @@ async function doLogin(){
   const h=await _hashPass(user+':'+pass);
   const cred=_CREDS.find(c=>c.user===user&&c.hash===h);
   if(!cred){err.textContent='ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';return;}
-  if(_MAINT_ON && cred.user!=='OAK_THIRA'){err.textContent='🔧 ระบบปิดปรับปรุงชั่วคราว กรุณากลับมาใหม่ภายหลัง';return;}
+  if(_MAINT_ON && cred.user!=='OAK_THIRA'){ _logLogin(cred.user); _showMaintScreen(); return; }
   USER_ROLE=cred.role; LOGGED_USER=cred.user;
   sessionStorage.setItem('rcn_role',cred.role);
   sessionStorage.setItem('rcn_user',cred.user);
