@@ -8708,7 +8708,7 @@ async function initApp(){
     } else {
       /* show login screen */
       const mb=document.getElementById('loginMaint');
-      if(mb){ if(_MAINT_ON){mb.style.display='block';mb.textContent='🔧 '+_MAINT_MSG+' — เฉพาะผู้ดูแลเข้าได้';} else mb.style.display='none'; }
+      if(mb){ if(_MAINT_ON){mb.style.display='block';mb.textContent='🔧 '+_MAINT_MSG;} else mb.style.display='none'; }
       document.getElementById('loginScreen').style.display='flex';
       document.getElementById('setupScreen').style.display='none';
       document.getElementById('loadScreen').style.display='none';
