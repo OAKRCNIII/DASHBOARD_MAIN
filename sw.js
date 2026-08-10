@@ -1,4 +1,4 @@
-const CACHE = 'dashboard-v2';
+const CACHE = 'dashboard-v3';
 const ASSETS = ['./', './index.html'];
 
 self.addEventListener('install', e => {
@@ -34,12 +34,12 @@ self.addEventListener('push', e => {
   }));
 });
 
-/* กด notification → เปิด/โฟกัสแอป */
+/* กด notification → โฟกัสแอปที่เปิดอยู่ ไม่งั้นเปิดใหม่ที่ scope ของแอป (path ที่ถูก) */
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const url = (e.notification.data && e.notification.data.url) || './';
+  const base = self.registration.scope;   // เช่น https://xxx.github.io/DASHBOARD_MAIN/
   e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-    for (const c of list) { if ('focus' in c) return c.focus(); }
-    if (clients.openWindow) return clients.openWindow(url);
+    for (const c of list) { if (c.url.startsWith(base) && 'focus' in c) return c.focus(); }
+    if (clients.openWindow) return clients.openWindow(base);
   }));
 });
