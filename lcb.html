@@ -8,62 +8,69 @@
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,"Noto Sans Thai",sans-serif;
-     background:#f1f5f9;color:#0f172a;font-size:15px;padding-bottom:96px}
-.hd{background:linear-gradient(135deg,#1a3a6b,#0ea5e9);color:#fff;padding:18px 18px 22px}
-.hd .ctr{font-size:26px;font-weight:800;letter-spacing:.5px;margin:2px 0 6px}
-.hd .sub{font-size:12px;opacity:.9}
-.badge{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;margin-top:8px}
-.b-ok{background:#dcfce7;color:#166534}
-.b-warn{background:#fef3c7;color:#92400e}
-.wrap{padding:14px}
-.card{background:#fff;border-radius:14px;padding:16px;margin-bottom:12px;
-      box-shadow:0 1px 3px rgba(0,0,0,.07)}
-.card h3{margin:0 0 12px;font-size:12px;font-weight:800;color:#64748b;
-         text-transform:uppercase;letter-spacing:.7px}
+     background:#f1f5f9;color:#0f172a;font-size:15px;padding-bottom:110px}
+.hd{background:linear-gradient(135deg,#1a3a6b,#0ea5e9);color:#fff;padding:16px 18px 20px}
+.hd .n{font-size:30px;font-weight:800;line-height:1.1}
+.hd .s{font-size:12px;opacity:.9;margin-top:4px}
+.chips{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.22)}
+.wrap{padding:13px}
+.card{background:#fff;border-radius:14px;padding:15px;margin-bottom:11px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.card h3{margin:0 0 11px;font-size:12px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.7px}
 label{display:block;font-size:12px;font-weight:700;color:#475569;margin:0 0 5px}
 label .req{color:#e11d48}
 input,select{width:100%;padding:11px 12px;font-size:16px;border:1.5px solid #cbd5e1;
              border-radius:9px;background:#fff;font-family:inherit;color:#0f172a}
 input:focus,select:focus{outline:none;border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.15)}
-.fld{margin-bottom:13px}
-.fld:last-child{margin-bottom:0}
+.fld{margin-bottom:12px}.fld:last-child{margin-bottom:0}
 .hl input,.hl select{border-color:#0ea5e9;background:#f0f9ff}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
-.ro{display:flex;justify-content:space-between;gap:12px;padding:7px 0;
-    border-bottom:1px solid #f1f5f9;font-size:13px}
-.ro:last-child{border-bottom:none}
-.ro .k{color:#64748b;flex-shrink:0}
-.ro .v{text-align:right;font-weight:600;word-break:break-word}
-.note{background:#fef3c7;border-left:3px solid #f59e0b;padding:10px 12px;
-      border-radius:8px;font-size:12.5px;color:#92400e;margin-bottom:12px;line-height:1.5}
-.bar{position:fixed;left:0;right:0;bottom:0;padding:12px 14px calc(12px + env(safe-area-inset-bottom));
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* แถวตู้ */
+.ct{border:1.5px solid #e2e8f0;border-radius:12px;margin-bottom:9px;background:#fff;overflow:hidden}
+.ct.on{border-color:#0ea5e9}
+.ct.dup{opacity:.55;background:#f8fafc}
+.ct.warn{border-color:#f59e0b}
+.ct .top{display:flex;align-items:center;gap:11px;padding:13px 14px}
+.ct .box{width:23px;height:23px;flex-shrink:0;accent-color:#0ea5e9;margin:0}
+.ct .no{font-size:16px;font-weight:800;letter-spacing:.4px}
+.ct.dup .no{text-decoration:line-through;color:#94a3b8}
+.ct .sub{font-size:11.5px;color:#64748b;margin-top:2px}
+.ct .exp{margin-left:auto;font-size:12px;color:#0ea5e9;font-weight:700;padding:6px;flex-shrink:0}
+.ct .why{font-size:11.5px;padding:0 14px 11px 48px;color:#b45309;line-height:1.5}
+.ct.dup .why{color:#64748b}
+.det{display:none;padding:0 14px 14px;border-top:1px solid #f1f5f9;margin-top:2px;padding-top:13px}
+.det.open{display:block}
+.ro{display:flex;justify-content:space-between;gap:12px;padding:6px 0;font-size:12.5px;border-bottom:1px solid #f8fafc}
+.ro .k{color:#64748b}.ro .v{text-align:right;font-weight:600;word-break:break-word}
+.bar{position:fixed;left:0;right:0;bottom:0;padding:11px 14px calc(11px + env(safe-area-inset-bottom));
      background:#fff;border-top:1px solid #e2e8f0}
-button{width:100%;padding:15px;font-size:16px;font-weight:800;color:#fff;border:none;
+button.save{width:100%;padding:15px;font-size:16px;font-weight:800;color:#fff;border:none;
        border-radius:11px;background:linear-gradient(135deg,#059669,#10b981);font-family:inherit}
-button:disabled{background:#94a3b8}
+button.save:disabled{background:#94a3b8}
 .mid{padding:70px 24px;text-align:center;color:#64748b;line-height:1.7}
 .err{color:#b91c1c;font-weight:700}
+.tiny{font-size:11.5px;color:#64748b;margin:-4px 0 9px}
 </style>
 </head>
 <body>
-
 <div id="app"><div class="mid">กำลังโหลด…</div></div>
 
 <script>
 const LIFF_ID = '2011063208-797yzibj';
 const API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-lcb';
-let TOKEN = null;   // ต้องอ่านหลัง liff.init() เท่านั้น
+let TOKEN = null, LIST = [];
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const val = v => (v === null || v === undefined || v === '') ? '—' : v;
+const kg = v => v ? Number(v).toLocaleString() + ' kg' : '—';
 
 function fail(msg){
   $('app').innerHTML = `<div class="mid"><p class="err">${esc(msg)}</p>
     <p style="font-size:13px">ปิดหน้านี้แล้วลองส่งรูปใหม่ครับ</p></div>`;
 }
 
-// วันที่เข้าโรงงานมักเป็นวันถัดจากวันรับตู้
 function nextDay(iso){
   if(!iso) return '';
   const d = new Date(iso + 'T00:00:00');
@@ -72,151 +79,166 @@ function nextDay(iso){
   return d.toISOString().slice(0,10);
 }
 
-function render(d, invoices){
-  const ok = d.ctr_no_valid === true && d.ctr_no_match === true;
+function ctrCard(c, i){
+  const dup = !!c.dup;
+  const warn = !dup && c.needs_review;
+  const cls = dup ? 'dup' : warn ? 'warn' : 'on';
+  return `
+  <div class="ct ${cls}" id="ct${i}">
+    <div class="top">
+      <input type="checkbox" class="box" id="pick${i}" ${dup ? 'disabled' : 'checked'}>
+      <div style="min-width:0">
+        <div class="no">${esc(val(c.container_no))}</div>
+        <div class="sub">ซีล ${esc(val(c.seal_no))} · ${kg(c.weight)} · ${esc(val(c.truck_plate))}</div>
+      </div>
+      <span class="exp" onclick="toggle(${i})">ดู ▾</span>
+    </div>
+    ${c.review_note ? `<div class="why">${esc(c.review_note)}</div>` : ''}
+    <div class="det" id="det${i}">
+      <div class="fld"><label>เบอร์ตู้</label>
+        <input id="f_container_no${i}" value="${esc(c.container_no ?? '')}" autocapitalize="characters"></div>
+      <div class="fld"><label>เบอร์ซีล</label>
+        <input id="f_seal_no${i}" value="${esc(c.seal_no ?? '')}" autocapitalize="characters"></div>
+      <div class="fld"><label>ทะเบียนรถ</label>
+        <input id="f_truck_plate${i}" value="${esc(c.truck_plate ?? '')}"></div>
+      <div class="grid2">
+        <div class="fld"><label>น้ำหนัก (kg)</label>
+          <input type="number" id="f_weight${i}" value="${esc(c.weight ?? '')}"></div>
+        <div class="fld"><label>สายเรือ</label>
+          <input id="f_shipping_line${i}" value="${esc(c.shipping_line ?? '')}"></div>
+      </div>
+      <div class="fld"><label>วันที่รับตู้ (ตามใบ EIR)</label>
+        <input type="date" id="f_pickup_date${i}" value="${esc(c.pickup_date ?? '')}"></div>
+      <div class="ro"><span class="k">ลูกค้า</span><span class="v">${esc(val(c.customer))}</span></div>
+      <div class="ro"><span class="k">บริษัทรถ</span><span class="v">${esc(val(c.carrier))}</span></div>
+      <div class="ro"><span class="k">ลานตู้</span><span class="v">${esc(val(c.depot))}</span></div>
+      <div class="ro"><span class="k">REF.NO.</span><span class="v">${esc(val(c.eir_ref_no))}</span></div>
+      <div class="ro"><span class="k">ชนิด / ขนาด</span><span class="v">${esc(val([c.ctr_type,c.ctr_size].filter(Boolean).join(' ')))}</span></div>
+      <div class="ro"><span class="k">เจ้าของตู้</span><span class="v">${esc(val(c.ctr_owner))} ${esc(val(c.ctr_type_code))}</span></div>
+      <div class="ro"><span class="k">MAX / TARE / NET</span><span class="v">${kg(c.max_gross_kg)} / ${kg(c.tare_kg)} / ${kg(c.net_kg)}</span></div>
+      <div class="ro"><span class="k">คนขับ</span><span class="v">${esc(val(c.driver_name))}</span></div>
+    </div>
+  </div>`;
+}
+
+function toggle(i){
+  const d = $('det'+i);
+  d.classList.toggle('open');
+  d.previousElementSibling; // noop
+  document.querySelector(`#ct${i} .exp`).textContent = d.classList.contains('open') ? 'ปิด ▴' : 'ดู ▾';
+}
+
+function render(draft, invoices){
+  LIST = draft.containers || [];
+  const dup = LIST.filter(c => c.dup).length;
+  const warn = LIST.filter(c => !c.dup && c.needs_review).length;
+  const ready = LIST.length - dup - warn;
+
   const opts = invoices.map(i => {
     const tail = i.expected ? ` — เหลือ ${i.remaining} ตู้` : '';
     return `<option value="${esc(i.invoice_no)}">${esc(i.invoice_no)}${tail}</option>`;
   }).join('');
 
+  // วันที่เข้าโรงงาน default = วันถัดจากวันรับตู้ใบแรกที่อ่านได้
+  const firstPick = (LIST.find(c => c.pickup_date) || {}).pickup_date;
+
   $('app').innerHTML = `
   <div class="hd">
-    <div class="sub">บันทึกตู้ — แหลมฉบัง</div>
-    <div class="ctr">${esc(val(d.container_no))}</div>
-    <span class="badge ${ok?'b-ok':'b-warn'}">
-      ${ok ? '✓ เบอร์ตู้ผ่านการตรวจสอบ' : '⚠ ตรวจสอบก่อนบันทึก'}
-    </span>
+    <div class="s">บันทึกตู้ — แหลมฉบัง</div>
+    <div class="n">${LIST.length} ตู้</div>
+    <div class="chips">
+      ${ready ? `<span class="chip">✅ พร้อม ${ready}</span>` : ''}
+      ${warn ? `<span class="chip">⚠️ ต้องดู ${warn}</span>` : ''}
+      ${dup ? `<span class="chip">⛔ ซ้ำ ${dup}</span>` : ''}
+      ${draft.orphans ? `<span class="chip">📷 จับคู่ไม่ได้ ${draft.orphans}</span>` : ''}
+    </div>
   </div>
 
   <div class="wrap">
-    ${d.review_note ? `<div class="note">⚠️ ${esc(d.review_note)}</div>` : ''}
-
     <div class="card">
-      <h3>★ ต้องกรอก</h3>
+      <h3>★ ใช้กับทุกตู้ที่ติ๊กไว้</h3>
       <div class="fld hl">
         <label>อินวอยซ์ <span class="req">*</span></label>
-        <select id="invoice_no">
-          <option value="">— เลือกอินวอยซ์ —</option>${opts}
-        </select>
+        <select id="invoice_no"><option value="">— เลือกอินวอยซ์ —</option>${opts}</select>
       </div>
       <div class="fld hl">
         <label>วันที่นำเข้าโรงงาน <span class="req">*</span></label>
-        <input type="date" id="factory_date" value="${esc(nextDay(d.pickup_date))}">
+        <input type="date" id="factory_date" value="${esc(nextDay(firstPick))}">
       </div>
     </div>
 
     <div class="card">
-      <h3>อ่านจากรูป — แก้ได้ถ้าไม่ตรง</h3>
-      <div class="fld">
-        <label>เบอร์ตู้</label>
-        <input id="container_no" value="${esc(d.container_no ?? '')}" autocapitalize="characters">
-      </div>
-      <div class="fld">
-        <label>เบอร์ซีล</label>
-        <input id="seal_no" value="${esc(d.seal_no ?? '')}" autocapitalize="characters">
-      </div>
-      <div class="fld">
-        <label>ทะเบียนรถ</label>
-        <input id="truck_plate" value="${esc(d.truck_plate ?? '')}">
-      </div>
-      <div class="grid2">
-        <div class="fld">
-          <label>น้ำหนัก (kg)</label>
-          <input type="number" id="weight" value="${esc(d.weight ?? '')}">
-        </div>
-        <div class="fld">
-          <label>สายเรือ</label>
-          <input id="shipping_line" value="${esc(d.shipping_line ?? '')}">
-        </div>
-      </div>
-      <div class="fld">
-        <label>วันที่รับตู้ (ตามใบ EIR)</label>
-        <input type="date" id="pickup_date" value="${esc(d.pickup_date ?? '')}">
-      </div>
-    </div>
-
-    <div class="card">
-      <h3>ข้อมูลจากใบ EIR</h3>
-      <div class="ro"><span class="k">ลูกค้า</span><span class="v">${esc(val(d.customer))}</span></div>
-      <div class="ro"><span class="k">บริษัทรถ</span><span class="v">${esc(val(d.carrier))}</span></div>
-      <div class="ro"><span class="k">ลานตู้</span><span class="v">${esc(val(d.depot))}</span></div>
-      <div class="ro"><span class="k">REF.NO.</span><span class="v">${esc(val(d.eir_ref_no))}</span></div>
-      <div class="ro"><span class="k">ชนิด / ขนาด</span><span class="v">${esc(val([d.ctr_type,d.ctr_size].filter(Boolean).join(' ')))}</span></div>
-      <div class="ro"><span class="k">เต็ม / เปล่า</span><span class="v">${esc(val(d.load_status))}</span></div>
-      <div class="ro"><span class="k">สภาพตู้</span><span class="v">${esc(val(d.condition))}</span></div>
-      <div class="ro"><span class="k">เวลาออก</span><span class="v">${esc(val(d.time_out))}</span></div>
-      <div class="ro"><span class="k">คนขับ</span><span class="v">${esc(val(d.driver_name))}</span></div>
-    </div>
-
-    <div class="card">
-      <h3>ป้ายท้ายตู้</h3>
-      <div class="ro"><span class="k">เจ้าของตู้</span><span class="v">${esc(val(d.ctr_owner))}</span></div>
-      <div class="ro"><span class="k">รหัส ISO</span><span class="v">${esc(val(d.ctr_type_code))}</span></div>
-      <div class="ro"><span class="k">MAX GROSS</span><span class="v">${d.max_gross_kg ? Number(d.max_gross_kg).toLocaleString()+' kg' : '—'}</span></div>
-      <div class="ro"><span class="k">TARE</span><span class="v">${d.tare_kg ? Number(d.tare_kg).toLocaleString()+' kg' : '—'}</span></div>
-      <div class="ro"><span class="k">NET</span><span class="v">${d.net_kg ? Number(d.net_kg).toLocaleString()+' kg' : '—'}</span></div>
-      <div class="ro"><span class="k">ปริมาตร</span><span class="v">${esc(val(d.cu_cap_cbm))} m³</span></div>
+      <h3>รายการตู้</h3>
+      <p class="tiny">ตู้ที่ไม่ใช่อินวอยซ์นี้ ให้เอาติ๊กออก แล้วส่งรอบใหม่ · กด "ดู" เพื่อแก้ค่าที่อ่านผิด</p>
+      ${LIST.map(ctrCard).join('')}
     </div>
   </div>
 
-  <div class="bar"><button id="save">บันทึกลงระบบ</button></div>`;
+  <div class="bar"><button class="save" id="save">บันทึก</button></div>`;
 
   $('save').onclick = save;
+  LIST.forEach((_, i) => { const b = $('pick'+i); if(b) b.onchange = count; });
+  count();
+}
+
+function picked(){
+  return LIST.map((c,i) => ({c,i})).filter(({i}) => { const b = $('pick'+i); return b && b.checked; });
+}
+function count(){
+  const n = picked().length;
+  const b = $('save');
+  b.textContent = n ? `บันทึก ${n} ตู้` : 'ยังไม่ได้เลือกตู้';
+  b.disabled = !n;
 }
 
 async function save(){
   const btn = $('save');
   const invoice_no = $('invoice_no').value;
   const factory_date = $('factory_date').value;
-
   if(!invoice_no){ alert('เลือกอินวอยซ์ก่อนครับ'); $('invoice_no').focus(); return; }
   if(!factory_date){ alert('ใส่วันที่นำเข้าโรงงานก่อนครับ'); $('factory_date').focus(); return; }
 
+  const sel = picked();
+  const selected = [], overrides = {};
+  for(const {c,i} of sel){
+    const no = ($('f_container_no'+i).value || '').trim().toUpperCase() || c.container_no;
+    selected.push(c.container_no);
+    overrides[c.container_no] = {
+      container_no:  no,
+      seal_no:       ($('f_seal_no'+i).value || '').trim().toUpperCase() || null,
+      truck_plate:   ($('f_truck_plate'+i).value || '').trim() || null,
+      weight:        $('f_weight'+i).value ? Number($('f_weight'+i).value) : null,
+      shipping_line: ($('f_shipping_line'+i).value || '').trim() || null,
+      pickup_date:   $('f_pickup_date'+i).value || null,
+    };
+  }
+
   btn.disabled = true; btn.textContent = 'กำลังบันทึก…';
-
-  const fields = {
-    invoice_no, factory_date,
-    container_no:  $('container_no').value.trim().toUpperCase(),
-    seal_no:       $('seal_no').value.trim().toUpperCase() || null,
-    truck_plate:   $('truck_plate').value.trim() || null,
-    weight:        $('weight').value ? Number($('weight').value) : null,
-    shipping_line: $('shipping_line').value.trim() || null,
-    pickup_date:   $('pickup_date').value || null,
-  };
-
   try{
     const r = await fetch(API + '/submit', {
-      method:'POST',
-      headers:{'content-type':'application/json'},
-      body: JSON.stringify({ token: TOKEN, fields }),
+      method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({ token: TOKEN, invoice_no, factory_date, selected, overrides }),
     });
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
-
-    btn.textContent = '✓ บันทึกแล้ว';
-    setTimeout(() => { if(liff.isInClient()) liff.closeWindow(); }, 700);
+    btn.textContent = `✓ บันทึก ${j.saved.length} ตู้`;
+    setTimeout(() => { if(liff.isInClient()) liff.closeWindow(); }, 900);
   }catch(e){
     alert('บันทึกไม่สำเร็จ: ' + e.message);
-    btn.disabled = false; btn.textContent = 'บันทึกลงระบบ';
+    btn.disabled = false; count();
   }
 }
 
-// LIFF ส่ง query มาได้ 2 ทาง — ตรงๆ หรือห่อใน liff.state
 function readToken(){
   const q = new URLSearchParams(location.search);
-  const direct = q.get('t');
-  if(direct) return direct;
-
+  const direct = q.get('t'); if(direct) return direct;
   const state = q.get('liff.state');
   if(state){
     const qs = state.includes('?') ? state.slice(state.indexOf('?') + 1) : state;
-    const t = new URLSearchParams(qs).get('t');
-    if(t) return t;
+    const t = new URLSearchParams(qs).get('t'); if(t) return t;
   }
-  // เผื่อโผล่มาใน hash
   if(location.hash){
-    const t = new URLSearchParams(location.hash.replace(/^#\/?/, '')).get('t');
-    if(t) return t;
+    const t = new URLSearchParams(location.hash.replace(/^#\/?/, '')).get('t'); if(t) return t;
   }
   return null;
 }
@@ -226,9 +248,7 @@ function readToken(){
   try{
     await liff.init({ liffId: LIFF_ID });
     if(!liff.isLoggedIn() && !liff.isInClient()){ liff.login(); return; }
-  }catch(e){
-    return fail('เปิด LIFF ไม่ได้: ' + e.message);
-  }
+  }catch(e){ return fail('เปิด LIFF ไม่ได้: ' + e.message); }
 
   TOKEN = readToken();
   if(!TOKEN) return fail('ลิงก์ไม่ถูกต้อง (ไม่มี token)');
@@ -241,11 +261,8 @@ function readToken(){
     const dJson = await dRes.json();
     if(!dRes.ok) return fail(dJson.error || 'โหลดข้อมูลไม่ได้');
     const iJson = await iRes.json();
-
     render(dJson.draft, iJson.invoices || []);
-  }catch(e){
-    fail('โหลดข้อมูลไม่ได้: ' + e.message);
-  }
+  }catch(e){ fail('โหลดข้อมูลไม่ได้: ' + e.message); }
 })();
 </script>
 </body>
