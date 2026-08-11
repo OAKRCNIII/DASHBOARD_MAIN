@@ -1379,8 +1379,18 @@ async function loadLcbInv(){
   }catch(e){ console.warn('โหลดป้ายแหลมฉบังไม่ได้:', e.message); }
 }
 
-async function toggleLcb(rawInv, btn){
+/* กดสวิตช์ต้องใส่ PIN ก่อน — กันเผลอกดโดนแล้วบอท LINE เห็นอินวอยซ์ผิดใบ */
+function toggleLcb(rawInv, btn){
   const inv = String(rawInv).trim();
+  const on  = LCB_INV.has(inv);
+  requirePin(
+    ()=>_doToggleLcb(inv, btn),
+    on ? `ยืนยันเปลี่ยน ${inv} กลับเป็น ปาดัง`
+       : `ยืนยันเปลี่ยน ${inv} เป็น แหลมฉบัง`
+  );
+}
+
+async function _doToggleLcb(inv, btn){
   const on = LCB_INV.has(inv);
   if(btn){ btn.disabled = true; btn.textContent = '…'; }
   const hdr = {'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'};
