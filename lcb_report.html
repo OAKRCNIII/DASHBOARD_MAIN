@@ -157,19 +157,32 @@ function render(inv, list){
 }
 
 // ── บันทึกเป็น PDF (A4 แนวตั้ง แบ่งหน้าอัตโนมัติถ้ายาวเกิน) ──
+function say(msg){ document.getElementById('meta').textContent = msg; }
+
 async function savePdf(){
   const btn = document.getElementById('pdf');
   const sheet = document.getElementById('sheet');
-  if(!sheet) return;
+  if(!sheet){ say('ยังไม่มีรายงานให้บันทึก'); return; }
+
+  if(typeof html2canvas !== 'function' || !window.jspdf){
+    say('⚠️ โหลดตัวสร้าง PDF ไม่ได้ — ใช้ปุ่ม 🖨 พิมพ์ แทน');
+    return;
+  }
+
   btn.disabled = true; btn.textContent = 'กำลังสร้าง…';
   try{
-    if(document.fonts && document.fonts.ready) await document.fonts.ready;
+    say('กำลังเตรียมฟอนต์…');
+    if(document.fonts && document.fonts.ready){
+      await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 3000))]);
+    }
 
+    say('กำลังวาดหน้ากระดาษ…');
     const canvas = await html2canvas(sheet, {
       scale: Math.min(3, Math.max(2, 1600 / sheet.offsetWidth)),
       backgroundColor: '#ffffff', useCORS: true, logging: false,
     });
 
+    say('กำลังประกอบ PDF…');
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
     const pw = pdf.internal.pageSize.getWidth();
@@ -180,7 +193,6 @@ async function savePdf(){
     if(imgH <= ph + 1){
       pdf.addImage(img, 'JPEG', 0, 0, pw, imgH);
     }else{
-      // ยาวเกิน 1 หน้า → เลื่อนรูปขึ้นทีละหน้า
       let left = imgH, y = 0;
       while(left > 0){
         pdf.addImage(img, 'JPEG', 0, y, pw, imgH);
@@ -189,17 +201,44 @@ async function savePdf(){
       }
     }
 
-    const name = `เบอร์ตู้ ${(CUR?.invoice_no || '')}`.replace(/[\\/:*?"<>|]/g, '-');
-    pdf.save(name.trim() + '.pdf');
-    btn.textContent = '✓ บันทึกแล้ว';
-    setTimeout(() => { btn.textContent = '📄 บันทึก PDF'; btn.disabled = false; }, 1600);
+    const name = (`เบอร์ตู้ ${CUR?.invoice_no || ''}`).replace(/[\\/:*?"<>|]/g, '-').trim() + '.pdf';
+    const blob = pdf.output('blob');
+    const url = URL.createObjectURL(blob);
+
+    // ① ลองดาวน์โหลดตรงๆ (ได้ผลบนคอม)
+    try{
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+    }catch(_){ /* เบราว์เซอร์ในแอปบางตัวไม่ยอม — ไปใช้ทางที่ ② */ }
+
+    // ② โชว์ปุ่มเปิดไฟล์ค้างไว้ — เบราว์เซอร์ในไลน์มักบล็อกดาวน์โหลดเงียบๆ
+    //    เปิดแล้วกดแชร์/เซฟจากหน้าอ่าน PDF ได้
+    let open = document.getElementById('openpdf');
+    if(!open){
+      open = document.createElement('a');
+      open.id = 'openpdf';
+      open.target = '_blank'; open.rel = 'noopener';
+      open.style.cssText = 'padding:8px 15px;border-radius:8px;background:#f59e0b;' +
+                           'color:#fff;font-weight:700;font-size:14px;text-decoration:none';
+      btn.parentNode.insertBefore(open, btn.nextSibling);
+    }
+    open.href = url;
+    open.textContent = '↗ เปิด PDF';
+
+    btn.textContent = '📄 บันทึก PDF';
+    btn.disabled = false;
+    say('สร้างเสร็จแล้ว — ถ้าไฟล์ไม่เด้ง กด "↗ เปิด PDF"');
   }catch(e){
-    alert('สร้าง PDF ไม่สำเร็จ: ' + e.message + '\n\nลองใช้ปุ่ม 🖨 พิมพ์ แล้วเลือก "บันทึกเป็น PDF" แทนได้ครับ');
     btn.textContent = '📄 บันทึก PDF'; btn.disabled = false;
+    say('⚠️ สร้าง PDF ไม่สำเร็จ: ' + (e && e.message ? e.message : e));
   }
 }
 
 async function load(inv){
+  // ลบลิงก์ PDF ของอินวอยซ์ก่อนหน้า กันกดแล้วได้ไฟล์ผิดใบ
+  const old = document.getElementById('openpdf');
+  if(old){ try{ URL.revokeObjectURL(old.href); }catch(_){} old.remove(); }
   document.getElementById('out').innerHTML = '<div class="mid">กำลังโหลด…</div>';
   try{
     const r = await fetch(`${API}/report?inv=${encodeURIComponent(inv)}`);
