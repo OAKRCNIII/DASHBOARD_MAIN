@@ -1364,6 +1364,49 @@ const sbFetch = async (table, params = '') => {
   }
   return all;
 };
+/* ══════════════════════════════════════════════════════════════
+   ป้าย "แหลมฉบัง" ต่ออินวอยซ์
+   เก็บใน table lcb_invoices — บอท LINE (ANTS-LCB-CTN) อ่านตารางนี้
+   ไปทำตัวเลือกอินวอยซ์ตอนบันทึกตู้จากรูปถ่าย
+   ══════════════════════════════════════════════════════════════ */
+const LCB_DEFAULT_FACTORY = 'บ้านส้อง';
+let LCB_INV = new Set();          /* invoice_no ที่เป็นแหลมฉบัง */
+
+async function loadLcbInv(){
+  try{
+    const rows = await sbFetch('lcb_invoices','select=invoice_no');
+    LCB_INV = new Set(rows.map(r=>String(r.invoice_no).trim()));
+  }catch(e){ console.warn('โหลดป้ายแหลมฉบังไม่ได้:', e.message); }
+}
+
+async function toggleLcb(rawInv, btn){
+  const inv = String(rawInv).trim();
+  const on = LCB_INV.has(inv);
+  if(btn){ btn.disabled = true; btn.textContent = '…'; }
+  const hdr = {'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'};
+  try{
+    if(on){
+      const r = await fetch(`${SB_URL}/rest/v1/lcb_invoices?invoice_no=eq.${encodeURIComponent(inv)}`,
+                            {method:'DELETE', headers:hdr});
+      if(!r.ok) throw new Error(await r.text());
+      LCB_INV.delete(inv);
+    }else{
+      const r = await fetch(`${SB_URL}/rest/v1/lcb_invoices`, {
+        method:'POST',
+        headers:{...hdr, 'Prefer':'resolution=merge-duplicates'},
+        body: JSON.stringify({invoice_no: inv, factory: LCB_DEFAULT_FACTORY, active: true}),
+      });
+      if(!r.ok) throw new Error(await r.text());
+      LCB_INV.add(inv);
+    }
+  }catch(e){
+    alert('เปลี่ยนป้ายไม่สำเร็จ: ' + e.message);
+  }
+  /* วาดหน้ารายละเอียดใหม่ให้ป้ายอัปเดต */
+  if(typeof _lastInvDetail === 'object' && _lastInvDetail)
+    showInvDetail(_lastInvDetail.id, _lastInvDetail.panel);
+}
+
 /* Convert ISO date (2026-03-15) or (2026-03-15T00:00:00) → DD/MM/YYYY */
 const fmtDateFromISO = v => {
   if (!v) return '-';
@@ -1940,6 +1983,9 @@ async function loadData(forceRefresh=false){
       if(c&&c.ts&&(Date.now()-c.ts)<_DB_CACHE_TTL){_rows=c.rows;setLoad('⚡ โหลดจาก cache...','กด 🔄 รีเฟรช เพื่อดึงข้อมูลใหม่');}
     }catch(e){}
   }
+  /* ป้ายแหลมฉบัง — ดึงแยกจากก้อนหลัก ไม่ให้ไปกระทบลำดับ _rows / cache
+     พังก็ไม่เป็นไร แค่ป้ายไม่ขึ้น ข้อมูลอื่นทำงานปกติ */
+  loadLcbInv();
   if(!_rows){
     setLoad('LOADING...');
     _rows=await Promise.all([
@@ -3141,8 +3187,10 @@ function selInv(id){
 /* =====================================================
    INV DETAIL
 ===================================================== */
+let _lastInvDetail=null;   /* จำไว้เพื่อวาดใหม่หลังสลับป้ายแหลมฉบัง */
 function showInvDetail(id,panelId){
   const d=FLAT[id];if(!d)return;
+  _lastInvDetail={id,panel:panelId};
   const invPendCtrs=PEND_CTRS.filter(c=>c.inv&&normInv(c.inv)===normInv(d.inv));
   const s=pst(d.prefix);const fm=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0}):'-';
   let out=`<div class="det-title">${h(d.inv)}</div><div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap;"><span class="pv-badge" style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd}">${h(d.prefix)}</span>`;
@@ -3152,6 +3200,12 @@ function showInvDetail(id,panelId){
   out+=`<span class="pv-badge" style="background:#f1f5f9;color:#475569">${d.total_actual}/${d.total_expected} ตู้</span>`;
   if(invPendCtrs.length)out+=`<span class="pv-badge" style="background:#fef9c3;color:#92400e;border:1px solid #fcd34d;">⏳ +${invPendCtrs.length} PENDING</span>`;
   if(d.destination&&d.destination!=='-')out+=`<span class="pv-badge" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;">🚢 ${h(d.destination)}</span>`;
+  /* ── สวิตช์ ปาดัง / แหลมฉบัง — เปิดแล้วอินวอยซ์นี้จะไปโผล่เป็นตัวเลือกในบอท LINE ── */
+  {const _isL=LCB_INV.has(String(d.inv).trim());
+   out+=`<button onclick='toggleLcb(${JSON.stringify(String(d.inv))},this)' title="สลับท่าเรือ — เปิดแหลมฉบังแล้วบอท LINE จะเห็นอินวอยซ์นี้"
+      style="font-size:9px;padding:2px 9px;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;
+             border:1px solid ${_isL?'#f9a8d4':'#cbd5e1'};background:${_isL?'#fdf2f8':'#f8fafc'};color:${_isL?'#9d174d':'#64748b'};">
+      ${_isL?'⚓ แหลมฉบัง':'🚚 ปาดัง'}</button>`;}
   out+=`</div>`;
   /* ── Shipment Timeline ── */
   {const _tA=d.total_actual||0,_tE=d.total_expected||0;
