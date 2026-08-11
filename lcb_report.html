@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>รายงานเบอร์ตู้ — แหลมฉบัง</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#e2e8f0;font-family:"Sarabun","Noto Sans Thai",-apple-system,"Segoe UI",sans-serif;color:#000}
+
+/* กระดาษ A4 */
+.page{width:210mm;min-height:297mm;margin:14px auto;background:#fff;padding:14mm 13mm;
+      box-shadow:0 3px 14px rgba(0,0,0,.18)}
+.tbox{border:2.5px solid #000;padding:9px 10px;text-align:center;margin-bottom:16px}
+.tbox h1{margin:0;font-size:27px;font-weight:800;letter-spacing:.5px}
+.l1{font-size:19px;margin:0 0 5px}
+.l1 b{font-size:25px;font-weight:800}
+.l2{font-size:17px;font-weight:600;margin:0 0 13px}
+
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+th,td{border:1.4px solid #000;padding:6px 5px;text-align:center;font-size:15px;height:33px}
+th{font-size:14px;font-weight:700;background:#fff;line-height:1.15}
+.c-no{width:7%}
+.c-truck{width:21%;font-size:14px}
+.c-ctr{width:22%;font-size:17px;font-weight:800;letter-spacing:.3px}
+.c-seal{width:18%;font-weight:700}
+.c-date{width:19%}
+.c-tr{width:13%;font-size:13px}
+tr.empty td{color:#fff}
+
+/* แถบเครื่องมือ — ไม่พิมพ์ */
+.bar{position:sticky;top:0;z-index:9;background:#0f172a;color:#fff;padding:9px 12px;
+     display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.bar select{padding:7px 9px;border-radius:7px;border:none;font-size:14px;font-family:inherit;max-width:60vw}
+.bar button{padding:7px 15px;border-radius:7px;border:none;background:#10b981;color:#fff;
+            font-weight:700;font-size:14px;font-family:inherit}
+.bar .sp{margin-left:auto;font-size:12px;opacity:.75}
+.mid{padding:60px 24px;text-align:center;color:#475569;line-height:1.7}
+.err{color:#b91c1c;font-weight:700}
+
+@media print{
+  body{background:#fff}
+  .bar{display:none}
+  .page{width:auto;min-height:0;margin:0;padding:0;box-shadow:none}
+  @page{size:A4 portrait;margin:12mm}
+}
+@media(max-width:820px){
+  .page{width:auto;padding:12px}
+  .tbox h1{font-size:20px}
+  .l1{font-size:15px}.l1 b{font-size:19px}.l2{font-size:13px}
+  th,td{font-size:12px;padding:4px 3px;height:28px}
+  .c-ctr{font-size:13px}.c-truck{font-size:11px}.c-tr{font-size:10px}
+}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <select id="pick"><option>กำลังโหลด…</option></select>
+  <button onclick="window.print()">🖨 พิมพ์</button>
+  <span class="sp" id="meta"></span>
+</div>
+
+<div id="out"><div class="mid">กำลังโหลด…</div></div>
+
+<script>
+const API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-lcb';
+const DOW = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+const MON = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// 2026-07-11 → "เสาร์ 11 ก.ค."
+function thaiDate(iso){
+  if(!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  if(isNaN(d)) return '';
+  return `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`;
+}
+
+function render(inv, list){
+  const total = inv.container_count || list.length || 0;
+  const rows = [];
+
+  list.forEach((c, i) => {
+    rows.push(`<tr>
+      <td>${i+1}</td>
+      <td class="c-truck">${esc(c.truck_plate ?? '')}</td>
+      <td class="c-ctr">${esc(c.container_no ?? '')}</td>
+      <td class="c-seal">${esc(c.seal_no ?? '')}</td>
+      <td>${esc(thaiDate(c.factory_date))}</td>
+      <td class="c-tr">${esc(c.carrier ?? '')}</td>
+    </tr>`);
+  });
+  // เติมแถวว่างให้ครบจำนวนตู้ตามอินวอยซ์
+  for(let i = list.length; i < total; i++){
+    rows.push(`<tr class="empty"><td>${i+1}</td><td></td><td></td><td></td><td></td><td></td></tr>`);
+  }
+
+  const line2 = [
+    total ? `${total} ตู้` : '',
+    inv.destination ? `ไป ${inv.destination}` : '',
+    inv.customer ? `ของ ${inv.customer}` : '',
+  ].filter(Boolean).join(' ');
+
+  document.getElementById('out').innerHTML = `
+  <div class="page">
+    <div class="tbox"><h1>ท่าเรือสุราษฎร์ธานี - แหลมฉบัง</h1></div>
+    <p class="l1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p>
+    <p class="l2">${esc(line2)}</p>
+    <table>
+      <thead><tr>
+        <th class="c-no">ลำดับ</th>
+        <th class="c-truck">ทะเบียนรถ</th>
+        <th class="c-ctr">เบอร์ตู้</th>
+        <th class="c-seal">SEAL NO.</th>
+        <th class="c-date">วันที่เข้าโรงงาน</th>
+        <th class="c-tr">ขนส่ง</th>
+      </tr></thead>
+      <tbody>${rows.join('')}</tbody>
+    </table>
+  </div>`;
+
+  document.getElementById('meta').textContent =
+    `กรอกแล้ว ${list.length}${total ? ' / ' + total : ''} ตู้`;
+  document.title = `เบอร์ตู้ ${inv.invoice_no}`;
+}
+
+async function load(inv){
+  document.getElementById('out').innerHTML = '<div class="mid">กำลังโหลด…</div>';
+  try{
+    const r = await fetch(`${API}/report?inv=${encodeURIComponent(inv)}`);
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    render(j.invoice, j.containers || []);
+    history.replaceState(null, '', '?inv=' + encodeURIComponent(inv));
+  }catch(e){
+    document.getElementById('out').innerHTML =
+      `<div class="mid"><p class="err">${esc(e.message)}</p></div>`;
+  }
+}
+
+(async function(){
+  let cur = new URLSearchParams(location.search).get('inv');
+  const sel = document.getElementById('pick');
+  try{
+    const r = await fetch(`${API}/report`);
+    const j = await r.json();
+    const list = j.invoices || [];
+    if(!list.length){
+      sel.innerHTML = '<option>ยังไม่มีอินวอยซ์</option>';
+      document.getElementById('out').innerHTML = '<div class="mid">ยังไม่มีอินวอยซ์ในระบบ</div>';
+      return;
+    }
+    sel.innerHTML = list.map(i =>
+      `<option value="${esc(i.invoice_no)}">${esc(i.invoice_no)}</option>`).join('');
+    if(!cur || !list.some(i => i.invoice_no === cur)) cur = list[0].invoice_no;
+    sel.value = cur;
+    sel.onchange = () => load(sel.value);
+    load(cur);
+  }catch(e){
+    document.getElementById('out').innerHTML =
+      `<div class="mid"><p class="err">โหลดรายชื่ออินวอยซ์ไม่ได้: ${esc(e.message)}</p></div>`;
+  }
+})();
+</script>
+</body>
+</html>
