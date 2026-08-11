@@ -29,12 +29,12 @@ th,td{border:1.3px solid #000;padding:0 5px;text-align:center;height:9.2mm;
       font-size:15px;vertical-align:middle}
 thead th{font-size:14px;font-weight:700;line-height:1.2;padding:5px 4px;height:auto;
          background:#f2f4f7}
-.c-no   {width:8%}
-.c-truck{width:21%;font-size:14px;font-weight:500}
+.c-no   {width:7%}
+.c-truck{width:20%;font-size:14px;font-weight:500}
 .c-ctr  {width:22%;font-size:17px;font-weight:800;letter-spacing:.4px}
 .c-seal {width:17%;font-weight:700;letter-spacing:.2px}
 .c-date {width:19%;font-weight:500}
-.c-tr   {width:13%;font-size:13px;font-weight:500}
+.c-wt   {width:15%;font-weight:600}
 tbody tr:nth-child(even){background:#fafbfc}
 td.seq{font-weight:600;color:#000}          /* ← ลำดับต้องเห็นทุกแถว รวมแถวว่าง */
 
@@ -68,7 +68,7 @@ td.seq{font-weight:600;color:#000}          /* ← ลำดับต้อง�
   .l1{font-size:15px}.l1 b{font-size:19px}.l2{font-size:13px}
   th,td{font-size:12px;height:8mm;padding:0 2px}
   thead th{font-size:11px}
-  .c-ctr{font-size:13px}.c-truck{font-size:11px}.c-tr{font-size:10px}
+  .c-ctr{font-size:13px}.c-truck{font-size:11px}.c-wt{font-size:11px}
 }
 </style>
 </head>
@@ -116,7 +116,7 @@ function render(inv, list){
       <td class="c-ctr">${esc(c.container_no ?? '')}</td>
       <td class="c-seal">${esc(c.seal_no ?? '')}</td>
       <td class="c-date">${esc(thaiDate(c.factory_date))}</td>
-      <td class="c-tr">${esc(c.carrier ?? '')}</td>
+      <td class="c-wt">${c.weight ? Number(c.weight).toLocaleString() : ''}</td>
     </tr>`));
 
   // แถวที่ยังไม่มีตู้ — ใส่เลขลำดับไว้ ช่องอื่นเว้นว่าง
@@ -142,7 +142,7 @@ function render(inv, list){
         <th class="c-ctr">เบอร์ตู้</th>
         <th class="c-seal">SEAL NO.</th>
         <th class="c-date">วันที่เข้าโรงงาน</th>
-        <th class="c-tr">ขนส่ง</th>
+        <th class="c-wt">น้ำหนัก (กก.)</th>
       </tr></thead>
       <tbody>${rows.join('')}</tbody>
     </table>
