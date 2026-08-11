@@ -52,6 +52,7 @@ button:disabled{background:#94a3b8}
 <script>
 const LIFF_ID = '2011063208-797yzibj';
 const API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-lcb';
+let TOKEN = null;   // ต้องอ่านหลัง liff.init() เท่านั้น
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -187,7 +188,7 @@ async function save(){
     const r = await fetch(API + '/submit', {
       method:'POST',
       headers:{'content-type':'application/json'},
-      body: JSON.stringify({ token: new URLSearchParams(location.search).get('t'), fields }),
+      body: JSON.stringify({ token: TOKEN, fields }),
     });
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
@@ -200,10 +201,28 @@ async function save(){
   }
 }
 
-(async function(){
-  const token = new URLSearchParams(location.search).get('t');
-  if(!token) return fail('ลิงก์ไม่ถูกต้อง (ไม่มี token)');
+// LIFF ส่ง query มาได้ 2 ทาง — ตรงๆ หรือห่อใน liff.state
+function readToken(){
+  const q = new URLSearchParams(location.search);
+  const direct = q.get('t');
+  if(direct) return direct;
 
+  const state = q.get('liff.state');
+  if(state){
+    const qs = state.includes('?') ? state.slice(state.indexOf('?') + 1) : state;
+    const t = new URLSearchParams(qs).get('t');
+    if(t) return t;
+  }
+  // เผื่อโผล่มาใน hash
+  if(location.hash){
+    const t = new URLSearchParams(location.hash.replace(/^#\/?/, '')).get('t');
+    if(t) return t;
+  }
+  return null;
+}
+
+(async function(){
+  // ⚠️ ต้อง init ก่อน — liff.init() เป็นตัวคลาย liff.state ให้กลายเป็น ?t=
   try{
     await liff.init({ liffId: LIFF_ID });
     if(!liff.isLoggedIn() && !liff.isInClient()){ liff.login(); return; }
@@ -211,9 +230,12 @@ async function save(){
     return fail('เปิด LIFF ไม่ได้: ' + e.message);
   }
 
+  TOKEN = readToken();
+  if(!TOKEN) return fail('ลิงก์ไม่ถูกต้อง (ไม่มี token)');
+
   try{
     const [dRes, iRes] = await Promise.all([
-      fetch(`${API}/draft?t=${encodeURIComponent(token)}`),
+      fetch(`${API}/draft?t=${encodeURIComponent(TOKEN)}`),
       fetch(`${API}/invoices`),
     ]);
     const dJson = await dRes.json();
