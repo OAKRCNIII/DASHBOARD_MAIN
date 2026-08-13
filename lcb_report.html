@@ -192,23 +192,60 @@ function showOpen(url, label){
   o.href = url; o.textContent = label;
 }
 
-// ── บันทึกเป็นรูป PNG — เซฟลงคลังรูปในมือถือได้เลย ──
+// ── บันทึกเป็นรูป ──────────────────────────────────────────
+//  เบราว์เซอร์ในไลน์บล็อกการดาวน์โหลดทุกแบบ (blob/data ก็ไม่ผ่าน)
+//  แต่ "กดค้างที่รูปเพื่อบันทึก" ยังใช้ได้ตามปกติ
+//  → เอารูปมาแปะเต็มจอให้กดค้างเอา ส่วนบนคอมก็ยังดาวน์โหลดตรงได้
+function closeShot(){
+  const o = document.getElementById('shotBg');
+  if(o) o.style.display = 'none';
+}
+
+function showShot(dataUrl){
+  let bg = document.getElementById('shotBg');
+  if(!bg){
+    bg = document.createElement('div');
+    bg.id = 'shotBg';
+    bg.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.92);z-index:9999;'
+                     + 'display:none;flex-direction:column;';
+    bg.innerHTML = `
+      <div style="padding:12px 14px;color:#fff;display:flex;align-items:center;gap:10px;flex-shrink:0;">
+        <div style="font-size:13px;font-weight:800;line-height:1.4;">
+          👇 กดค้างที่รูป แล้วเลือก "บันทึกรูปภาพ"
+          <div style="font-size:11px;font-weight:400;opacity:.75;margin-top:2px;">
+            เลื่อนดูได้ · รูปเต็มความละเอียด
+          </div>
+        </div>
+        <button onclick="closeShot()" style="margin-left:auto;background:#334155;color:#fff;border:none;
+          border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;font-family:inherit;">ปิด</button>
+      </div>
+      <div style="flex:1;overflow:auto;padding:0 10px 16px;">
+        <img id="shotImg" style="width:100%;display:block;border-radius:6px;background:#fff;">
+      </div>`;
+    document.body.appendChild(bg);
+  }
+  document.getElementById('shotImg').src = dataUrl;
+  bg.style.display = 'flex';
+}
+
 async function savePng(){
   const btn = document.getElementById('png');
   btn.disabled = true; btn.textContent = 'กำลังสร้าง…';
   try{
     const canvas = await sheetCanvas();
     say('กำลังบันทึกรูป…');
-    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
-    if(!blob) throw new Error('สร้างรูปไม่สำเร็จ');
-    const url = URL.createObjectURL(blob);
+    const dataUrl = canvas.toDataURL('image/png');
+
+    // บนคอม/เบราว์เซอร์ปกติ — ดาวน์โหลดได้เลย
     try{
       const a = document.createElement('a');
-      a.href = url; a.download = fileName('.png');
+      a.href = dataUrl; a.download = fileName('.png');
       document.body.appendChild(a); a.click(); a.remove();
     }catch(_){}
-    showOpen(url, '↗ เปิดรูป');
-    say('เสร็จแล้ว — ถ้ารูปไม่เด้ง กด "↗ เปิดรูป" แล้วกดค้างที่รูปเพื่อเซฟ');
+
+    // ในไลน์ดาวน์โหลดไม่ผ่าน — เปิดรูปให้กดค้างเซฟแทน
+    showShot(dataUrl);
+    say('ถ้าไฟล์ไม่เด้ง ให้กดค้างที่รูปเพื่อบันทึก');
   }catch(e){
     say('⚠️ ' + (e && e.message ? e.message : e));
   }
