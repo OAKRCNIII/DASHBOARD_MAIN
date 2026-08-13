@@ -76,10 +76,9 @@ td.seq{font-weight:600;color:#000}          /* ← ลำดับต้อง�
 
 <div class="bar">
   <select id="pick"><option>กำลังโหลด…</option></select>
-  <button id="pdf">📄 บันทึก PDF</button>
+  <button id="png">🖼 บันทึกเป็นรูป</button>
+  <button class="alt" id="pdf">📄 PDF</button>
   <button class="alt" onclick="window.print()">🖨 พิมพ์</button>
-  <button class="alt" id="zip">🗂 รูป ZIP</button>
-  <button class="alt" id="ipdf">🖼 รูป PDF</button>
   <span class="sp" id="meta"></span>
 </div>
 
@@ -87,7 +86,6 @@ td.seq{font-weight:600;color:#000}          /* ← ลำดับต้อง�
 
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
 const API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-lcb';
 const DOW = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
@@ -159,40 +157,81 @@ function render(inv, list){
   document.title = `เบอร์ตู้ ${inv.invoice_no}`;
 }
 
-// ── บันทึกเป็น PDF (A4 แนวตั้ง แบ่งหน้าอัตโนมัติถ้ายาวเกิน) ──
 function say(msg){ document.getElementById('meta').textContent = msg; }
+
+/* วาดหน้ากระดาษเป็น canvas — ใช้ร่วมกันทั้งปุ่มรูปและปุ่ม PDF */
+async function sheetCanvas(){
+  const sheet = document.getElementById('sheet');
+  if(!sheet) throw new Error('ยังไม่มีรายงานให้บันทึก');
+  if(typeof html2canvas !== 'function') throw new Error('โหลดตัวสร้างรูปไม่ได้ — ใช้ปุ่ม 🖨 พิมพ์ แทน');
+  say('กำลังเตรียมฟอนต์…');
+  if(document.fonts && document.fonts.ready){
+    await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 3000))]);
+  }
+  say('กำลังวาดหน้ากระดาษ…');
+  return html2canvas(sheet, {
+    scale: Math.min(3, Math.max(2, 1600 / sheet.offsetWidth)),
+    backgroundColor: '#ffffff', useCORS: true, logging: false,
+  });
+}
+
+function fileName(ext){
+  return `เบอร์ตู้ ${(CUR?.invoice_no || '')}`.replace(/[\\/:*?"<>|]/g,'-').trim() + ext;
+}
+
+/* ปุ่มสำรอง — เบราว์เซอร์ในไลน์บล็อกดาวน์โหลดเงียบๆ กดเปิดแล้วกดค้างเซฟลงคลังรูปได้ */
+function showOpen(url, label){
+  let o = document.getElementById('openfile');
+  if(!o){
+    o = document.createElement('a'); o.id = 'openfile';
+    o.target = '_blank'; o.rel = 'noopener';
+    o.style.cssText = 'padding:8px 15px;border-radius:8px;background:#f59e0b;color:#fff;'
+                    + 'font-weight:700;font-size:14px;text-decoration:none';
+    document.getElementById('pdf').parentNode.insertBefore(o, document.getElementById('meta'));
+  }
+  o.href = url; o.textContent = label;
+}
+
+// ── บันทึกเป็นรูป PNG — เซฟลงคลังรูปในมือถือได้เลย ──
+async function savePng(){
+  const btn = document.getElementById('png');
+  btn.disabled = true; btn.textContent = 'กำลังสร้าง…';
+  try{
+    const canvas = await sheetCanvas();
+    say('กำลังบันทึกรูป…');
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    if(!blob) throw new Error('สร้างรูปไม่สำเร็จ');
+    const url = URL.createObjectURL(blob);
+    try{
+      const a = document.createElement('a');
+      a.href = url; a.download = fileName('.png');
+      document.body.appendChild(a); a.click(); a.remove();
+    }catch(_){}
+    showOpen(url, '↗ เปิดรูป');
+    say('เสร็จแล้ว — ถ้ารูปไม่เด้ง กด "↗ เปิดรูป" แล้วกดค้างที่รูปเพื่อเซฟ');
+  }catch(e){
+    say('⚠️ ' + (e && e.message ? e.message : e));
+  }
+  btn.disabled = false; btn.textContent = '🖼 บันทึกเป็นรูป';
+}
+
+// ── บันทึกเป็น PDF (A4 แนวตั้ง แบ่งหน้าอัตโนมัติถ้ายาวเกิน) ──
 
 async function savePdf(){
   const btn = document.getElementById('pdf');
-  const sheet = document.getElementById('sheet');
-  if(!sheet){ say('ยังไม่มีรายงานให้บันทึก'); return; }
-
-  if(typeof html2canvas !== 'function' || !window.jspdf){
-    say('⚠️ โหลดตัวสร้าง PDF ไม่ได้ — ใช้ปุ่ม 🖨 พิมพ์ แทน');
-    return;
-  }
-
   btn.disabled = true; btn.textContent = 'กำลังสร้าง…';
   try{
-    say('กำลังเตรียมฟอนต์…');
-    if(document.fonts && document.fonts.ready){
-      await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 3000))]);
-    }
-
-    say('กำลังวาดหน้ากระดาษ…');
-    const canvas = await html2canvas(sheet, {
-      scale: Math.min(3, Math.max(2, 1600 / sheet.offsetWidth)),
-      backgroundColor: '#ffffff', useCORS: true, logging: false,
-    });
+    if(!window.jspdf) throw new Error('โหลดตัวสร้าง PDF ไม่ได้ — ใช้ปุ่ม 🖨 พิมพ์ แทน');
+    const canvas = await sheetCanvas();
 
     say('กำลังประกอบ PDF…');
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
     const pw = pdf.internal.pageSize.getWidth();
     const ph = pdf.internal.pageSize.getHeight();
-    const imgH = canvas.height * pw / canvas.width;   // ความสูงถ้าเต็มความกว้าง A4
-
+    const imgH = canvas.height * pw / canvas.width;
     const img = canvas.toDataURL('image/jpeg', 0.94);
+
     if(imgH <= ph + 1){
       pdf.addImage(img, 'JPEG', 0, 0, pw, imgH);
     }else{
@@ -204,122 +243,18 @@ async function savePdf(){
       }
     }
 
-    const name = (`เบอร์ตู้ ${CUR?.invoice_no || ''}`).replace(/[\\/:*?"<>|]/g, '-').trim() + '.pdf';
-    const blob = pdf.output('blob');
-    const url = URL.createObjectURL(blob);
-
-    // ① ลองดาวน์โหลดตรงๆ (ได้ผลบนคอม)
+    const url = URL.createObjectURL(pdf.output('blob'));
     try{
       const a = document.createElement('a');
-      a.href = url; a.download = name;
+      a.href = url; a.download = fileName('.pdf');
       document.body.appendChild(a); a.click(); a.remove();
-    }catch(_){ /* เบราว์เซอร์ในแอปบางตัวไม่ยอม — ไปใช้ทางที่ ② */ }
-
-    // ② โชว์ปุ่มเปิดไฟล์ค้างไว้ — เบราว์เซอร์ในไลน์มักบล็อกดาวน์โหลดเงียบๆ
-    //    เปิดแล้วกดแชร์/เซฟจากหน้าอ่าน PDF ได้
-    let open = document.getElementById('openpdf');
-    if(!open){
-      open = document.createElement('a');
-      open.id = 'openpdf';
-      open.target = '_blank'; open.rel = 'noopener';
-      open.style.cssText = 'padding:8px 15px;border-radius:8px;background:#f59e0b;' +
-                           'color:#fff;font-weight:700;font-size:14px;text-decoration:none';
-      btn.parentNode.insertBefore(open, btn.nextSibling);
-    }
-    open.href = url;
-    open.textContent = '↗ เปิด PDF';
-
-    btn.textContent = '📄 บันทึก PDF';
-    btn.disabled = false;
-    say('สร้างเสร็จแล้ว — ถ้าไฟล์ไม่เด้ง กด "↗ เปิด PDF"');
+    }catch(_){}
+    showOpen(url, '↗ เปิด PDF');
+    say('เสร็จแล้ว — ถ้าไฟล์ไม่เด้ง กด "↗ เปิด PDF"');
   }catch(e){
-    btn.textContent = '📄 บันทึก PDF'; btn.disabled = false;
-    say('⚠️ สร้าง PDF ไม่สำเร็จ: ' + (e && e.message ? e.message : e));
+    say('⚠️ ' + (e && e.message ? e.message : e));
   }
-}
-
-/* ══ โหลดรูปทั้งอินวอยซ์ — ZIP (ต้นฉบับ) / PDF (เปิดดูรวดเดียว) ══ */
-async function fetchPhotos(){
-  const inv = CUR?.invoice_no;
-  if(!inv) throw new Error('ยังไม่ได้เลือกอินวอยซ์');
-  const r = await fetch(`${API}/photos?inv=${encodeURIComponent(inv)}`);
-  const j = await r.json();
-  if(!r.ok) throw new Error(j.error || ('HTTP '+r.status));
-  if(!j.files.length) throw new Error('อินวอยซ์นี้ยังไม่มีรูปที่เก็บไว้');
-  return j.files;
-}
-
-function dl(blob, name){
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = name;
-  document.body.appendChild(a); a.click(); a.remove();
-  /* เบราว์เซอร์ในไลน์บล็อกดาวน์โหลดเงียบๆ — โชว์ปุ่มเปิดไว้ให้ด้วย */
-  let o = document.getElementById('openfile');
-  if(!o){
-    o = document.createElement('a'); o.id='openfile';
-    o.target='_blank'; o.rel='noopener';
-    o.style.cssText='padding:8px 15px;border-radius:8px;background:#f59e0b;color:#fff;font-weight:700;font-size:14px;text-decoration:none';
-    document.getElementById('ipdf').parentNode.appendChild(o);
-  }
-  o.href = url; o.textContent = '↗ เปิดไฟล์';
-}
-
-async function dlZip(){
-  const b = document.getElementById('zip');
-  b.disabled = true; b.textContent = 'กำลังรวม…';
-  try{
-    if(!window.JSZip) throw new Error('โหลดตัวรวมไฟล์ไม่ได้');
-    const files = await fetchPhotos();
-    const zip = new JSZip();
-    for(let i=0;i<files.length;i++){
-      say(`กำลังดึงรูป ${i+1}/${files.length}…`);
-      const blob = await (await fetch(files[i].url)).blob();
-      zip.file(files[i].name, blob);
-    }
-    say('กำลังบีบอัด…');
-    dl(await zip.generateAsync({type:'blob'}),
-       `รูปตู้ ${(CUR.invoice_no||'').replace(/[\\/:*?"<>|]/g,'-')}.zip`);
-    say(`รวม ${files.length} รูปเสร็จแล้ว`);
-  }catch(e){ say('⚠️ ' + e.message); }
-  b.disabled = false; b.textContent = '🗂 รูป ZIP';
-}
-
-async function dlImgPdf(){
-  const b = document.getElementById('ipdf');
-  b.disabled = true; b.textContent = 'กำลังรวม…';
-  try{
-    if(!window.jspdf) throw new Error('โหลดตัวสร้าง PDF ไม่ได้');
-    const files = await fetchPhotos();
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({unit:'mm', format:'a4', orientation:'portrait'});
-    const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
-    const M = 8;
-
-    for(let i=0;i<files.length;i++){
-      say(`กำลังใส่รูป ${i+1}/${files.length}…`);
-      const f = files[i];
-      const blob = await (await fetch(f.url)).blob();
-      const data = await new Promise((res,rej)=>{
-        const fr = new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej;
-        fr.readAsDataURL(blob);
-      });
-      const img = await new Promise((res,rej)=>{
-        const im = new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=data;
-      });
-      if(i) pdf.addPage();
-      /* หัวกระดาษบอกว่ารูปนี้ของตู้ไหน */
-      pdf.setFontSize(9);
-      pdf.text(`${f.container_no}  ·  ${f.kind==='eir'?'EIR':'CONTAINER'}${f.seal_no?'  ·  SEAL '+f.seal_no:''}`, M, M+3);
-      const availW = pw-M*2, availH = ph-M*2-6;
-      const s = Math.min(availW/img.width, availH/img.height);
-      pdf.addImage(data, 'JPEG', (pw-img.width*s)/2, M+6, img.width*s, img.height*s);
-    }
-    dl(pdf.output('blob'),
-       `รูปตู้ ${(CUR.invoice_no||'').replace(/[\\/:*?"<>|]/g,'-')}.pdf`);
-    say(`รวม ${files.length} รูปเสร็จแล้ว`);
-  }catch(e){ say('⚠️ ' + e.message); }
-  b.disabled = false; b.textContent = '🖼 รูป PDF';
+  btn.disabled = false; btn.textContent = '📄 PDF';
 }
 
 async function load(inv){
@@ -340,9 +275,8 @@ async function load(inv){
 }
 
 (async function(){
-  document.getElementById('pdf').onclick  = savePdf;
-  document.getElementById('zip').onclick  = dlZip;
-  document.getElementById('ipdf').onclick = dlImgPdf;
+  document.getElementById('pdf').onclick = savePdf;
+  document.getElementById('png').onclick = savePng;
   let cur = new URLSearchParams(location.search).get('inv');
   const sel = document.getElementById('pick');
   try{
