@@ -1417,6 +1417,130 @@ async function _doToggleLcb(inv, btn){
     showInvDetail(_lastInvDetail.id, _lastInvDetail.panel);
 }
 
+/* ══════════════════════════════════════════════════════════════
+   รูปตู้แหลมฉบัง — ดู/โหลดเป็นชุดต่ออินวอยซ์
+   รูปมาจากบอท LINE เก็บใน Storage bucket lcb_photos
+   ══════════════════════════════════════════════════════════════ */
+const LCB_API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-lcb';
+
+/* โหลดไลบรารีตอนกดปุ่มเท่านั้น — ไม่ถ่วงหน้าเว็บตอนเปิดปกติ */
+function _lazyScript(src){
+  return new Promise((res,rej)=>{
+    if([...document.scripts].some(s=>s.src===src)) return res();
+    const s=document.createElement('script');
+    s.src=src; s.onload=()=>res(); s.onerror=()=>rej(new Error('โหลดไลบรารีไม่ได้'));
+    document.head.appendChild(s);
+  });
+}
+
+let _lcbFiles=[], _lcbInvNo='';
+const _lcbSafe = s => String(s||'').replace(/[\\/:*?"<>|]/g,'-').trim();
+
+function _lcbSay(msg){
+  const el=document.getElementById('lcbPhotoStatus');
+  if(el) el.textContent=msg||'';
+}
+
+async function openLcbPhotos(inv){
+  _lcbInvNo=inv;
+  let bg=document.getElementById('lcbPhotoBg');
+  if(!bg){
+    bg=document.createElement('div');
+    bg.id='lcbPhotoBg';
+    bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9300;align-items:center;justify-content:center;';
+    bg.innerHTML=`<div style="background:#fff;border-radius:16px;width:min(680px,96vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+      <div style="padding:14px 18px;border-bottom:1px solid #e8edf5;display:flex;align-items:center;justify-content:space-between;background:#fdf2f8;border-radius:16px 16px 0 0;">
+        <span style="font-size:13px;font-weight:800;color:#9d174d;" id="lcbPhotoTitle">📷 รูปตู้</span>
+        <button onclick="document.getElementById('lcbPhotoBg').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:#94a3b8;">✕</button>
+      </div>
+      <div style="padding:10px 18px;border-bottom:1px solid #f1f5f9;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button id="lcbZip"  style="padding:7px 14px;border-radius:8px;border:none;background:#0e7490;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🗂 โหลด ZIP</button>
+        <button id="lcbPdf"  style="padding:7px 14px;border-radius:8px;border:none;background:#9d174d;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🖼 โหลด PDF</button>
+        <span id="lcbPhotoStatus" style="font-size:11.5px;color:#64748b;"></span>
+      </div>
+      <div style="overflow-y:auto;padding:14px 18px;" id="lcbPhotoBody"></div>
+    </div>`;
+    document.body.appendChild(bg);
+    document.getElementById('lcbZip').onclick=_lcbZip;
+    document.getElementById('lcbPdf').onclick=_lcbPdf;
+  }
+  document.getElementById('lcbPhotoTitle').textContent='📷 รูปตู้ — '+inv;
+  document.getElementById('lcbPhotoBody').innerHTML='<div style="padding:26px;text-align:center;color:#64748b;">กำลังโหลด…</div>';
+  _lcbSay('');
+  bg.style.display='flex';
+
+  try{
+    const r=await fetch(`${LCB_API}/photos?inv=${encodeURIComponent(inv)}`);
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+    _lcbFiles=j.files||[];
+    if(!_lcbFiles.length){
+      document.getElementById('lcbPhotoBody').innerHTML='<div style="padding:26px;text-align:center;color:#64748b;">ยังไม่มีรูปของอินวอยซ์นี้<br><span style="font-size:11px">(รูปจะมีเมื่อบันทึกตู้ผ่านบอท LINE)</span></div>';
+      return;
+    }
+    document.getElementById('lcbPhotoBody').innerHTML=
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">'+
+      _lcbFiles.map(f=>`<a href="${f.url}" target="_blank" rel="noopener" style="text-decoration:none;border:1px solid #e2e8f0;border-radius:9px;overflow:hidden;background:#f8fafc;">
+        <img src="${f.url}" loading="lazy" style="width:100%;height:110px;object-fit:cover;display:block">
+        <div style="font-size:10.5px;font-weight:700;color:#475569;text-align:center;padding:5px 2px;">${h(f.name)}</div></a>`).join('')+
+      '</div>';
+    _lcbSay(`${_lcbFiles.length} รูป`);
+  }catch(e){
+    document.getElementById('lcbPhotoBody').innerHTML=
+      `<div style="padding:26px;text-align:center;color:#b91c1c;font-weight:700;">${h(e.message)}</div>`;
+  }
+}
+
+function _lcbDown(blob,name){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+
+async function _lcbZip(){
+  const b=document.getElementById('lcbZip'); b.disabled=true;
+  try{
+    _lcbSay('กำลังเตรียม…');
+    await _lazyScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+    const zip=new JSZip();
+    for(let i=0;i<_lcbFiles.length;i++){
+      _lcbSay(`ดึงรูป ${i+1}/${_lcbFiles.length}…`);
+      zip.file(_lcbFiles[i].name, await (await fetch(_lcbFiles[i].url)).blob());
+    }
+    _lcbSay('กำลังบีบอัด…');
+    _lcbDown(await zip.generateAsync({type:'blob'}), `รูปตู้ ${_lcbSafe(_lcbInvNo)}.zip`);
+    _lcbSay(`เสร็จแล้ว ${_lcbFiles.length} รูป`);
+  }catch(e){ _lcbSay('⚠️ '+e.message); }
+  b.disabled=false;
+}
+
+async function _lcbPdf(){
+  const b=document.getElementById('lcbPdf'); b.disabled=true;
+  try{
+    _lcbSay('กำลังเตรียม…');
+    await _lazyScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
+    const pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight(), M=8;
+    for(let i=0;i<_lcbFiles.length;i++){
+      _lcbSay(`ใส่รูป ${i+1}/${_lcbFiles.length}…`);
+      const f=_lcbFiles[i];
+      const blob=await (await fetch(f.url)).blob();
+      const data=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(blob);});
+      const img=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=data;});
+      if(i) pdf.addPage();
+      pdf.setFontSize(9);
+      pdf.text(`${f.container_no}  ·  ${f.kind==='eir'?'EIR':'CONTAINER'}${f.seal_no?'  ·  SEAL '+f.seal_no:''}`, M, M+3);
+      const s=Math.min((pw-M*2)/img.width, (ph-M*2-6)/img.height);
+      pdf.addImage(data,'JPEG',(pw-img.width*s)/2, M+6, img.width*s, img.height*s);
+    }
+    _lcbDown(pdf.output('blob'), `รูปตู้ ${_lcbSafe(_lcbInvNo)}.pdf`);
+    _lcbSay(`เสร็จแล้ว ${_lcbFiles.length} รูป`);
+  }catch(e){ _lcbSay('⚠️ '+e.message); }
+  b.disabled=false;
+}
+
 /* Convert ISO date (2026-03-15) or (2026-03-15T00:00:00) → DD/MM/YYYY */
 const fmtDateFromISO = v => {
   if (!v) return '-';
@@ -3249,6 +3373,9 @@ function showInvDetail(id,panelId){
   {const _invEsc=d.inv.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   out+=`<div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">`;
   out+=`<button onclick="openDocsModal('${_invEsc}')" style="padding:6px 14px;background:#0e7490;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📎 เอกสาร</button>`;
+  /* รูปตู้จากบอท LINE — โชว์เฉพาะอินวอยซ์แหลมฉบัง */
+  if(LCB_INV.has(String(d.inv).trim()))
+    out+=` <button onclick="openLcbPhotos('${_invEsc}')" style="padding:6px 14px;background:#9d174d;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📷 รูปตู้</button>`;
   if(_canSeeFees()&&(d.prefix==='INV'||d.prefix==='SHL'))out+=`<button onclick="openQuotationModal('${_invEsc}')" style="padding:6px 14px;background:#1e3a5f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🖨️ ใบเสนอราคา</button>`;
   out+=`</div>`;}
   let _curMmsi=null;
