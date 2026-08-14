@@ -25,6 +25,9 @@ input:focus,select:focus{outline:none;border-color:#0ea5e9;box-shadow:0 0 0 3px 
 .fld{margin-bottom:12px}.fld:last-child{margin-bottom:0}
 .hl input,.hl select{border-color:#0ea5e9;background:#f0f9ff}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.more{margin-top:10px;font-size:12.5px;font-weight:700;color:#0ea5e9;
+      text-align:center;padding:8px;border:1px dashed #bae6fd;border-radius:9px}
 
 /* แถวตู้ */
 .ct{border:1.5px solid #e2e8f0;border-radius:12px;margin-bottom:9px;background:#fff;overflow:hidden}
@@ -115,14 +118,41 @@ function ctrCard(c, i){
       </div>
       <div class="fld"><label>วันที่รับตู้ (ตามใบ EIR)</label>
         <input type="date" id="f_pickup_date${i}" value="${esc(c.pickup_date ?? '')}"></div>
-      <div class="ro"><span class="k">ลูกค้า</span><span class="v">${esc(val(c.customer))}</span></div>
-      <div class="ro"><span class="k">บริษัทรถ</span><span class="v">${esc(val(c.carrier))}</span></div>
-      <div class="ro"><span class="k">ลานตู้</span><span class="v">${esc(val(c.depot))}</span></div>
-      <div class="ro"><span class="k">REF.NO.</span><span class="v">${esc(val(c.eir_ref_no))}</span></div>
-      <div class="ro"><span class="k">ชนิด / ขนาด</span><span class="v">${esc(val([c.ctr_type,c.ctr_size].filter(Boolean).join(' ')))}</span></div>
-      <div class="ro"><span class="k">เจ้าของตู้</span><span class="v">${esc(val(c.ctr_owner))} ${esc(val(c.ctr_type_code))}</span></div>
-      <div class="ro"><span class="k">MAX / TARE / NET</span><span class="v">${kg(c.max_gross_kg)} / ${kg(c.tare_kg)} / ${kg(c.net_kg)}</span></div>
-      <div class="ro"><span class="k">คนขับ</span><span class="v">${esc(val(c.driver_name))}</span></div>
+      <!-- โซนอ่านอย่างเดียว — กด "แก้เพิ่มเติม" เพื่อสลับเป็นช่องกรอก -->
+      <div id="ro${i}">
+        <div class="ro"><span class="k">ลูกค้า</span><span class="v">${esc(val(c.customer))}</span></div>
+        <div class="ro"><span class="k">บริษัทรถ</span><span class="v">${esc(val(c.carrier))}</span></div>
+        <div class="ro"><span class="k">ลานตู้</span><span class="v">${esc(val(c.depot))}</span></div>
+        <div class="ro"><span class="k">REF.NO.</span><span class="v">${esc(val(c.eir_ref_no))}</span></div>
+        <div class="ro"><span class="k">ชนิด / ขนาด</span><span class="v">${esc(val([c.ctr_type,c.ctr_size].filter(Boolean).join(' ')))}</span></div>
+        <div class="ro"><span class="k">เจ้าของตู้</span><span class="v">${esc(val(c.ctr_owner))} ${esc(val(c.ctr_type_code))}</span></div>
+        <div class="ro"><span class="k">MAX / TARE / NET</span><span class="v">${kg(c.max_gross_kg)} / ${kg(c.tare_kg)} / ${kg(c.net_kg)}</span></div>
+        <div class="ro"><span class="k">คนขับ</span><span class="v">${esc(val(c.driver_name))}</span></div>
+        <div class="more" onclick="editMore(${i})">✏️ แก้เพิ่มเติม</div>
+      </div>
+
+      <div id="ed${i}" style="display:none">
+        <p class="tiny" style="margin:2px 0 10px">ช่องพวกนี้เก็บลงระบบด้วย — แก้ให้ตรงก่อนบันทึก</p>
+        <div class="fld"><label>ลูกค้า</label><input id="f_customer${i}" value="${esc(c.customer ?? '')}"></div>
+        <div class="fld"><label>บริษัทรถ</label><input id="f_carrier${i}" value="${esc(c.carrier ?? '')}"></div>
+        <div class="fld"><label>ลานตู้</label><input id="f_depot${i}" value="${esc(c.depot ?? '')}"></div>
+        <div class="fld"><label>REF.NO.</label><input id="f_eir_ref_no${i}" value="${esc(c.eir_ref_no ?? '')}"></div>
+        <div class="grid2">
+          <div class="fld"><label>ชนิดตู้</label><input id="f_ctr_type${i}" value="${esc(c.ctr_type ?? '')}"></div>
+          <div class="fld"><label>ขนาด</label><input id="f_ctr_size${i}" value="${esc(c.ctr_size ?? '')}"></div>
+        </div>
+        <div class="grid2">
+          <div class="fld"><label>เจ้าของตู้</label><input id="f_ctr_owner${i}" value="${esc(c.ctr_owner ?? '')}"></div>
+          <div class="fld"><label>รหัส ISO</label><input id="f_ctr_type_code${i}" value="${esc(c.ctr_type_code ?? '')}"></div>
+        </div>
+        <div class="grid3">
+          <div class="fld"><label>MAX GROSS</label><input type="number" id="f_max_gross_kg${i}" value="${esc(c.max_gross_kg ?? '')}"></div>
+          <div class="fld"><label>TARE</label><input type="number" id="f_tare_kg${i}" value="${esc(c.tare_kg ?? '')}"></div>
+          <div class="fld"><label>NET</label><input type="number" id="f_net_kg${i}" value="${esc(c.net_kg ?? '')}"></div>
+        </div>
+        <div class="fld"><label>คนขับ</label><input id="f_driver_name${i}" value="${esc(c.driver_name ?? '')}"></div>
+        <div class="more" onclick="editMore(${i},true)">▴ ย่อกลับ</div>
+      </div>
       ${(c.eir_url||c.ctr_url) ? `
       <div class="shots">
         ${c.eir_url?`<a href="${esc(c.eir_url)}" target="_blank" rel="noopener"><img src="${esc(c.eir_url)}" loading="lazy"><span>ใบ EIR</span></a>`:''}
@@ -131,6 +161,12 @@ function ctrCard(c, i){
       <p class="tiny" style="margin:6px 0 0">แตะรูปเพื่อดูเต็ม — เทียบซีล/เบอร์ตู้กับของจริงก่อนบันทึก</p>`:''}
     </div>
   </div>`;
+}
+
+/* สลับระหว่างโซนอ่านอย่างเดียว กับ โซนแก้ไข */
+function editMore(i, back){
+  document.getElementById('ro'+i).style.display = back ? '' : 'none';
+  document.getElementById('ed'+i).style.display = back ? 'none' : '';
 }
 
 function toggle(i){
@@ -215,13 +251,29 @@ async function save(){
   for(const {c,i} of sel){
     const no = ($('f_container_no'+i).value || '').trim().toUpperCase() || c.container_no;
     selected.push(c.container_no);
+    const txtOf = k => { const el = $('f_'+k+i); return el && el.value.trim() ? el.value.trim() : null; };
+    const numOf = k => { const el = $('f_'+k+i); return el && el.value !== '' ? Number(el.value) : null; };
+
     overrides[c.container_no] = {
       container_no:  no,
       seal_no:       ($('f_seal_no'+i).value || '').trim().toUpperCase() || null,
-      truck_plate:   ($('f_truck_plate'+i).value || '').trim() || null,
-      weight:        $('f_weight'+i).value ? Number($('f_weight'+i).value) : null,
-      shipping_line: ($('f_shipping_line'+i).value || '').trim() || null,
+      truck_plate:   txtOf('truck_plate'),
+      weight:        numOf('weight'),
+      shipping_line: txtOf('shipping_line'),
       pickup_date:   $('f_pickup_date'+i).value || null,
+      /* โซน "แก้เพิ่มเติม" */
+      customer:      txtOf('customer'),
+      carrier:       txtOf('carrier'),
+      depot:         txtOf('depot'),
+      eir_ref_no:    txtOf('eir_ref_no'),
+      ctr_type:      txtOf('ctr_type'),
+      ctr_size:      txtOf('ctr_size'),
+      ctr_owner:     txtOf('ctr_owner'),
+      ctr_type_code: txtOf('ctr_type_code'),
+      max_gross_kg:  numOf('max_gross_kg'),
+      tare_kg:       numOf('tare_kg'),
+      net_kg:        numOf('net_kg'),
+      driver_name:   txtOf('driver_name'),
     };
   }
 
