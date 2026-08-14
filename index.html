@@ -1504,9 +1504,11 @@ async function _lcbZip(){
     _lcbSay('กำลังเตรียม…');
     await _lazyScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
     const zip=new JSZip();
+    /* ใส่โฟลเดอร์ครอบ — แตกไฟล์แล้วรูปไม่กระจายเต็มโฟลเดอร์ปลายทาง */
+    const folder=zip.folder(`รูปตู้ ${_lcbSafe(_lcbInvNo)}`);
     for(let i=0;i<_lcbFiles.length;i++){
       _lcbSay(`ดึงรูป ${i+1}/${_lcbFiles.length}…`);
-      zip.file(_lcbFiles[i].name, await (await fetch(_lcbFiles[i].url)).blob());
+      folder.file(_lcbFiles[i].name, await (await fetch(_lcbFiles[i].url)).blob());
     }
     _lcbSay('กำลังบีบอัด…');
     _lcbDown(await zip.generateAsync({type:'blob'}), `รูปตู้ ${_lcbSafe(_lcbInvNo)}.zip`);
