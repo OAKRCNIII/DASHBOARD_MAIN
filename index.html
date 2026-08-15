@@ -1480,15 +1480,87 @@ async function openLcbPhotos(inv){
     }
     document.getElementById('lcbPhotoBody').innerHTML=
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">'+
-      _lcbFiles.map(f=>`<a href="${f.url}" target="_blank" rel="noopener" style="text-decoration:none;border:1px solid #e2e8f0;border-radius:9px;overflow:hidden;background:#f8fafc;">
+      _lcbFiles.map((f,ix)=>`<div onclick="lcbView(${ix})" style="cursor:zoom-in;border:1px solid #e2e8f0;border-radius:9px;overflow:hidden;background:#f8fafc;">
         <img src="${f.url}" loading="lazy" style="width:100%;height:110px;object-fit:cover;display:block">
-        <div style="font-size:10.5px;font-weight:700;color:#475569;text-align:center;padding:5px 2px;">${h(f.name)}</div></a>`).join('')+
+        <div style="font-size:10.5px;font-weight:700;color:#475569;text-align:center;padding:5px 2px;">${h(f.name)}</div></div>`).join('')+
       '</div>';
     _lcbSay(`${_lcbFiles.length} รูป`);
   }catch(e){
     document.getElementById('lcbPhotoBody').innerHTML=
       `<div style="padding:26px;text-align:center;color:#b91c1c;font-weight:700;">${h(e.message)}</div>`;
   }
+}
+
+/* ══ ดูรูปเต็มจอ — เลื่อนซ้ายขวาดูรูปถัดไปได้ ══ */
+let _lcbIx = 0;
+
+function lcbView(ix){
+  _lcbIx = ix;
+  let bg = document.getElementById('lcbViewBg');
+  if(!bg){
+    bg = document.createElement('div');
+    bg.id = 'lcbViewBg';
+    bg.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(8,12,20,.95);z-index:9400;'
+                     + 'flex-direction:column;user-select:none;';
+    bg.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;color:#fff;flex-shrink:0;">
+        <div style="min-width:0">
+          <div id="lcbViewName" style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+          <div id="lcbViewNo" style="font-size:11px;opacity:.7;margin-top:2px;"></div>
+        </div>
+        <button onclick="lcbViewClose()" style="margin-left:auto;background:#334155;color:#fff;border:none;
+          border-radius:8px;padding:9px 15px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;">✕ ปิด</button>
+      </div>
+      <div id="lcbViewWrap" style="flex:1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:0 8px 12px;">
+        <img id="lcbViewImg" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:6px;background:#fff;">
+        <button onclick="lcbNav(-1)" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);
+          background:rgba(255,255,255,.9);border:none;border-radius:50%;width:46px;height:46px;font-size:22px;
+          font-weight:900;color:#0f172a;cursor:pointer;">‹</button>
+        <button onclick="lcbNav(1)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
+          background:rgba(255,255,255,.9);border:none;border-radius:50%;width:46px;height:46px;font-size:22px;
+          font-weight:900;color:#0f172a;cursor:pointer;">›</button>
+      </div>`;
+    document.body.appendChild(bg);
+
+    /* ปัดนิ้วซ้ายขวาบนมือถือ */
+    let x0=null;
+    const wrap=bg.querySelector('#lcbViewWrap');
+    wrap.addEventListener('touchstart',e=>{x0=e.changedTouches[0].clientX;},{passive:true});
+    wrap.addEventListener('touchend',e=>{
+      if(x0===null)return;
+      const dx=e.changedTouches[0].clientX-x0; x0=null;
+      if(Math.abs(dx)>45) lcbNav(dx<0?1:-1);
+    },{passive:true});
+
+    /* ลูกศรซ้ายขวา + Esc บนคอม */
+    document.addEventListener('keydown',e=>{
+      if(bg.style.display==='none')return;
+      if(e.key==='ArrowLeft') lcbNav(-1);
+      else if(e.key==='ArrowRight') lcbNav(1);
+      else if(e.key==='Escape') lcbViewClose();
+    });
+  }
+  bg.style.display='flex';
+  _lcbShow();
+}
+
+function _lcbShow(){
+  const f=_lcbFiles[_lcbIx]; if(!f)return;
+  document.getElementById('lcbViewImg').src=f.url;
+  document.getElementById('lcbViewName').textContent=f.name;
+  document.getElementById('lcbViewNo').textContent=
+    `${_lcbIx+1} / ${_lcbFiles.length}  ·  ${f.kind==='eir'?'ใบ EIR':'รูปตู้'}${f.seal_no?'  ·  ซีล '+f.seal_no:''}`;
+}
+
+function lcbNav(step){
+  if(!_lcbFiles.length)return;
+  _lcbIx=(_lcbIx+step+_lcbFiles.length)%_lcbFiles.length;   /* วนรอบ */
+  _lcbShow();
+}
+
+function lcbViewClose(){
+  const bg=document.getElementById('lcbViewBg');
+  if(bg) bg.style.display='none';
 }
 
 /* ลบตู้ที่บอท LINE บันทึกไว้ทีละใบ — เฉพาะ OAK_THIRA + ต้องใส่ PIN
