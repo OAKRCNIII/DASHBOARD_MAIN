@@ -1491,6 +1491,28 @@ async function openLcbPhotos(inv){
   }
 }
 
+/* ลบตู้ที่บอท LINE บันทึกไว้ทีละใบ — เฉพาะ OAK_THIRA + ต้องใส่ PIN
+   เซิร์ฟเวอร์เช็คสิทธิ์ซ้ำอีกชั้น ซ่อนปุ่มอย่างเดียวไม่พอ */
+function delLcbCtr(uid, ctrNo){
+  if(LOGGED_USER!=='OAK_THIRA'){ alert('เฉพาะ OAK_THIRA เท่านั้นที่ลบได้'); return; }
+  requirePin(()=>_doDelLcbCtr(uid, ctrNo), `ยืนยันลบตู้ ${ctrNo} ออกจากระบบ`);
+}
+
+async function _doDelLcbCtr(uid, ctrNo){
+  try{
+    const r = await fetch(`${LCB_API}/delete`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_TOKEN}`},
+      body: JSON.stringify({ uid }),
+    });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || ('HTTP '+r.status));
+    alert(`ลบ ${ctrNo} แล้ว${j.photos?` (พร้อมรูป ${j.photos} ไฟล์)`:''}\n\nกด 🔄 รีเฟรช เพื่ออัปเดตหน้าจอ`);
+  }catch(e){
+    alert('ลบไม่สำเร็จ: ' + e.message);
+  }
+}
+
 function _lcbDown(blob,name){
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a'); a.href=url; a.download=name;
@@ -2165,6 +2187,7 @@ async function loadData(forceRefresh=false){
       DATE_PICKUP:c.pickup_date?fmtDateFromISO(c.pickup_date):'-',
       _src:c.source||'PADANG',        /* ใช้ติดป้าย LCB รายตู้ */
       _seal:c.seal_no||'',            /* ฝั่งแหลมฉบังมีเบอร์ซีล */
+      _uid:c.uid||'',                 /* ใช้อ้างตอนสั่งลบ */
     });
   });
 
@@ -3464,7 +3487,11 @@ function showInvDetail(id,panelId){
       const _lcbTag=r._src==='LCB'
         ? `<span title="บันทึกจากบอท LINE แหลมฉบัง${r._seal?' · ซีล '+h(r._seal):''}" style="margin-left:5px;font-size:8.5px;padding:1px 5px;border-radius:8px;background:#fdf2f8;color:#9d174d;border:1px solid #f9a8d4;font-weight:700;font-family:inherit;">⚓ LCB</span>`
         : '';
-      out+=`<tr style="${rowBg}"><td>${h(r.ทะเบียนรถ)}</td><td style="font-family:monospace">${_ctrHtml}${pendBadge}${_lcbTag}</td><td>${h(r.โรงงาน)}</td><td>${h(r.เข้าโรงงาน)}</td><td>${h(r.DATE_PICKUP)}</td><td>${h(r.CADO)}</td></tr>`;
+      /* ปุ่มลบ — เฉพาะตู้ที่บอท LINE บันทึก และเฉพาะ OAK_THIRA */
+      const _lcbDel=(r._src==='LCB'&&r._uid&&LOGGED_USER==='OAK_THIRA')
+        ? `<button onclick="delLcbCtr('${r._uid}','${h(r.เบอร์ตู้)}')" title="ลบตู้ใบนี้ออกจากระบบ" style="margin-left:5px;border:none;background:none;color:#dc2626;font-size:12px;font-weight:900;cursor:pointer;padding:0 3px;font-family:inherit;">✕</button>`
+        : '';
+      out+=`<tr style="${rowBg}"><td>${h(r.ทะเบียนรถ)}</td><td style="font-family:monospace">${_ctrHtml}${pendBadge}${_lcbTag}${_lcbDel}</td><td>${h(r.โรงงาน)}</td><td>${h(r.เข้าโรงงาน)}</td><td>${h(r.DATE_PICKUP)}</td><td>${h(r.CADO)}</td></tr>`;
     });
     out+='</tbody></table>';
     if(invPendCtrs.length){
