@@ -1627,6 +1627,77 @@ function lcbViewClose(){
   if(bg) bg.style.display='none';
 }
 
+/* ══ แก้ตู้ย้อนหลัง — เฉพาะ OAK_THIRA + PIN · แก้ได้ 4 ช่อง ══ */
+function editLcbCtr(uid){
+  if(LOGGED_USER!=='OAK_THIRA'){ alert('เฉพาะ OAK_THIRA เท่านั้นที่แก้ได้'); return; }
+  /* หาแถวจาก FLAT ที่โหลดไว้แล้ว ไม่ต้องยิงเซิร์ฟเวอร์ */
+  let row=null;
+  for(const d of FLAT){ const f=(d.details||[]).find(x=>x._uid===uid); if(f){row=f;break;} }
+  if(!row){ alert('ไม่เจอตู้ใบนี้ — กด 🔄 รีเฟรชแล้วลองใหม่'); return; }
+
+  let bg=document.getElementById('lcbEditBg');
+  if(!bg){
+    bg=document.createElement('div');
+    bg.id='lcbEditBg';
+    bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9350;align-items:center;justify-content:center;';
+    bg.innerHTML=`<div style="background:#fff;border-radius:16px;width:min(420px,94vw);box-shadow:0 20px 60px rgba(0,0,0,.35);">
+      <div style="padding:14px 18px;border-bottom:1px solid #e8edf5;background:#ecfeff;border-radius:16px 16px 0 0;">
+        <span style="font-size:13px;font-weight:800;color:#0e7490;">✏️ แก้ข้อมูลตู้</span>
+        <div id="lcbEditSub" style="font-size:11px;color:#64748b;margin-top:2px;"></div>
+      </div>
+      <div style="padding:16px 18px;">
+        <div style="margin-bottom:11px"><label style="font-size:11px;font-weight:800;color:#475569;display:block;margin-bottom:4px;">เบอร์ตู้</label>
+          <input id="lcbEdCtr" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:15px;font-family:inherit;"></div>
+        <div style="margin-bottom:11px"><label style="font-size:11px;font-weight:800;color:#475569;display:block;margin-bottom:4px;">เบอร์ซีล</label>
+          <input id="lcbEdSeal" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:15px;font-family:inherit;"></div>
+        <div style="margin-bottom:11px"><label style="font-size:11px;font-weight:800;color:#475569;display:block;margin-bottom:4px;">ทะเบียนรถ (หัว, หาง)</label>
+          <input id="lcbEdTruck" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:15px;font-family:inherit;"></div>
+        <div><label style="font-size:11px;font-weight:800;color:#475569;display:block;margin-bottom:4px;">น้ำหนัก (kg)</label>
+          <input id="lcbEdWt" type="number" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:15px;font-family:inherit;"></div>
+        <div id="lcbEdErr" style="color:#b91c1c;font-size:11.5px;font-weight:700;margin-top:9px;min-height:15px;"></div>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <button onclick="document.getElementById('lcbEditBg').style.display='none'" style="flex:1;padding:10px;border-radius:9px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">ยกเลิก</button>
+          <button id="lcbEdSave" style="flex:1;padding:10px;border-radius:9px;border:none;background:#0e7490;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">บันทึก</button>
+        </div>
+      </div></div>`;
+    document.body.appendChild(bg);
+  }
+  document.getElementById('lcbEditSub').textContent=row.เบอร์ตู้+' · '+(row.โรงงาน||'-');
+  document.getElementById('lcbEdCtr').value=row.เบอร์ตู้||'';
+  document.getElementById('lcbEdSeal').value=row._seal||'';
+  document.getElementById('lcbEdTruck').value=row.ทะเบียนรถ||'';
+  document.getElementById('lcbEdWt').value=row._wt||'';
+  document.getElementById('lcbEdErr').textContent='';
+  document.getElementById('lcbEdSave').onclick=()=>
+    requirePin(()=>_doEditLcbCtr(uid), `ยืนยันแก้ข้อมูลตู้ ${row.เบอร์ตู้}`);
+  bg.style.display='flex';
+}
+
+async function _doEditLcbCtr(uid){
+  const btn=document.getElementById('lcbEdSave');
+  const err=document.getElementById('lcbEdErr');
+  btn.disabled=true; btn.textContent='กำลังบันทึก…'; err.textContent='';
+  try{
+    const r=await fetch(`${LCB_API}/update`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_TOKEN}`},
+      body:JSON.stringify({uid, fields:{
+        container_no: document.getElementById('lcbEdCtr').value,
+        seal_no:      document.getElementById('lcbEdSeal').value,
+        truck_plate:  document.getElementById('lcbEdTruck').value,
+        weight:       document.getElementById('lcbEdWt').value,
+      }}),
+    });
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+    document.getElementById('lcbEditBg').style.display='none';
+    alert('แก้แล้ว:\n'+(j.changed||[]).join('\n')+'\n\nกด 🔄 รีเฟรช เพื่ออัปเดตหน้าจอ');
+  }catch(e){
+    err.textContent='⚠️ '+e.message;
+  }
+  btn.disabled=false; btn.textContent='บันทึก';
+}
+
 /* ลบตู้ที่บอท LINE บันทึกไว้ทีละใบ — เฉพาะ OAK_THIRA + ต้องใส่ PIN
    เซิร์ฟเวอร์เช็คสิทธิ์ซ้ำอีกชั้น ซ่อนปุ่มอย่างเดียวไม่พอ */
 function delLcbCtr(uid, ctrNo){
@@ -2323,7 +2394,8 @@ async function loadData(forceRefresh=false){
       DATE_PICKUP:c.pickup_date?fmtDateFromISO(c.pickup_date):'-',
       _src:c.source||'PADANG',        /* ใช้ติดป้าย LCB รายตู้ */
       _seal:c.seal_no||'',            /* ฝั่งแหลมฉบังมีเบอร์ซีล */
-      _uid:c.uid||'',                 /* ใช้อ้างตอนสั่งลบ */
+      _uid:c.uid||'',                 /* ใช้อ้างตอนสั่งลบ/แก้ */
+      _wt:c.weight||'',               /* น้ำหนัก — ใช้ในหน้าต่างแก้ไข */
     });
   });
 
@@ -3613,7 +3685,11 @@ function showInvDetail(id,panelId){
   }
   if(d.details&&d.details.length){
     const pendSet=new Set(invPendCtrs.map(c=>(c.ctr||'').trim().toUpperCase()));
-    out+='<table class="det-tbl"><thead><tr><th>ทะเบียนรถ</th><th>เบอร์ตู้</th><th>โรงงาน</th><th>เข้าโรงงาน</th><th>DATE PICKUP</th><th>CADO</th></tr></thead><tbody>';
+    /* ใบไหนมีตู้ LCB ให้เพิ่มคอลัมน์เบอร์ซีล (ฝั่งปาดังไม่มีซีล จึงไม่ต้องโชว์) */
+    const _hasLcb=(d.details||[]).some(x=>x._src==='LCB');
+    out+='<table class="det-tbl"><thead><tr><th>ทะเบียนรถ</th><th>เบอร์ตู้</th>'
+       +(_hasLcb?'<th>เบอร์ซีล</th>':'')
+       +'<th>โรงงาน</th><th>เข้าโรงงาน</th><th>DATE PICKUP</th><th>CADO</th></tr></thead><tbody>';
     d.details.forEach(r=>{
       const isPend=pendSet.has((r.เบอร์ตู้||'').trim().toUpperCase());
       const rowBg=isPend?'background:#fffbeb;':'';
@@ -3623,11 +3699,16 @@ function showInvDetail(id,panelId){
       const _lcbTag=r._src==='LCB'
         ? `<span title="บันทึกจากบอท LINE แหลมฉบัง${r._seal?' · ซีล '+h(r._seal):''}" style="margin-left:5px;font-size:8.5px;padding:1px 5px;border-radius:8px;background:#fdf2f8;color:#9d174d;border:1px solid #f9a8d4;font-weight:700;font-family:inherit;">⚓ LCB</span>`
         : '';
-      /* ปุ่มลบ — เฉพาะตู้ที่บอท LINE บันทึก และเฉพาะ OAK_THIRA */
-      const _lcbDel=(r._src==='LCB'&&r._uid&&LOGGED_USER==='OAK_THIRA')
-        ? `<button onclick="delLcbCtr('${r._uid}','${h(r.เบอร์ตู้)}')" title="ลบตู้ใบนี้ออกจากระบบ" style="margin-left:5px;border:none;background:none;color:#dc2626;font-size:12px;font-weight:900;cursor:pointer;padding:0 3px;font-family:inherit;">✕</button>`
+      /* ปุ่มแก้/ลบ — เฉพาะตู้ที่บอท LINE บันทึก และเฉพาะ OAK_THIRA */
+      const _lcbCan=(r._src==='LCB'&&r._uid&&LOGGED_USER==='OAK_THIRA');
+      const _lcbEdit=_lcbCan
+        ? `<button onclick="editLcbCtr('${r._uid}')" title="แก้ข้อมูลตู้ใบนี้" style="margin-left:5px;border:none;background:none;color:#0e7490;font-size:12px;cursor:pointer;padding:0 2px;font-family:inherit;">✏️</button>`
         : '';
-      out+=`<tr style="${rowBg}"><td>${h(r.ทะเบียนรถ)}</td><td style="font-family:monospace">${_ctrHtml}${pendBadge}${_lcbTag}${_lcbDel}</td><td>${h(r.โรงงาน)}</td><td>${h(r.เข้าโรงงาน)}</td><td>${h(r.DATE_PICKUP)}</td><td>${h(r.CADO)}</td></tr>`;
+      const _lcbDel=_lcbCan
+        ? `<button onclick="delLcbCtr('${r._uid}','${h(r.เบอร์ตู้)}')" title="ลบตู้ใบนี้ออกจากระบบ" style="margin-left:3px;border:none;background:none;color:#dc2626;font-size:12px;font-weight:900;cursor:pointer;padding:0 3px;font-family:inherit;">✕</button>`
+        : '';
+      const _sealTd=_hasLcb?`<td style="font-family:monospace">${h(r._seal||'')}</td>`:'';
+      out+=`<tr style="${rowBg}"><td>${h(r.ทะเบียนรถ)}</td><td style="font-family:monospace">${_ctrHtml}${pendBadge}${_lcbTag}${_lcbEdit}${_lcbDel}</td>${_sealTd}<td>${h(r.โรงงาน)}</td><td>${h(r.เข้าโรงงาน)}</td><td>${h(r.DATE_PICKUP)}</td><td>${h(r.CADO)}</td></tr>`;
     });
     out+='</tbody></table>';
     if(invPendCtrs.length){
