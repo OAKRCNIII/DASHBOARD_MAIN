@@ -79,6 +79,7 @@ td.seq{font-weight:600;color:#000}          /* ← ลำดับต้อง�
   <button id="png">🖼 บันทึกเป็นรูป</button>
   <button class="alt" id="pdf">📄 PDF</button>
   <button class="alt" onclick="window.print()">🖨 พิมพ์</button>
+  <button class="alt" id="xls">📊 Excel</button>
   <span class="sp" id="meta"></span>
 </div>
 
@@ -90,7 +91,7 @@ td.seq{font-weight:600;color:#000}          /* ← ลำดับต้อง�
 const API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-lcb';
 const DOW = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
 const MON = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-let CUR = null;
+let CUR = null, ROWS = [];
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -107,7 +108,7 @@ function todayText(){
 }
 
 function render(inv, list){
-  CUR = inv;
+  CUR = inv; ROWS = list;
   const total = Math.max(inv.container_count || 0, list.length);
   const rows = [];
 
@@ -294,6 +295,65 @@ async function savePdf(){
   btn.disabled = false; btn.textContent = '📄 PDF';
 }
 
+/* ══ ออกเป็น Excel — โหลดไลบรารีตอนกดปุ่มเท่านั้น ══ */
+function lazyScript(src){
+  return new Promise((res,rej)=>{
+    if([...document.scripts].some(s=>s.src===src)) return res();
+    const s=document.createElement('script');
+    s.src=src; s.onload=()=>res(); s.onerror=()=>rej(new Error('โหลดตัวสร้าง Excel ไม่ได้'));
+    document.head.appendChild(s);
+  });
+}
+
+async function saveXlsx(){
+  const btn = document.getElementById('xls');
+  if(!CUR){ say('ยังไม่ได้เลือกอินวอยซ์'); return; }
+  btn.disabled = true; btn.textContent = 'กำลังสร้าง…';
+  try{
+    say('กำลังเตรียม…');
+    await lazyScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+
+    const total = Math.max(CUR.container_count || 0, ROWS.length);
+    const line2 = [
+      total ? `${total} ตู้` : '',
+      CUR.destination ? `ไป ${CUR.destination}` : '',
+      CUR.customer ? `ของ ${CUR.customer}` : '',
+    ].filter(Boolean).join(' ');
+
+    /* หัวกระดาษเหมือนฉบับพิมพ์ แล้วตามด้วยตาราง */
+    const aoa = [
+      ['ท่าเรือสุราษฎร์ธานี - แหลมฉบัง'],
+      [`ขอแจ้งเบอร์ตู้ ของ ${CUR.invoice_no}`],
+      [line2],
+      [],
+      ['ลำดับ','ทะเบียนรถ','เบอร์ตู้','SEAL NO.','วันที่เข้าโรงงาน','น้ำหนัก (กก.)'],
+    ];
+    ROWS.forEach((c,i)=>aoa.push([
+      i+1, c.truck_plate ?? '', c.container_no ?? '', c.seal_no ?? '',
+      thaiDate(c.factory_date), c.weight ? Number(c.weight) : '',
+    ]));
+    /* แถวที่ยังไม่มีตู้ — ใส่เลขลำดับไว้เหมือนฉบับพิมพ์ จะได้กรอกต่อในไฟล์ได้ */
+    for(let i=ROWS.length;i<total;i++) aoa.push([i+1,'','','','','']);
+    aoa.push([], [`กรอกแล้ว ${ROWS.length} / ${total} ตู้`, '', '', '', '', `พิมพ์เมื่อ ${todayText()}`]);
+
+    const XLSX = window.XLSX;
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:7},{wch:20},{wch:16},{wch:14},{wch:18},{wch:14}];
+    ws['!merges'] = [
+      {s:{r:0,c:0},e:{r:0,c:5}},
+      {s:{r:1,c:0},e:{r:1,c:5}},
+      {s:{r:2,c:0},e:{r:2,c:5}},
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'เบอร์ตู้');
+    XLSX.writeFile(wb, fileName('.xlsx'));
+    say(`ออก Excel แล้ว ${ROWS.length} ตู้`);
+  }catch(e){
+    say('⚠️ ' + (e && e.message ? e.message : e));
+  }
+  btn.disabled = false; btn.textContent = '📊 Excel';
+}
+
 async function load(inv){
   // ลบลิงก์ PDF ของอินวอยซ์ก่อนหน้า กันกดแล้วได้ไฟล์ผิดใบ
   const old = document.getElementById('openpdf');
@@ -314,6 +374,7 @@ async function load(inv){
 (async function(){
   document.getElementById('pdf').onclick = savePdf;
   document.getElementById('png').onclick = savePng;
+  document.getElementById('xls').onclick = saveXlsx;
   let cur = new URLSearchParams(location.search).get('inv');
   const sel = document.getElementById('pick');
   try{

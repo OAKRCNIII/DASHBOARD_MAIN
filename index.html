@@ -1434,6 +1434,12 @@ function _lazyScript(src){
   });
 }
 
+/* ⚠️ v ต้องตรงกับ REPORT_V ใน edge function line-lcb — GitHub Pages แคช 10 นาที */
+const LCB_REPORT_URL='https://oakrcniii.github.io/DASHBOARD_MAIN/lcb_report.html?v=7';
+function openLcbReport(inv){
+  window.open(`${LCB_REPORT_URL}&inv=${encodeURIComponent(inv)}`,'_blank','noopener');
+}
+
 let _lcbFiles=[], _lcbInvNo='';
 const _lcbSafe = s => String(s||'').replace(/[\\/:*?"<>|]/g,'-').trim();
 
@@ -3607,9 +3613,12 @@ function showInvDetail(id,panelId){
   {const _invEsc=d.inv.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   out+=`<div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">`;
   out+=`<button onclick="openDocsModal('${_invEsc}')" style="padding:6px 14px;background:#0e7490;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📎 เอกสาร</button>`;
-  /* รูปตู้จากบอท LINE — โชว์เฉพาะอินวอยซ์แหลมฉบัง */
-  if(LCB_INV.has(String(d.inv).trim()))
+  /* รูปตู้ + ใบแจ้งเบอร์ตู้ — โชว์เฉพาะอินวอยซ์แหลมฉบัง */
+  if(LCB_INV.has(String(d.inv).trim())){
     out+=` <button onclick="openLcbPhotos('${_invEsc}')" style="padding:6px 14px;background:#9d174d;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📷 รูปตู้</button>`;
+    /* เปิดหน้ารายงานเดิม — มีปุ่ม PDF / Excel / รูป / พิมพ์ ครบอยู่ในนั้นแล้ว */
+    out+=` <button onclick="openLcbReport('${_invEsc}')" style="padding:6px 14px;background:#1a3a6b;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📄 ใบแจ้งเบอร์ตู้</button>`;
+  }
   if(_canSeeFees()&&(d.prefix==='INV'||d.prefix==='SHL'))out+=`<button onclick="openQuotationModal('${_invEsc}')" style="padding:6px 14px;background:#1e3a5f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🖨️ ใบเสนอราคา</button>`;
   out+=`</div>`;}
   let _curMmsi=null;
