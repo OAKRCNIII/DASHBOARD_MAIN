@@ -305,13 +305,23 @@ function lazyScript(src){
   });
 }
 
+/* Tahoma — มีในทุกเครื่อง Windows และแสดงไทยได้ครบ
+   (Sarabun สวยกว่าแต่เครื่องปลายทางอาจไม่มี ไฟล์จะเพี้ยน) */
+const XF = 'Tahoma';
+const line  = { style:'thin',  color:{rgb:'000000'} };
+const thick = { style:'medium',color:{rgb:'000000'} };
+const boxAll   = { top:line,  bottom:line,  left:line,  right:line  };
+const boxThick = { top:thick, bottom:thick, left:thick, right:thick };
+const mid = { horizontal:'center', vertical:'center', wrapText:false };
+
 async function saveXlsx(){
   const btn = document.getElementById('xls');
   if(!CUR){ say('ยังไม่ได้เลือกอินวอยซ์'); return; }
   btn.disabled = true; btn.textContent = 'กำลังสร้าง…';
   try{
     say('กำลังเตรียม…');
-    await lazyScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+    /* xlsx-js-style = SheetJS ที่รองรับสไตล์ (ตัวปกติใส่เส้นขอบ/สีไม่ได้) */
+    await lazyScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
 
     const total = Math.max(CUR.container_count || 0, ROWS.length);
     const line2 = [
@@ -320,30 +330,75 @@ async function saveXlsx(){
       CUR.customer ? `ของ ${CUR.customer}` : '',
     ].filter(Boolean).join(' ');
 
-    /* หัวกระดาษเหมือนฉบับพิมพ์ แล้วตามด้วยตาราง */
+    const HEAD = ['ลำดับ','ทะเบียนรถ','เบอร์ตู้','SEAL NO.','วันที่เข้าโรงงาน','น้ำหนัก (กก.)'];
     const aoa = [
       ['ท่าเรือสุราษฎร์ธานี - แหลมฉบัง'],
+      [],
       [`ขอแจ้งเบอร์ตู้ ของ ${CUR.invoice_no}`],
       [line2],
       [],
-      ['ลำดับ','ทะเบียนรถ','เบอร์ตู้','SEAL NO.','วันที่เข้าโรงงาน','น้ำหนัก (กก.)'],
+      HEAD,
     ];
     ROWS.forEach((c,i)=>aoa.push([
       i+1, c.truck_plate ?? '', c.container_no ?? '', c.seal_no ?? '',
       thaiDate(c.factory_date), c.weight ? Number(c.weight) : '',
     ]));
-    /* แถวที่ยังไม่มีตู้ — ใส่เลขลำดับไว้เหมือนฉบับพิมพ์ จะได้กรอกต่อในไฟล์ได้ */
     for(let i=ROWS.length;i<total;i++) aoa.push([i+1,'','','','','']);
+    const R_FOOT = aoa.length + 1;
     aoa.push([], [`กรอกแล้ว ${ROWS.length} / ${total} ตู้`, '', '', '', '', `พิมพ์เมื่อ ${todayText()}`]);
 
     const XLSX = window.XLSX;
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{wch:7},{wch:20},{wch:16},{wch:14},{wch:18},{wch:14}];
+    const R_HEAD = 5, R_FIRST = 6, R_LAST = 5 + total;
+
+    const put = (r,c,st)=>{
+      const a = XLSX.utils.encode_cell({r,c});
+      if(!ws[a]) ws[a] = { t:'s', v:'' };      /* เซลล์ว่างก็ต้องมีเส้นขอบ */
+      ws[a].s = st;
+    };
+
+    /* ── หัวเรื่องในกรอบหนา ── */
+    for(let c=0;c<6;c++) put(0,c,{
+      font:{name:XF,sz:18,bold:true}, alignment:mid, border:boxThick,
+    });
+    put(2,0,{ font:{name:XF,sz:14,bold:true} });
+    put(3,0,{ font:{name:XF,sz:12} });
+
+    /* ── หัวตาราง ── */
+    for(let c=0;c<6;c++) put(R_HEAD,c,{
+      font:{name:XF,sz:11,bold:true}, alignment:mid, border:boxAll,
+      fill:{ patternType:'solid', fgColor:{rgb:'E8EDF5'} },
+    });
+
+    /* ── เนื้อตาราง — แถบสลับสีเหมือนฉบับพิมพ์ ── */
+    for(let r=R_FIRST;r<=R_LAST;r++){
+      const zebra = (r - R_FIRST) % 2 === 1
+        ? { fill:{ patternType:'solid', fgColor:{rgb:'FAFBFC'} } } : {};
+      for(let c=0;c<6;c++){
+        const bold = (c===2||c===3);            /* เบอร์ตู้ + ซีล เน้นให้ตาจับเร็ว */
+        put(r,c,{
+          font:{name:XF,sz:c===2?12:11,bold}, alignment:mid, border:boxAll, ...zebra,
+          ...(c===5 ? { numFmt:'#,##0' } : {}),
+        });
+      }
+    }
+
+    /* ── ท้ายกระดาษ ── */
+    put(R_FOOT,0,{ font:{name:XF,sz:9,color:{rgb:'555555'}} });
+    put(R_FOOT,5,{ font:{name:XF,sz:9,color:{rgb:'555555'}}, alignment:{horizontal:'right'} });
+
+    ws['!cols'] = [{wch:7},{wch:22},{wch:17},{wch:14},{wch:19},{wch:14}];
+    ws['!rows'] = [{hpt:30},{hpt:6},{hpt:22},{hpt:19},{hpt:6},{hpt:24}];
+    for(let r=R_FIRST;r<=R_LAST;r++) ws['!rows'][r] = {hpt:22};
     ws['!merges'] = [
       {s:{r:0,c:0},e:{r:0,c:5}},
-      {s:{r:1,c:0},e:{r:1,c:5}},
       {s:{r:2,c:0},e:{r:2,c:5}},
+      {s:{r:3,c:0},e:{r:3,c:5}},
     ];
+    /* พิมพ์ออกมาให้พอดี A4 แนวตั้ง หน้าเดียว และซ้ำหัวตารางทุกหน้า */
+    ws['!pageSetup'] = { orientation:'portrait', paperSize:9, fitToWidth:1, fitToHeight:0 };
+    ws['!printHeader'] = [R_HEAD+1, R_HEAD+1];
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'เบอร์ตู้');
     XLSX.writeFile(wb, fileName('.xlsx'));
