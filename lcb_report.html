@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>รายงานเบอร์ตู้ — แหลมฉบัง</title>
+<title>ใบแจ้งเบอร์ตู้</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -35,6 +35,7 @@ thead th{font-size:14px;font-weight:700;line-height:1.2;padding:5px 4px;height:a
 .c-seal {width:17%;font-weight:700;letter-spacing:.2px}
 .c-date {width:19%;font-weight:500}
 .c-wt   {width:15%;font-weight:600}
+.c-fac  {width:19%;font-weight:500}
 tbody tr:nth-child(even){background:#fafbfc}
 td.seq{font-weight:600;color:#000}          /* ← ลำดับต้องเห็นทุกแถว รวมแถวว่าง */
 
@@ -68,7 +69,7 @@ td.seq{font-weight:600;color:#000}          /* ← ลำดับต้อง�
   .l1{font-size:15px}.l1 b{font-size:19px}.l2{font-size:13px}
   th,td{font-size:12px;height:8mm;padding:0 2px}
   thead th{font-size:11px}
-  .c-ctr{font-size:13px}.c-truck{font-size:11px}.c-wt{font-size:11px}
+  .c-ctr{font-size:13px}.c-truck{font-size:11px}.c-wt{font-size:11px}.c-fac{font-size:11px}
 }
 </style>
 </head>
@@ -91,7 +92,7 @@ td.seq{font-weight:600;color:#000}          /* ← ลำดับต้อง�
 const API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-lcb';
 const DOW = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
 const MON = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-let CUR = null, ROWS = [];
+let CUR = null, ROWS = [], KIND = 'LCB';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -107,23 +108,34 @@ function todayText(){
   return `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear() + 543}`;
 }
 
-function render(inv, list){
-  CUR = inv; ROWS = list;
+function render(inv, list, kind){
+  CUR = inv; ROWS = list; KIND = kind || 'LCB';
   const total = Math.max(inv.container_count || 0, list.length);
   const rows = [];
 
-  list.forEach((c, i) => rows.push(`<tr>
-      <td class="seq">${i+1}</td>
-      <td class="c-truck">${esc(c.truck_plate ?? '')}</td>
-      <td class="c-ctr">${esc(c.container_no ?? '')}</td>
-      <td class="c-seal">${esc(c.seal_no ?? '')}</td>
-      <td class="c-date">${esc(thaiDate(c.factory_date))}</td>
-      <td class="c-wt">${c.weight ? Number(c.weight).toLocaleString() : ''}</td>
-    </tr>`));
+  /* คอลัมน์ต่างกันตามท่าเรือ — ปาดังไม่มีซีล แต่มีโรงงาน */
+  const COLS = KIND === 'LCB'
+    ? [['ลำดับ','c-no'],['ทะเบียนรถ','c-truck'],['เบอร์ตู้','c-ctr'],
+       ['SEAL NO.','c-seal'],['วันที่เข้าโรงงาน','c-date'],['น้ำหนัก (กก.)','c-wt']]
+    : [['ลำดับ','c-no'],['ทะเบียนรถ','c-truck'],['เบอร์ตู้','c-ctr'],
+       ['วันที่เข้าโรงงาน','c-date'],['โรงงาน','c-fac'],['น้ำหนัก (กก.)','c-wt']];
+
+  const cellsOf = c => KIND === 'LCB'
+    ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
+       esc(thaiDate(c.factory_date)), c.weight ? Number(c.weight).toLocaleString() : '']
+    : [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''),
+       esc(thaiDate(c.factory_date)), esc(c.factory ?? ''),
+       c.weight ? Number(c.weight).toLocaleString() : ''];
+
+  list.forEach((c, i) => {
+    const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
+    rows.push(`<tr><td class="seq">${i+1}</td>${tds}</tr>`);
+  });
 
   // แถวที่ยังไม่มีตู้ — ใส่เลขลำดับไว้ ช่องอื่นเว้นว่าง
+  const blanks = COLS.slice(1).map(() => '<td></td>').join('');
   for(let i = list.length; i < total; i++){
-    rows.push(`<tr><td class="seq">${i+1}</td><td></td><td></td><td></td><td></td><td></td></tr>`);
+    rows.push(`<tr><td class="seq">${i+1}</td>${blanks}</tr>`);
   }
 
   const line2 = [
@@ -134,18 +146,11 @@ function render(inv, list){
 
   document.getElementById('out').innerHTML = `
   <div class="sheet" id="sheet">
-    <div class="tbox"><h1>ท่าเรือสุราษฎร์ธานี - แหลมฉบัง</h1></div>
+    <div class="tbox"><h1>${KIND === 'LCB' ? 'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง' : 'ใบแจ้งเบอร์ตู้'}</h1></div>
     <p class="l1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p>
     <p class="l2">${esc(line2)}</p>
     <table>
-      <thead><tr>
-        <th class="c-no">ลำดับ</th>
-        <th class="c-truck">ทะเบียนรถ</th>
-        <th class="c-ctr">เบอร์ตู้</th>
-        <th class="c-seal">SEAL NO.</th>
-        <th class="c-date">วันที่เข้าโรงงาน</th>
-        <th class="c-wt">น้ำหนัก (กก.)</th>
-      </tr></thead>
+      <thead><tr>${COLS.map(([t,cl])=>`<th class="${cl}">${t}</th>`).join('')}</tr></thead>
       <tbody>${rows.join('')}</tbody>
     </table>
     <div class="foot">
@@ -330,19 +335,22 @@ async function saveXlsx(){
       CUR.customer ? `ของ ${CUR.customer}` : '',
     ].filter(Boolean).join(' ');
 
-    const HEAD = ['ลำดับ','ทะเบียนรถ','เบอร์ตู้','SEAL NO.','วันที่เข้าโรงงาน','น้ำหนัก (กก.)'];
+    const HEAD = KIND === 'LCB'
+      ? ['ลำดับ','ทะเบียนรถ','เบอร์ตู้','SEAL NO.','วันที่เข้าโรงงาน','น้ำหนัก (กก.)']
+      : ['ลำดับ','ทะเบียนรถ','เบอร์ตู้','วันที่เข้าโรงงาน','โรงงาน','น้ำหนัก (กก.)'];
     const aoa = [
-      ['ท่าเรือสุราษฎร์ธานี - แหลมฉบัง'],
+      [KIND === 'LCB' ? 'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง' : 'ใบแจ้งเบอร์ตู้'],
       [],
       [`ขอแจ้งเบอร์ตู้ ของ ${CUR.invoice_no}`],
       [line2],
       [],
       HEAD,
     ];
-    ROWS.forEach((c,i)=>aoa.push([
-      i+1, c.truck_plate ?? '', c.container_no ?? '', c.seal_no ?? '',
-      thaiDate(c.factory_date), c.weight ? Number(c.weight) : '',
-    ]));
+    ROWS.forEach((c,i)=>aoa.push(KIND === 'LCB'
+      ? [i+1, c.truck_plate ?? '', c.container_no ?? '', c.seal_no ?? '',
+         thaiDate(c.factory_date), c.weight ? Number(c.weight) : '']
+      : [i+1, c.truck_plate ?? '', c.container_no ?? '',
+         thaiDate(c.factory_date), c.factory ?? '', c.weight ? Number(c.weight) : '']));
     for(let i=ROWS.length;i<total;i++) aoa.push([i+1,'','','','','']);
     const R_FOOT = aoa.length + 1;
     aoa.push([], [`กรอกแล้ว ${ROWS.length} / ${total} ตู้`, '', '', '', '', `พิมพ์เมื่อ ${todayText()}`]);
@@ -375,7 +383,7 @@ async function saveXlsx(){
       const zebra = (r - R_FIRST) % 2 === 1
         ? { fill:{ patternType:'solid', fgColor:{rgb:'FAFBFC'} } } : {};
       for(let c=0;c<6;c++){
-        const bold = (c===2||c===3);            /* เบอร์ตู้ + ซีล เน้นให้ตาจับเร็ว */
+        const bold = KIND === 'LCB' ? (c===2||c===3) : (c===2);   /* เน้นเบอร์ตู้ (+ซีลถ้ามี) */
         put(r,c,{
           font:{name:XF,sz:c===2?12:11,bold}, alignment:mid, border:boxAll, ...zebra,
           ...(c===5 ? { numFmt:'#,##0' } : {}),
