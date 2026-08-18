@@ -1364,343 +1364,6 @@ const sbFetch = async (table, params = '') => {
   }
   return all;
 };
-/* ══════════════════════════════════════════════════════════════
-   ป้าย "แหลมฉบัง" ต่ออินวอยซ์
-   เก็บใน table lcb_invoices — บอท LINE (ANTS-LCB-CTN) อ่านตารางนี้
-   ไปทำตัวเลือกอินวอยซ์ตอนบันทึกตู้จากรูปถ่าย
-   ══════════════════════════════════════════════════════════════ */
-const LCB_DEFAULT_FACTORY = 'บ้านส้อง';
-let LCB_INV = new Set();          /* invoice_no ที่เป็นแหลมฉบัง */
-
-async function loadLcbInv(){
-  try{
-    const rows = await sbFetch('lcb_invoices','select=invoice_no');
-    LCB_INV = new Set(rows.map(r=>String(r.invoice_no).trim()));
-  }catch(e){ console.warn('โหลดป้ายแหลมฉบังไม่ได้:', e.message); }
-}
-
-/* กดสวิตช์ต้องใส่ PIN ก่อน — กันเผลอกดโดนแล้วบอท LINE เห็นอินวอยซ์ผิดใบ */
-function toggleLcb(rawInv, btn){
-  const inv = String(rawInv).trim();
-  const on  = LCB_INV.has(inv);
-  requirePin(
-    ()=>_doToggleLcb(inv, btn),
-    on ? `ยืนยันเปลี่ยน ${inv} กลับเป็น ปาดัง`
-       : `ยืนยันเปลี่ยน ${inv} เป็น แหลมฉบัง`
-  );
-}
-
-async function _doToggleLcb(inv, btn){
-  const on = LCB_INV.has(inv);
-  if(btn){ btn.disabled = true; btn.textContent = '…'; }
-  const hdr = {'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'};
-  try{
-    if(on){
-      const r = await fetch(`${SB_URL}/rest/v1/lcb_invoices?invoice_no=eq.${encodeURIComponent(inv)}`,
-                            {method:'DELETE', headers:hdr});
-      if(!r.ok) throw new Error(await r.text());
-      LCB_INV.delete(inv);
-    }else{
-      const r = await fetch(`${SB_URL}/rest/v1/lcb_invoices`, {
-        method:'POST',
-        headers:{...hdr, 'Prefer':'resolution=merge-duplicates'},
-        body: JSON.stringify({invoice_no: inv, factory: LCB_DEFAULT_FACTORY, active: true}),
-      });
-      if(!r.ok) throw new Error(await r.text());
-      LCB_INV.add(inv);
-    }
-  }catch(e){
-    alert('เปลี่ยนป้ายไม่สำเร็จ: ' + e.message);
-  }
-  /* วาดหน้ารายละเอียดใหม่ให้ป้ายอัปเดต */
-  if(typeof _lastInvDetail === 'object' && _lastInvDetail)
-    showInvDetail(_lastInvDetail.id, _lastInvDetail.panel);
-}
-
-/* ══════════════════════════════════════════════════════════════
-   รูปตู้แหลมฉบัง — ดู/โหลดเป็นชุดต่ออินวอยซ์
-   รูปมาจากบอท LINE เก็บใน Storage bucket lcb_photos
-   ══════════════════════════════════════════════════════════════ */
-const LCB_API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-lcb';
-
-/* โหลดไลบรารีตอนกดปุ่มเท่านั้น — ไม่ถ่วงหน้าเว็บตอนเปิดปกติ */
-function _lazyScript(src){
-  return new Promise((res,rej)=>{
-    if([...document.scripts].some(s=>s.src===src)) return res();
-    const s=document.createElement('script');
-    s.src=src; s.onload=()=>res(); s.onerror=()=>rej(new Error('โหลดไลบรารีไม่ได้'));
-    document.head.appendChild(s);
-  });
-}
-
-let _lcbFiles=[], _lcbInvNo='';
-const _lcbSafe = s => String(s||'').replace(/[\\/:*?"<>|]/g,'-').trim();
-
-function _lcbSay(msg){
-  const el=document.getElementById('lcbPhotoStatus');
-  if(el) el.textContent=msg||'';
-}
-
-async function openLcbPhotos(inv){
-  _lcbInvNo=inv;
-  let bg=document.getElementById('lcbPhotoBg');
-  if(!bg){
-    bg=document.createElement('div');
-    bg.id='lcbPhotoBg';
-    bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9300;align-items:center;justify-content:center;';
-    bg.innerHTML=`<div style="background:#fff;border-radius:16px;width:min(680px,96vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35);">
-      <div style="padding:14px 18px;border-bottom:1px solid #e8edf5;display:flex;align-items:center;justify-content:space-between;background:#fdf2f8;border-radius:16px 16px 0 0;">
-        <span style="font-size:13px;font-weight:800;color:#9d174d;" id="lcbPhotoTitle">📷 รูปตู้</span>
-        <button onclick="document.getElementById('lcbPhotoBg').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:#94a3b8;">✕</button>
-      </div>
-      <div style="padding:10px 18px;border-bottom:1px solid #f1f5f9;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <button id="lcbZip"  style="padding:7px 14px;border-radius:8px;border:none;background:#0e7490;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🗂 โหลด ZIP</button>
-        <button id="lcbPdf"  style="padding:7px 14px;border-radius:8px;border:none;background:#9d174d;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🖼 โหลด PDF</button>
-        <span id="lcbPhotoStatus" style="font-size:11.5px;color:#64748b;"></span>
-      </div>
-      <div style="overflow-y:auto;padding:14px 18px;" id="lcbPhotoBody"></div>
-    </div>`;
-    document.body.appendChild(bg);
-    document.getElementById('lcbZip').onclick=_lcbZip;
-    document.getElementById('lcbPdf').onclick=_lcbPdf;
-  }
-  document.getElementById('lcbPhotoTitle').textContent='📷 รูปตู้ — '+inv;
-  document.getElementById('lcbPhotoBody').innerHTML='<div style="padding:26px;text-align:center;color:#64748b;">กำลังโหลด…</div>';
-  _lcbSay('');
-  bg.style.display='flex';
-
-  try{
-    const r=await fetch(`${LCB_API}/photos?inv=${encodeURIComponent(inv)}`);
-    const j=await r.json();
-    if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
-    _lcbFiles=j.files||[];
-    if(!_lcbFiles.length){
-      document.getElementById('lcbPhotoBody').innerHTML='<div style="padding:26px;text-align:center;color:#64748b;">ยังไม่มีรูปของอินวอยซ์นี้<br><span style="font-size:11px">(รูปจะมีเมื่อบันทึกตู้ผ่านบอท LINE)</span></div>';
-      return;
-    }
-    document.getElementById('lcbPhotoBody').innerHTML=
-      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">'+
-      _lcbFiles.map((f,ix)=>`<div onclick="lcbView(${ix})" style="cursor:zoom-in;border:1px solid #e2e8f0;border-radius:9px;overflow:hidden;background:#f8fafc;">
-        <img src="${f.url}" loading="lazy" style="width:100%;height:110px;object-fit:cover;display:block">
-        <div style="font-size:10.5px;font-weight:700;color:#475569;text-align:center;padding:5px 2px;">${h(f.name)}</div></div>`).join('')+
-      '</div>';
-    _lcbSay(`${_lcbFiles.length} รูป`);
-  }catch(e){
-    document.getElementById('lcbPhotoBody').innerHTML=
-      `<div style="padding:26px;text-align:center;color:#b91c1c;font-weight:700;">${h(e.message)}</div>`;
-  }
-}
-
-/* ══ ดูรูปเต็มจอ — เลื่อนซ้ายขวาดูรูปถัดไปได้ ══ */
-let _lcbIx = 0;
-
-function lcbView(ix){
-  _lcbIx = ix;
-  let bg = document.getElementById('lcbViewBg');
-  if(!bg){
-    bg = document.createElement('div');
-    bg.id = 'lcbViewBg';
-    bg.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(8,12,20,.95);z-index:9400;'
-                     + 'flex-direction:column;user-select:none;';
-    bg.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;color:#fff;flex-shrink:0;">
-        <div style="min-width:0">
-          <div id="lcbViewName" style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
-          <div id="lcbViewNo" style="font-size:11px;opacity:.7;margin-top:2px;"></div>
-        </div>
-        <button onclick="lcbViewClose()" style="margin-left:auto;background:#334155;color:#fff;border:none;
-          border-radius:8px;padding:9px 15px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;">✕ ปิด</button>
-      </div>
-      <div id="lcbViewWrap" style="flex:1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:0 8px 12px;touch-action:none;">
-        <img id="lcbViewImg" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:6px;background:#fff;transform-origin:center center;will-change:transform;">
-        <button id="lcbPrev" onclick="lcbNav(-1)" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);
-          background:rgba(255,255,255,.9);border:none;border-radius:50%;width:46px;height:46px;font-size:22px;
-          font-weight:900;color:#0f172a;cursor:pointer;">‹</button>
-        <button id="lcbNext" onclick="lcbNav(1)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
-          background:rgba(255,255,255,.9);border:none;border-radius:50%;width:46px;height:46px;font-size:22px;
-          font-weight:900;color:#0f172a;cursor:pointer;">›</button>
-        <div id="lcbZoomBar" style="position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:none;
-          gap:6px;align-items:center;background:rgba(15,23,42,.85);border-radius:99px;padding:5px 8px;">
-          <button onclick="lcbZoom(-0.5)" style="background:none;border:none;color:#fff;font-size:18px;font-weight:900;width:30px;cursor:pointer;">−</button>
-          <span id="lcbZoomTxt" style="color:#fff;font-size:12px;font-weight:700;min-width:38px;text-align:center;"></span>
-          <button onclick="lcbZoom(0.5)" style="background:none;border:none;color:#fff;font-size:18px;font-weight:900;width:30px;cursor:pointer;">+</button>
-          <button onclick="lcbZoomReset()" style="background:#334155;border:none;color:#fff;font-size:11px;font-weight:700;
-            border-radius:99px;padding:5px 10px;margin-left:2px;font-family:inherit;cursor:pointer;">พอดีจอ</button>
-        </div>
-      </div>`;
-    document.body.appendChild(bg);
-
-    const wrap=bg.querySelector('#lcbViewWrap');
-    let x0=null,y0=null,panning=false,px=0,py=0,d0=0,s0=1;
-    const dist=t=>Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY);
-
-    wrap.addEventListener('touchstart',e=>{
-      if(e.touches.length===2){ d0=dist(e.touches); s0=_lcbZ.s; panning=false; }
-      else if(e.touches.length===1){
-        x0=e.touches[0].clientX; y0=e.touches[0].clientY;
-        panning=_lcbZ.s>1; px=_lcbZ.x; py=_lcbZ.y;
-      }
-    },{passive:true});
-
-    wrap.addEventListener('touchmove',e=>{
-      if(e.touches.length===2 && d0){           /* จีบนิ้วซูม */
-        e.preventDefault();
-        _lcbZ.s=Math.min(5,Math.max(1,s0*dist(e.touches)/d0));
-        if(_lcbZ.s===1){_lcbZ.x=0;_lcbZ.y=0;}
-        _lcbZApply();
-      }else if(e.touches.length===1 && panning){ /* ลากดูส่วนที่ซูมอยู่ */
-        e.preventDefault();
-        _lcbZ.x=px+(e.touches[0].clientX-x0);
-        _lcbZ.y=py+(e.touches[0].clientY-y0);
-        _lcbZApply();
-      }
-    },{passive:false});
-
-    wrap.addEventListener('touchend',e=>{
-      d0=0;
-      if(panning||x0===null){ panning=false; x0=null; return; }
-      /* ปัดเปลี่ยนรูป — เฉพาะตอนยังไม่ซูม ไม่งั้นจะชนกับการลากดู */
-      const dx=e.changedTouches[0].clientX-x0; x0=null;
-      if(_lcbZ.s===1 && Math.abs(dx)>45) lcbNav(dx<0?1:-1);
-    },{passive:true});
-
-    /* คอม — scroll ซูม, ลากเมาส์เลื่อนดู, ดับเบิลคลิกสลับ */
-    wrap.addEventListener('wheel',e=>{ e.preventDefault(); lcbZoom(e.deltaY<0?0.3:-0.3); },{passive:false});
-    wrap.addEventListener('dblclick',()=>{ _lcbZ.s>1 ? lcbZoomReset() : lcbZoom(1.5); });
-    let mdown=false;
-    wrap.addEventListener('mousedown',e=>{ if(_lcbZ.s>1){mdown=true;x0=e.clientX;y0=e.clientY;px=_lcbZ.x;py=_lcbZ.y;e.preventDefault();} });
-    addEventListener('mousemove',e=>{ if(!mdown)return; _lcbZ.x=px+(e.clientX-x0); _lcbZ.y=py+(e.clientY-y0); _lcbZApply(); });
-    addEventListener('mouseup',()=>{ mdown=false; });
-
-    document.addEventListener('keydown',e=>{
-      if(bg.style.display==='none')return;
-      if(e.key==='ArrowLeft') lcbNav(-1);
-      else if(e.key==='ArrowRight') lcbNav(1);
-      else if(e.key==='Escape') lcbViewClose();
-      else if(e.key==='+'||e.key==='=') lcbZoom(0.5);
-      else if(e.key==='-') lcbZoom(-0.5);
-      else if(e.key==='0') lcbZoomReset();
-    });
-  }
-  bg.style.display='flex';
-  _lcbShow();
-}
-
-/* ── ซูม ── */
-let _lcbZ={s:1,x:0,y:0};
-function _lcbZApply(){
-  const img=document.getElementById('lcbViewImg'); if(!img)return;
-  img.style.transform=`translate(${_lcbZ.x}px,${_lcbZ.y}px) scale(${_lcbZ.s})`;
-  img.style.cursor=_lcbZ.s>1?'grab':'zoom-in';
-  const bar=document.getElementById('lcbZoomBar');
-  if(bar){ bar.style.display=_lcbZ.s>1?'flex':'none';
-           document.getElementById('lcbZoomTxt').textContent=Math.round(_lcbZ.s*100)+'%'; }
-  /* ซูมอยู่ก็ซ่อนปุ่มเลื่อน จะได้ไม่บังภาพและไม่กดพลาด */
-  ['lcbPrev','lcbNext'].forEach(id=>{
-    const b=document.getElementById(id); if(b) b.style.display=_lcbZ.s>1?'none':'';
-  });
-}
-function lcbZoom(step){
-  _lcbZ.s=Math.min(5,Math.max(1,_lcbZ.s+step));
-  if(_lcbZ.s===1){_lcbZ.x=0;_lcbZ.y=0;}
-  _lcbZApply();
-}
-function lcbZoomReset(){ _lcbZ={s:1,x:0,y:0}; _lcbZApply(); }
-
-function _lcbShow(){
-  const f=_lcbFiles[_lcbIx]; if(!f)return;
-  lcbZoomReset();                     /* เปลี่ยนรูปแล้วกลับมาพอดีจอเสมอ */
-  document.getElementById('lcbViewImg').src=f.url;
-  document.getElementById('lcbViewName').textContent=f.name;
-  document.getElementById('lcbViewNo').textContent=
-    `${_lcbIx+1} / ${_lcbFiles.length}  ·  ${f.kind==='eir'?'ใบ EIR':'รูปตู้'}${f.seal_no?'  ·  ซีล '+f.seal_no:''}`;
-}
-
-function lcbNav(step){
-  if(!_lcbFiles.length)return;
-  _lcbIx=(_lcbIx+step+_lcbFiles.length)%_lcbFiles.length;   /* วนรอบ */
-  _lcbShow();
-}
-
-function lcbViewClose(){
-  const bg=document.getElementById('lcbViewBg');
-  if(bg) bg.style.display='none';
-}
-
-/* ลบตู้ที่บอท LINE บันทึกไว้ทีละใบ — เฉพาะ OAK_THIRA + ต้องใส่ PIN
-   เซิร์ฟเวอร์เช็คสิทธิ์ซ้ำอีกชั้น ซ่อนปุ่มอย่างเดียวไม่พอ */
-function delLcbCtr(uid, ctrNo){
-  if(LOGGED_USER!=='OAK_THIRA'){ alert('เฉพาะ OAK_THIRA เท่านั้นที่ลบได้'); return; }
-  requirePin(()=>_doDelLcbCtr(uid, ctrNo), `ยืนยันลบตู้ ${ctrNo} ออกจากระบบ`);
-}
-
-async function _doDelLcbCtr(uid, ctrNo){
-  try{
-    const r = await fetch(`${LCB_API}/delete`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_TOKEN}`},
-      body: JSON.stringify({ uid }),
-    });
-    const j = await r.json();
-    if(!r.ok) throw new Error(j.error || ('HTTP '+r.status));
-    alert(`ลบ ${ctrNo} แล้ว${j.photos?` (พร้อมรูป ${j.photos} ไฟล์)`:''}\n\nกด 🔄 รีเฟรช เพื่ออัปเดตหน้าจอ`);
-  }catch(e){
-    alert('ลบไม่สำเร็จ: ' + e.message);
-  }
-}
-
-function _lcbDown(blob,name){
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a'); a.href=url; a.download=name;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),60000);
-}
-
-async function _lcbZip(){
-  const b=document.getElementById('lcbZip'); b.disabled=true;
-  try{
-    _lcbSay('กำลังเตรียม…');
-    await _lazyScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
-    const zip=new JSZip();
-    /* ใส่โฟลเดอร์ครอบ — แตกไฟล์แล้วรูปไม่กระจายเต็มโฟลเดอร์ปลายทาง */
-    const folder=zip.folder(`รูปตู้ ${_lcbSafe(_lcbInvNo)}`);
-    for(let i=0;i<_lcbFiles.length;i++){
-      _lcbSay(`ดึงรูป ${i+1}/${_lcbFiles.length}…`);
-      folder.file(_lcbFiles[i].name, await (await fetch(_lcbFiles[i].url)).blob());
-    }
-    _lcbSay('กำลังบีบอัด…');
-    _lcbDown(await zip.generateAsync({type:'blob'}), `รูปตู้ ${_lcbSafe(_lcbInvNo)}.zip`);
-    _lcbSay(`เสร็จแล้ว ${_lcbFiles.length} รูป`);
-  }catch(e){ _lcbSay('⚠️ '+e.message); }
-  b.disabled=false;
-}
-
-async function _lcbPdf(){
-  const b=document.getElementById('lcbPdf'); b.disabled=true;
-  try{
-    _lcbSay('กำลังเตรียม…');
-    await _lazyScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
-    const {jsPDF}=window.jspdf;
-    const pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
-    const pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight(), M=8;
-    for(let i=0;i<_lcbFiles.length;i++){
-      _lcbSay(`ใส่รูป ${i+1}/${_lcbFiles.length}…`);
-      const f=_lcbFiles[i];
-      const blob=await (await fetch(f.url)).blob();
-      const data=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(blob);});
-      const img=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=data;});
-      if(i) pdf.addPage();
-      pdf.setFontSize(9);
-      pdf.text(`${f.container_no}  ·  ${f.kind==='eir'?'EIR':'CONTAINER'}${f.seal_no?'  ·  SEAL '+f.seal_no:''}`, M, M+3);
-      const s=Math.min((pw-M*2)/img.width, (ph-M*2-6)/img.height);
-      pdf.addImage(data,'JPEG',(pw-img.width*s)/2, M+6, img.width*s, img.height*s);
-    }
-    _lcbDown(pdf.output('blob'), `รูปตู้ ${_lcbSafe(_lcbInvNo)}.pdf`);
-    _lcbSay(`เสร็จแล้ว ${_lcbFiles.length} รูป`);
-  }catch(e){ _lcbSay('⚠️ '+e.message); }
-  b.disabled=false;
-}
-
 /* Convert ISO date (2026-03-15) or (2026-03-15T00:00:00) → DD/MM/YYYY */
 const fmtDateFromISO = v => {
   if (!v) return '-';
@@ -2277,14 +1940,11 @@ async function loadData(forceRefresh=false){
       if(c&&c.ts&&(Date.now()-c.ts)<_DB_CACHE_TTL){_rows=c.rows;setLoad('⚡ โหลดจาก cache...','กด 🔄 รีเฟรช เพื่อดึงข้อมูลใหม่');}
     }catch(e){}
   }
-  /* ป้ายแหลมฉบัง — ดึงแยกจากก้อนหลัก ไม่ให้ไปกระทบลำดับ _rows / cache
-     พังก็ไม่เป็นไร แค่ป้ายไม่ขึ้น ข้อมูลอื่นทำงานปกติ */
-  loadLcbInv();
   if(!_rows){
     setLoad('LOADING...');
     _rows=await Promise.all([
       sbFetch('invoices','order=id'),
-      sbFetch('containers_all','order=uid'),   /* view รวมตู้ปาดัง + แหลมฉบัง (มีคอลัมน์ source) */
+      sbFetch('containers','order=id'),
       sbFetch('transport_bills','order=id'),
       sbFetch('billing_ants','order=id'),
       sbFetch('payments_ants','order=id'),
@@ -2321,9 +1981,6 @@ async function loadData(forceRefresh=false){
       สายเรือ:c.shipping_line||'-',
       CADO:c.cado_no||'',
       DATE_PICKUP:c.pickup_date?fmtDateFromISO(c.pickup_date):'-',
-      _src:c.source||'PADANG',        /* ใช้ติดป้าย LCB รายตู้ */
-      _seal:c.seal_no||'',            /* ฝั่งแหลมฉบังมีเบอร์ซีล */
-      _uid:c.uid||'',                 /* ใช้อ้างตอนสั่งลบ */
     });
   });
 
@@ -2359,7 +2016,7 @@ async function loadData(forceRefresh=false){
 
   /* ── 4. Build pendCtrs from containers WHERE status='PENDING' ── */
   const pendCtrs=ctrRows
-    .filter(c=>c.status==='PENDING' && c.source!=='LCB')   /* สต๊อกตู้ = ปาดังอย่างเดียว */
+    .filter(c=>c.status==='PENDING')
     .map(c=>({
       ctr:c.container_no||'',
       truck:c.truck_plate||'',
@@ -2704,7 +2361,7 @@ const OS_TR_PFX=new Set(['TWI','SHL']);
 
 /* ── Supabase helpers for manual_paid ── */
 const _sbHeaders={
-  'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,
+  'apikey':SB_KEY, get Authorization(){return 'Bearer '+SB_TOKEN;},   /* getter: อ่าน token สดหลัง login (กัน 401) */
   'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'
 };
 async function _mpUpsert(invKey, amtThb){
@@ -3484,10 +3141,8 @@ function selInv(id){
 /* =====================================================
    INV DETAIL
 ===================================================== */
-let _lastInvDetail=null;   /* จำไว้เพื่อวาดใหม่หลังสลับป้ายแหลมฉบัง */
 function showInvDetail(id,panelId){
   const d=FLAT[id];if(!d)return;
-  _lastInvDetail={id,panel:panelId};
   const invPendCtrs=PEND_CTRS.filter(c=>c.inv&&normInv(c.inv)===normInv(d.inv));
   const s=pst(d.prefix);const fm=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0}):'-';
   let out=`<div class="det-title">${h(d.inv)}</div><div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap;"><span class="pv-badge" style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd}">${h(d.prefix)}</span>`;
@@ -3497,12 +3152,6 @@ function showInvDetail(id,panelId){
   out+=`<span class="pv-badge" style="background:#f1f5f9;color:#475569">${d.total_actual}/${d.total_expected} ตู้</span>`;
   if(invPendCtrs.length)out+=`<span class="pv-badge" style="background:#fef9c3;color:#92400e;border:1px solid #fcd34d;">⏳ +${invPendCtrs.length} PENDING</span>`;
   if(d.destination&&d.destination!=='-')out+=`<span class="pv-badge" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;">🚢 ${h(d.destination)}</span>`;
-  /* ── สวิตช์ ปาดัง / แหลมฉบัง — เปิดแล้วอินวอยซ์นี้จะไปโผล่เป็นตัวเลือกในบอท LINE ── */
-  {const _isL=LCB_INV.has(String(d.inv).trim());
-   out+=`<button onclick='toggleLcb(${JSON.stringify(String(d.inv))},this)' title="สลับท่าเรือ — เปิดแหลมฉบังแล้วบอท LINE จะเห็นอินวอยซ์นี้"
-      style="font-size:9px;padding:2px 9px;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;
-             border:1px solid ${_isL?'#f9a8d4':'#cbd5e1'};background:${_isL?'#fdf2f8':'#f8fafc'};color:${_isL?'#9d174d':'#64748b'};">
-      ${_isL?'⚓ แหลมฉบัง':'🚚 ปาดัง'}</button>`;}
   out+=`</div>`;
   /* ── Shipment Timeline ── */
   {const _tA=d.total_actual||0,_tE=d.total_expected||0;
@@ -3534,9 +3183,6 @@ function showInvDetail(id,panelId){
   {const _invEsc=d.inv.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   out+=`<div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">`;
   out+=`<button onclick="openDocsModal('${_invEsc}')" style="padding:6px 14px;background:#0e7490;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📎 เอกสาร</button>`;
-  /* รูปตู้จากบอท LINE — โชว์เฉพาะอินวอยซ์แหลมฉบัง */
-  if(LCB_INV.has(String(d.inv).trim()))
-    out+=` <button onclick="openLcbPhotos('${_invEsc}')" style="padding:6px 14px;background:#9d174d;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📷 รูปตู้</button>`;
   if(_canSeeFees()&&(d.prefix==='INV'||d.prefix==='SHL'))out+=`<button onclick="openQuotationModal('${_invEsc}')" style="padding:6px 14px;background:#1e3a5f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🖨️ ใบเสนอราคา</button>`;
   out+=`</div>`;}
   let _curMmsi=null;
@@ -3620,14 +3266,7 @@ function showInvDetail(id,panelId){
       const pendBadge=isPend?`<span style="display:inline-block;margin-left:5px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:4px;padding:1px 5px;font-size:9px;font-weight:700;vertical-align:middle;">⏳ PENDING</span>`:'';
       const _ctr=(r.เบอร์ตู้||'').trim();
       const _ctrHtml=_ctr?`<span onclick="window.open('https://www.searates.com/container/tracking/?number=${encodeURIComponent(_ctr)}','_blank','noopener,noreferrer')" style="cursor:pointer;color:#1d4ed8;text-decoration:underline dotted;font-weight:600;" title="ติดตามตู้ ${_ctr}">${h(_ctr)}</span>`:'-';
-      const _lcbTag=r._src==='LCB'
-        ? `<span title="บันทึกจากบอท LINE แหลมฉบัง${r._seal?' · ซีล '+h(r._seal):''}" style="margin-left:5px;font-size:8.5px;padding:1px 5px;border-radius:8px;background:#fdf2f8;color:#9d174d;border:1px solid #f9a8d4;font-weight:700;font-family:inherit;">⚓ LCB</span>`
-        : '';
-      /* ปุ่มลบ — เฉพาะตู้ที่บอท LINE บันทึก และเฉพาะ OAK_THIRA */
-      const _lcbDel=(r._src==='LCB'&&r._uid&&LOGGED_USER==='OAK_THIRA')
-        ? `<button onclick="delLcbCtr('${r._uid}','${h(r.เบอร์ตู้)}')" title="ลบตู้ใบนี้ออกจากระบบ" style="margin-left:5px;border:none;background:none;color:#dc2626;font-size:12px;font-weight:900;cursor:pointer;padding:0 3px;font-family:inherit;">✕</button>`
-        : '';
-      out+=`<tr style="${rowBg}"><td>${h(r.ทะเบียนรถ)}</td><td style="font-family:monospace">${_ctrHtml}${pendBadge}${_lcbTag}${_lcbDel}</td><td>${h(r.โรงงาน)}</td><td>${h(r.เข้าโรงงาน)}</td><td>${h(r.DATE_PICKUP)}</td><td>${h(r.CADO)}</td></tr>`;
+      out+=`<tr style="${rowBg}"><td>${h(r.ทะเบียนรถ)}</td><td style="font-family:monospace">${_ctrHtml}${pendBadge}</td><td>${h(r.โรงงาน)}</td><td>${h(r.เข้าโรงงาน)}</td><td>${h(r.DATE_PICKUP)}</td><td>${h(r.CADO)}</td></tr>`;
     });
     out+='</tbody></table>';
     if(invPendCtrs.length){
@@ -6947,7 +6586,7 @@ let _trCoOpen=null; // currently expanded company key
 let TR_ADVANCE={};
 let _advCo=null;
 const _advFm=n=>n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
-const _advH={'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'};
+const _advH={'apikey':SB_KEY, get Authorization(){return 'Bearer '+SB_TOKEN;}, 'Content-Type':'application/json'};   /* getter: อ่าน token สดหลัง login (กัน 401) */
 
 async function loadAdvanceData(){
   try{
