@@ -448,10 +448,15 @@ async function load(inv){
       document.getElementById('out').innerHTML = '<div class="mid">ยังไม่มีอินวอยซ์ในระบบ</div>';
       return;
     }
+    // ไม่ได้ระบุใบมา → เปิดใบล่าสุด (ลิสต์เรียงเก่า→ใหม่ ตัวท้ายคือล่าสุด)
+    if(!cur) cur = list[list.length - 1].invoice_no;
+
+    // ระบุใบที่ไม่อยู่ในลิสต์ (เช่นใบปาดัง ซึ่งลิสต์มีแต่ใบแหลมฉบัง)
+    // → เติมเข้าไปเป็นตัวเลือก ห้ามทับค่าที่ส่งมา ไม่งั้นเปิดผิดใบ
+    if(!list.some(i => i.invoice_no === cur)) list.push({ invoice_no: cur });
+
     sel.innerHTML = list.map(i =>
       `<option value="${esc(i.invoice_no)}">${esc(i.invoice_no)}</option>`).join('');
-    // ลิสต์เรียงเก่า→ใหม่ ตัวท้าย = ใบล่าสุด → เปิดมาให้ใบล่าสุดเลย
-    if(!cur || !list.some(i => i.invoice_no === cur)) cur = list[list.length - 1].invoice_no;
     sel.value = cur;
     sel.onchange = () => load(sel.value);
     load(cur);
