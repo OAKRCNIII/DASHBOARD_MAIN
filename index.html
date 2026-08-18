@@ -1234,7 +1234,8 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
   </div>
 
   <!-- PIN MODAL -->
-  <div id="pinModalBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9200;align-items:center;justify-content:center;">
+  <!-- z-index สูงสุดในหน้า — ไม่ว่าเรียกจาก modal ไหน หน้าใส่รหัสต้องอยู่บนสุดเสมอ -->
+  <div id="pinModalBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9900;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:20px;padding:28px 24px;min-width:280px;max-width:320px;width:90vw;box-shadow:0 12px 50px rgba(0,0,0,.3);text-align:center;">
       <div style="font-size:28px;margin-bottom:8px;">🔐</div>
       <div style="font-size:15px;font-weight:900;color:#1e3a8a;margin-bottom:4px;">ใส่รหัสผ่าน</div>
