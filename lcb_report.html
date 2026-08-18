@@ -426,11 +426,13 @@ async function load(inv){
     const r = await fetch(`${API}/report?inv=${encodeURIComponent(inv)}`);
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
-    render(j.invoice, j.containers || []);
+    render(j.invoice, j.containers || [], j.kind);
     history.replaceState(null, '', '?inv=' + encodeURIComponent(inv));
+    return j.kind;                    /* ตัวเรียกใช้ดูว่าจะโชว์ dropdown ไหม */
   }catch(e){
     document.getElementById('out').innerHTML =
       `<div class="mid"><p class="err">${esc(e.message)}</p></div>`;
+    return null;
   }
 }
 
@@ -438,28 +440,46 @@ async function load(inv){
   document.getElementById('pdf').onclick = savePdf;
   document.getElementById('png').onclick = savePng;
   document.getElementById('xls').onclick = saveXlsx;
-  let cur = new URLSearchParams(location.search).get('inv');
+  const cur = new URLSearchParams(location.search).get('inv');
   const sel = document.getElementById('pick');
+
+  /* ═══ แยกขาด LCB / ปาดัง — ห้ามเอาสองฝั่งมาปนกันใน dropdown เดียว ═══
+     ระบุใบมา  → โหลดใบนั้นก่อน แล้วดูชนิด
+                  LCB   = โชว์ dropdown ลิสต์แหลมฉบัง (ชุดเดียวกับที่บอทไลน์ใช้)
+                  ปาดัง = ซ่อน dropdown โชว์เลขใบเฉยๆ (เข้ามาจาก DASHBOARD ทีละใบ)
+     ไม่ระบุใบ → โหมดแหลมฉบังเหมือนเดิม (เปิดจากไลน์)                           */
   try{
-    const r = await fetch(`${API}/report`);
-    const list = (await r.json()).invoices || [];
+    if(cur){
+      const kind = await load(cur);          // load() คืนชนิดกลับมา
+      if(kind === 'LCB'){
+        const list = (await (await fetch(`${API}/report`)).json()).invoices || [];
+        sel.innerHTML = list.map(i =>
+          `<option value="${esc(i.invoice_no)}">${esc(i.invoice_no)}</option>`).join('');
+        sel.value = cur;
+        sel.onchange = () => load(sel.value);
+      }else{
+        sel.style.display = 'none';
+        const tag = document.createElement('span');
+        tag.style.cssText = 'font-size:13px;font-weight:800;color:#fff;padding:0 4px';
+        tag.textContent = cur;
+        sel.parentNode.insertBefore(tag, sel);
+      }
+      return;
+    }
+
+    const list = (await (await fetch(`${API}/report`)).json()).invoices || [];
     if(!list.length){
       sel.innerHTML = '<option>ยังไม่มีอินวอยซ์</option>';
       document.getElementById('out').innerHTML = '<div class="mid">ยังไม่มีอินวอยซ์ในระบบ</div>';
       return;
     }
-    // ไม่ได้ระบุใบมา → เปิดใบล่าสุด (ลิสต์เรียงเก่า→ใหม่ ตัวท้ายคือล่าสุด)
-    if(!cur) cur = list[list.length - 1].invoice_no;
-
-    // ระบุใบที่ไม่อยู่ในลิสต์ (เช่นใบปาดัง ซึ่งลิสต์มีแต่ใบแหลมฉบัง)
-    // → เติมเข้าไปเป็นตัวเลือก ห้ามทับค่าที่ส่งมา ไม่งั้นเปิดผิดใบ
-    if(!list.some(i => i.invoice_no === cur)) list.push({ invoice_no: cur });
-
+    // ลิสต์เรียงเก่า→ใหม่ ตัวท้ายคือใบล่าสุด
+    const first = list[list.length - 1].invoice_no;
     sel.innerHTML = list.map(i =>
       `<option value="${esc(i.invoice_no)}">${esc(i.invoice_no)}</option>`).join('');
-    sel.value = cur;
+    sel.value = first;
     sel.onchange = () => load(sel.value);
-    load(cur);
+    load(first);
   }catch(e){
     document.getElementById('out').innerHTML =
       `<div class="mid"><p class="err">โหลดรายชื่ออินวอยซ์ไม่ได้: ${esc(e.message)}</p></div>`;
