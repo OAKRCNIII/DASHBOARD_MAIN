@@ -1490,6 +1490,14 @@ async function openAlPay(){
   }
 
   const sysBy=new Map(totals.map(t=>[Number(t.al_num),t]));
+  /* ── ตัวสำรอง: จับคู่ด้วยเลขที่วางบิล ──────────────────────────────
+     ถ้าตอนบันทึกจริงใบนั้นได้เลข AL ไม่ตรงกับที่พิมพ์ในใบคำสั่งโอน
+     (สลับลำดับ / แทรกใบอื่นก่อน) การผูกด้วยเลข AL อย่างเดียวจะพัง
+     แล้วใบที่ "จ่ายไปแล้ว" จะไปโผล่ในรายการค้างจ่าย → เสี่ยงโอนซ้ำ  */
+  const nb=s=>String(s||'').toUpperCase().replace(/\s+/g,'');
+  const sysByBill=new Map(totals.filter(t=>t.bill_no).map(t=>[nb(t.bill_no),t]));
+  const paidBills=new Set(items.map(it=>nb(it.bill_no)).filter(Boolean));
+
   const itemsBy=new Map();
   items.forEach(it=>{
     const k=it.payment_id;
@@ -1500,16 +1508,22 @@ async function openAlPay(){
   /* ── แถบสรุปบนสุด ── */
   const paidMax=Math.max(0,...items.map(i=>Number(i.al_num)||0),
                              ...pays.map(p=>Number(p.al_to)||0));
-  const owe=unpaid.reduce((s,u)=>s+Number(u['ยอด']||0),0);
-  let bad=0;
+  /* ใบที่ระบบว่า "ยังไม่จ่าย" แต่เลขที่วางบิลตรงกับที่จ่ายไปแล้ว
+     = เลข AL เพี้ยน ไม่ใช่ค้างจ่ายจริง — แยกออกมา ไม่งั้นเสี่ยงโอนซ้ำ */
+  const alShifted = unpaid.filter(u=>paidBills.has(nb(u.bill_no)));
+  const unpaidReal = unpaid.filter(u=>!paidBills.has(nb(u.bill_no)));
+  const owe=unpaidReal.reduce((s,u)=>s+Number(u['ยอด']||0),0);
+  let bad=0;   /* นับจากการ์ดโอนด้านล่าง — เคส AL เพี้ยนถูกนับที่นั่นแล้ว */
 
   /* ── รายการโอนแต่ละครั้ง ── */
   const cards=pays.filter(p=>p.status!=='HISTORICAL').map(p=>{
     const its=(itemsBy.get(p.id)||[]).sort((a,b)=>(a.al_num||0)-(b.al_num||0));
-    const live=[];        /* ผลเทียบสดกับใบวางบิลปัจจุบัน */
-    let pend=0, wrong=0;
+    let pend=0, wrong=0, alShift=0;
     const rows=its.map(it=>{
-      const sys=sysBy.get(Number(it.al_num));
+      /* หาด้วยเลข AL ก่อน ไม่เจอค่อยถอยไปหาด้วยเลขที่วางบิล */
+      let sys=sysBy.get(Number(it.al_num)), byBill=false;
+      if(!sys && it.bill_no){ sys=sysByBill.get(nb(it.bill_no)); byBill=!!sys; }
+
       let mark,note='';
       if(!sys){ mark='⏳'; pend++; note='ยังไม่บันทึกใบวางบิล'; }
       else if(it.amount!=null && Math.abs(Number(sys['ยอด'])-Number(it.amount))>=0.01){
@@ -1517,20 +1531,28 @@ async function openAlPay(){
         note=`ระบบ ${_alFm(sys['ยอด'])} (ต่าง ${_alFm(Math.abs(Number(sys['ยอด'])-Number(it.amount)))})`;
       }
       else { mark='✅'; note=`${sys['ตู้']} ตู้`; }
+
+      /* จ่ายถูกใบ แต่เลข AL ในระบบไม่ตรงกับที่พิมพ์ในใบคำสั่งโอน */
+      if(byBill){
+        alShift++;
+        mark = mark==='❌' ? '❌' : '⚠️';
+        note = `เลข AL ในระบบคือ ${h(sys.al_no||('AL#'+sys.al_num))} — ${note}`;
+      }
+      const warn = (mark==='❌'||mark==='⚠️');
       return `<tr>
         <td style="text-align:center;">${mark}</td>
         <td class="mono">AL#${h(it.al_num??'??')}</td>
         <td style="font-size:11px;">${h(it.bill_no||'—')}</td>
         <td style="font-size:11px;color:#64748b;">${h(it.payee||'—')}</td>
         <td style="text-align:right;font-weight:700;">${_alFm(it.amount)}</td>
-        <td style="font-size:10px;color:${mark==='❌'?'#dc2626':'#94a3b8'};">${h(note)}</td>
+        <td style="font-size:10px;color:${warn?'#dc2626':'#94a3b8'};">${note}</td>
       </tr>`;
     }).join('');
 
     /* ยอดโอน vs ยอดในใบ — จับตอนโอนเกิน/ขาด */
     const diff=(p.slip_amount!=null&&p.sheet_total!=null)
       ? Number(p.slip_amount)-Number(p.sheet_total) : null;
-    const hasIssue = wrong>0 || (diff!=null&&Math.abs(diff)>=0.01) || p.status==='MISMATCH';
+    const hasIssue = wrong>0 || alShift>0 || (diff!=null&&Math.abs(diff)>=0.01) || p.status==='MISMATCH';
     if(hasIssue) bad++;
 
     const tone = hasIssue ? {bg:'#fef2f2',bd:'#fecaca',fg:'#991b1b'}
@@ -1564,13 +1586,30 @@ async function openAlPay(){
   }).join('');
 
   /* ── ใบที่ยังไม่ได้จ่าย ── */
-  const unpaidRows=unpaid.map(u=>`<tr>
+  const unpaidRows=unpaidReal.map(u=>`<tr>
     <td class="mono">${h(u.al_no||('AL#'+u.al_num))}</td>
     <td style="font-size:11px;">${h(u.bill_no||'—')}</td>
     <td style="font-size:11px;color:#64748b;">${h(u.payee_code||'—')}</td>
     <td style="text-align:center;">${h(u['ตู้'])}</td>
     <td style="text-align:right;font-weight:700;">${_alFm(u['ยอด'])}</td>
   </tr>`).join('');
+
+  /* ── กล่องเตือน: จ่ายแล้วแต่เลข AL ในระบบไม่ตรงกับใบคำสั่งโอน ── */
+  const shiftBox = alShifted.length ? `
+    <div style="border:1px solid #fecaca;background:#fef2f2;border-radius:10px;padding:10px 12px;margin-bottom:10px;">
+      <div style="font-weight:800;color:#991b1b;font-size:12px;">⚠️ เลข AL ไม่ตรงกัน ${alShifted.length} ใบ — จ่ายไปแล้ว อย่าโอนซ้ำ</div>
+      <div style="font-size:10px;color:#7f1d1d;margin-top:2px;">
+        เลขที่วางบิลตรงกับที่โอนไปแล้ว แต่ระบบให้เลข AL คนละตัวกับที่พิมพ์ในใบคำสั่งโอน<br>
+        ผมตัดออกจากรายการค้างจ่ายให้แล้ว แต่ควรไปแก้เลข AL ให้ตรงกัน</div>
+      <table class="det-tbl" style="margin-top:6px;width:100%;">
+        <thead><tr><th>AL ในระบบ</th><th>เลขที่วางบิล</th><th>ผู้รับ</th><th style="text-align:right;">ยอด</th></tr></thead>
+        <tbody>${alShifted.map(u=>`<tr>
+          <td class="mono">${h(u.al_no||('AL#'+u.al_num))}</td>
+          <td style="font-size:11px;">${h(u.bill_no||'—')}</td>
+          <td style="font-size:11px;color:#64748b;">${h(u.payee_code||'—')}</td>
+          <td style="text-align:right;font-weight:700;">${_alFm(u['ยอด'])}</td>
+        </tr>`).join('')}</tbody></table>
+    </div>` : '';
 
   body.innerHTML=`
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
@@ -1582,13 +1621,14 @@ async function openAlPay(){
         <div style="font-size:18px;font-weight:900;color:${bad?'#dc2626':'#16a34a'};">${bad||'ไม่มี'}</div></div>
       <div style="flex:1;min-width:120px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:8px 12px;">
         <div style="font-size:10px;color:#92400e;font-weight:700;">ยังไม่ได้จ่าย</div>
-        <div style="font-size:18px;font-weight:900;color:#b45309;">${unpaid.length} ใบ</div>
+        <div style="font-size:18px;font-weight:900;color:#b45309;">${unpaidReal.length} ใบ</div>
         <div style="font-size:10px;color:#b45309;">${_alFm(owe)} ฿</div></div>
     </div>
+    ${shiftBox}
     <div style="font-size:12px;font-weight:800;color:#78350f;margin-bottom:6px;">📄 รายการโอน (${pays.filter(p=>p.status!=='HISTORICAL').length})</div>
     ${cards||'<div style="color:#94a3b8;font-size:12px;padding:10px;">ยังไม่มีรายการโอนที่บันทึกผ่านบอท</div>'}
     <details style="margin-top:10px;">
-      <summary style="font-size:12px;font-weight:800;color:#b45309;cursor:pointer;">⏳ ใบวางบิลที่ยังไม่ได้จ่าย (${unpaid.length})</summary>
+      <summary style="font-size:12px;font-weight:800;color:#b45309;cursor:pointer;">⏳ ใบวางบิลที่ยังไม่ได้จ่าย (${unpaidReal.length})</summary>
       ${unpaidRows?`<table class="det-tbl" style="margin-top:6px;width:100%;">
         <thead><tr><th>ลำดับ</th><th>เลขที่วางบิล</th><th>ผู้รับ</th><th>ตู้</th><th style="text-align:right;">ยอด</th></tr></thead>
         <tbody>${unpaidRows}</tbody></table>`:'<div style="color:#94a3b8;font-size:12px;padding:8px;">จ่ายครบทุกใบแล้ว 👍</div>'}
