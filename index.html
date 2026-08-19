@@ -1495,6 +1495,7 @@ async function _doDelAlPay(id, label){
 async function openAlPay(){
   const bg=document.getElementById('alPayBg');
   const body=document.getElementById('alPayBody');
+  _alPayPhotos={};              /* ล้างของเก่า กันชี้ไปรายการที่ลบไปแล้ว */
   bg.style.display='flex';
   body.innerHTML='<div style="padding:30px;text-align:center;color:#94a3b8;">กำลังโหลด…</div>';
 
@@ -1588,10 +1589,13 @@ async function openAlPay(){
           style="margin-left:auto;border:1px solid #fecaca;background:#fff;color:#dc2626;font-size:10px;font-weight:800;border-radius:6px;padding:3px 10px;cursor:pointer;font-family:inherit;">✕ ลบ</button>`
       : '';
 
-    const photos=[['ใบคำสั่งโอน',p.photo_sheet_path],['สลิป',p.photo_slip_path]]
+    _alPayPhotos[p.id] = [['ใบคำสั่งโอน',p.photo_sheet_path],['สลิปธนาคาร',p.photo_slip_path]]
       .filter(x=>x[1])
-      .map(x=>`<button onclick="alPayPhoto('${encodeURIComponent(x[1])}')"
-        style="font-size:10px;padding:3px 10px;border-radius:6px;border:1px solid ${tone.bd};background:#fff;color:${tone.fg};cursor:pointer;font-weight:700;">📷 ${x[0]}</button>`).join(' ');
+      .map(x=>({ path:x[1], label:x[0], name:`${alLabel} — ${x[0]}` }));
+
+    const photos=_alPayPhotos[p.id]
+      .map((f,i)=>`<button onclick="openAlPayPhotos(${p.id},${i})"
+        style="font-size:10px;padding:3px 10px;border-radius:6px;border:1px solid ${tone.bd};background:#fff;color:${tone.fg};cursor:pointer;font-weight:700;">📷 ${h(f.label)}</button>`).join(' ');
 
     return `<div style="border:1px solid ${tone.bd};background:${tone.bg};border-radius:10px;padding:10px 12px;margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;align-items:baseline;">
@@ -1664,13 +1668,23 @@ async function openAlPay(){
     </details>`;
 }
 
-/* เปิดรูปหลักฐาน — ขอ signed URL ผ่าน edge function เดิม */
-async function alPayPhoto(path){
+/* รูปหลักฐานของแต่ละรายการ — เก็บไว้ตอนวาดการ์ด จะได้ไม่ต้องยิงซ้ำ */
+let _alPayPhotos = {};
+
+/* เปิดดูรูปหลักฐานเต็มจอ — ใช้ตัวดูรูปเดียวกับรูปตู้ เลื่อนซ้ายขวา+ซูมได้ */
+async function openAlPayPhotos(pid, start){
+  const list = _alPayPhotos[pid] || [];
+  if(!list.length){ alert('รายการนี้ไม่มีรูปเก็บไว้'); return; }
   try{
-    const r=await fetch(`${LCB_API}/photos?path=${path}`);
-    const j=await r.json();
-    if(j.url) window.open(j.url,'_blank');
-    else alert('เปิดรูปไม่ได้: '+(j.error||'ไม่ทราบสาเหตุ'));
+    /* signed URL หมดอายุ 5 นาที ขอใหม่ทุกครั้งที่เปิด */
+    const files = await Promise.all(list.map(async f=>{
+      const r = await fetch(`${LCB_API}/photos?path=${encodeURIComponent(f.path)}`);
+      const j = await r.json();
+      if(!j.url) throw new Error(j.error||'ขอลิงก์รูปไม่ได้');
+      return { url:j.url, name:f.name, label:f.label };
+    }));
+    _lcbFiles = files;
+    lcbView(Math.min(start, files.length-1));
   }catch(e){ alert('เปิดรูปไม่ได้: '+e.message); }
 }
 
@@ -1853,7 +1867,7 @@ function _lcbShow(){
   document.getElementById('lcbViewImg').src=f.url;
   document.getElementById('lcbViewName').textContent=f.name;
   document.getElementById('lcbViewNo').textContent=
-    `${_lcbIx+1} / ${_lcbFiles.length}  ·  ${f.kind==='eir'?'ใบ EIR':'รูปตู้'}${f.seal_no?'  ·  ซีล '+f.seal_no:''}`;
+    `${_lcbIx+1} / ${_lcbFiles.length}  ·  ${f.label||(f.kind==='eir'?'ใบ EIR':'รูปตู้')}${f.seal_no?'  ·  ซีล '+f.seal_no:''}`;
 }
 
 function lcbNav(step){
