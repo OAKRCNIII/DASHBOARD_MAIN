@@ -1469,6 +1469,29 @@ const _alFm = n => (n==null||n==='') ? '—'
 
 function closeAlPay(){ document.getElementById('alPayBg').style.display='none'; }
 
+/* ลบรายการโอนที่บันทึกผิด — เฉพาะ OAK_THIRA เหมือนกติกาลบตู้
+   จำเป็นต้องมี เพราะฝั่งไลน์ตกลงกันว่ารับข้อมูลอย่างเดียว แก้ไม่ได้
+   ลบแล้วเลข AL จะกลับมาว่าง บันทึกการโอนจริงทับได้ */
+function delAlPay(id, label){
+  if(LOGGED_USER!=='OAK_THIRA'){ alert('เฉพาะ OAK_THIRA เท่านั้นที่ลบได้'); return; }
+  requirePin(()=>_doDelAlPay(id, label), `ยืนยันลบรายการโอน ${label} ออกจากระบบ`);
+}
+async function _doDelAlPay(id, label){
+  try{
+    const r = await fetch(`${LCB_API}/paydel`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_TOKEN}`},
+      body: JSON.stringify({ id }),
+    });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || ('HTTP '+r.status));
+    alert(`ลบ ${label} แล้ว${j['ไฟล์ที่ลบ']?` (พร้อมรูป ${j['ไฟล์ที่ลบ']} ไฟล์)`:''}`);
+    openAlPay();   /* โหลดใหม่ให้เห็นผลทันที */
+  }catch(e){
+    alert('ลบไม่สำเร็จ: ' + e.message);
+  }
+}
+
 async function openAlPay(){
   const bg=document.getElementById('alPayBg');
   const body=document.getElementById('alPayBody');
@@ -1559,6 +1582,12 @@ async function openAlPay(){
                : pend      ? {bg:'#fffbeb',bd:'#fde68a',fg:'#92400e'}
                :             {bg:'#f0fdf4',bd:'#bbf7d0',fg:'#166534'};
 
+    const alLabel=`AL#${p.al_from??'?'}${p.al_to!==p.al_from?'–'+(p.al_to??'?'):''}`;
+    const delBtn = LOGGED_USER==='OAK_THIRA'
+      ? `<button onclick="delAlPay(${p.id},'${alLabel}')" title="ลบรายการโอนนี้ออกจากระบบ"
+          style="margin-left:auto;border:1px solid #fecaca;background:#fff;color:#dc2626;font-size:10px;font-weight:800;border-radius:6px;padding:3px 10px;cursor:pointer;font-family:inherit;">✕ ลบ</button>`
+      : '';
+
     const photos=[['ใบคำสั่งโอน',p.photo_sheet_path],['สลิป',p.photo_slip_path]]
       .filter(x=>x[1])
       .map(x=>`<button onclick="alPayPhoto('${encodeURIComponent(x[1])}')"
@@ -1580,7 +1609,7 @@ async function openAlPay(){
         ⛔ โอน${diff>0?'เกิน':'ขาด'} ${_alFm(Math.abs(diff))} — ใบสั่ง ${_alFm(p.sheet_total)} / สลิป ${_alFm(p.slip_amount)}</div>`:''}
       ${p.issues?`<div style="margin-top:6px;font-size:10px;color:#991b1b;white-space:pre-line;background:#fff;border-radius:6px;padding:6px 8px;border:1px solid #fecaca;">${h(p.issues)}</div>`:''}
       ${rows?`<table class="det-tbl" style="margin-top:8px;width:100%;"><tbody>${rows}</tbody></table>`:''}
-      ${photos?`<div style="margin-top:8px;display:flex;gap:6px;">${photos}</div>`:''}
+      ${photos||delBtn?`<div style="margin-top:8px;display:flex;gap:6px;align-items:center;">${photos}${delBtn}</div>`:''}
       <div style="margin-top:5px;font-size:9px;color:#94a3b8;">บันทึกโดย ${h(p.created_by||'—')}</div>
     </div>`;
   }).join('');
