@@ -1037,6 +1037,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
           <span class="tr-al-title" id="trAlTitle">🚛 สรุปค่าขนส่งตามบริษัทขนส่ง</span>
           <button class="tr-al-print" onclick="trPrintAlReport()">🖨️ ออกรีพอร์ต</button>
           <button class="tr-al-print" onclick="trPrintBillListReport()" style="background:rgba(255,255,255,.08);">📋 รายการวางบิล</button>
+          <button class="tr-al-print" onclick="openAlPay()" style="background:#b45309;border-color:rgba(255,255,255,.3);">🧾 ชนยอดโอน</button>
           <span class="tr-al-close" onclick="trCloseAlModal()">✕</span>
         </div>
         <div class="tr-al-info" id="trAlInfo"></div>
@@ -1047,6 +1048,16 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
           <button class="tr-al-print" onclick="trPrintAlMonthXref()" style="background:#6b21a8;border-color:rgba(255,255,255,.3);font-size:10px;padding:4px 12px;">🗓️ บริษัทขนส่งตามเดือน</button>
         </div>
         <div class="tr-al-body" id="trAlBody"></div>
+      </div>
+    </div>
+    <!-- ══ ชนยอดโอนค่าขนส่ง (AL) — ใบคำสั่งโอน vs สลิปธนาคาร ══ -->
+    <div class="tr-al-bg" id="alPayBg" onclick="if(event.target===this)closeAlPay()">
+      <div class="tr-al-modal">
+        <div class="tr-al-hdr" style="background:#78350f;">
+          <span class="tr-al-title">🧾 ชนยอดโอนค่าขนส่ง</span>
+          <span class="tr-al-close" onclick="closeAlPay()">✕</span>
+        </div>
+        <div class="tr-al-body" id="alPayBody" style="padding:14px;"></div>
       </div>
     </div>
     <!-- Stats bar -->
@@ -1441,6 +1452,158 @@ function openLcbReport(inv){
 }
 
 let _lcbFiles=[], _lcbInvNo='';
+/* ══════════════════════════════════════════════════════════════
+   ชนยอดโอนค่าขนส่ง (AL) — ครอบ OGM · KNT · HFI · KTW
+
+   ปัญหาที่แก้: คุณอธิคมสรุปยอดมา คุณอลิสสาโอนตามนั้น
+   ถ้าสรุปมาเกิน/ผิด ฝั่งโอนไม่มีทางรู้เลย
+
+   ⚠️ การโอนเกิดขึ้น *ก่อน* บันทึกใบวางบิลลงระบบเสมอ
+      ตอนบอทบันทึกจึงมักยังไม่มีใบให้เทียบ (⏳)
+      หน้านี้จึง **เทียบใหม่สดทุกครั้งที่เปิด** ไม่ใช้ค่าที่บอทเก็บไว้
+      พอใบวางบิล sync เข้ามา รายการ ⏳ จะกลายเป็น ✅ หรือ ❌ เอง
+   ══════════════════════════════════════════════════════════════ */
+const _alFm = n => (n==null||n==='') ? '—'
+  : Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+function closeAlPay(){ document.getElementById('alPayBg').style.display='none'; }
+
+async function openAlPay(){
+  const bg=document.getElementById('alPayBg');
+  const body=document.getElementById('alPayBody');
+  bg.style.display='flex';
+  body.innerHTML='<div style="padding:30px;text-align:center;color:#94a3b8;">กำลังโหลด…</div>';
+
+  let pays,items,totals,unpaid;
+  try{
+    [pays,items,totals,unpaid]=await Promise.all([
+      sbFetch('al_payments','select=*&order=id.desc'),
+      sbFetch('al_payment_items','select=*'),
+      sbFetch('al_bill_totals','select=*'),
+      sbFetch('al_unpaid','select=*'),
+    ]);
+  }catch(e){
+    body.innerHTML=`<div style="padding:24px;color:#dc2626;font-weight:700;">โหลดข้อมูลไม่ได้ — ${h(e.message)}<br>
+      <span style="font-weight:400;font-size:12px;color:#64748b;">ถ้าเพิ่งติดตั้ง ต้องรัน migrate_07_al_pay.sql ก่อน</span></div>`;
+    return;
+  }
+
+  const sysBy=new Map(totals.map(t=>[Number(t.al_num),t]));
+  const itemsBy=new Map();
+  items.forEach(it=>{
+    const k=it.payment_id;
+    if(!itemsBy.has(k)) itemsBy.set(k,[]);
+    itemsBy.get(k).push(it);
+  });
+
+  /* ── แถบสรุปบนสุด ── */
+  const paidMax=Math.max(0,...items.map(i=>Number(i.al_num)||0),
+                             ...pays.map(p=>Number(p.al_to)||0));
+  const owe=unpaid.reduce((s,u)=>s+Number(u['ยอด']||0),0);
+  let bad=0;
+
+  /* ── รายการโอนแต่ละครั้ง ── */
+  const cards=pays.filter(p=>p.status!=='HISTORICAL').map(p=>{
+    const its=(itemsBy.get(p.id)||[]).sort((a,b)=>(a.al_num||0)-(b.al_num||0));
+    const live=[];        /* ผลเทียบสดกับใบวางบิลปัจจุบัน */
+    let pend=0, wrong=0;
+    const rows=its.map(it=>{
+      const sys=sysBy.get(Number(it.al_num));
+      let mark,note='';
+      if(!sys){ mark='⏳'; pend++; note='ยังไม่บันทึกใบวางบิล'; }
+      else if(it.amount!=null && Math.abs(Number(sys['ยอด'])-Number(it.amount))>=0.01){
+        mark='❌'; wrong++;
+        note=`ระบบ ${_alFm(sys['ยอด'])} (ต่าง ${_alFm(Math.abs(Number(sys['ยอด'])-Number(it.amount)))})`;
+      }
+      else { mark='✅'; note=`${sys['ตู้']} ตู้`; }
+      return `<tr>
+        <td style="text-align:center;">${mark}</td>
+        <td class="mono">AL#${h(it.al_num??'??')}</td>
+        <td style="font-size:11px;">${h(it.bill_no||'—')}</td>
+        <td style="font-size:11px;color:#64748b;">${h(it.payee||'—')}</td>
+        <td style="text-align:right;font-weight:700;">${_alFm(it.amount)}</td>
+        <td style="font-size:10px;color:${mark==='❌'?'#dc2626':'#94a3b8'};">${h(note)}</td>
+      </tr>`;
+    }).join('');
+
+    /* ยอดโอน vs ยอดในใบ — จับตอนโอนเกิน/ขาด */
+    const diff=(p.slip_amount!=null&&p.sheet_total!=null)
+      ? Number(p.slip_amount)-Number(p.sheet_total) : null;
+    const hasIssue = wrong>0 || (diff!=null&&Math.abs(diff)>=0.01) || p.status==='MISMATCH';
+    if(hasIssue) bad++;
+
+    const tone = hasIssue ? {bg:'#fef2f2',bd:'#fecaca',fg:'#991b1b'}
+               : pend      ? {bg:'#fffbeb',bd:'#fde68a',fg:'#92400e'}
+               :             {bg:'#f0fdf4',bd:'#bbf7d0',fg:'#166534'};
+
+    const photos=[['ใบคำสั่งโอน',p.photo_sheet_path],['สลิป',p.photo_slip_path]]
+      .filter(x=>x[1])
+      .map(x=>`<button onclick="alPayPhoto('${encodeURIComponent(x[1])}')"
+        style="font-size:10px;padding:3px 10px;border-radius:6px;border:1px solid ${tone.bd};background:#fff;color:${tone.fg};cursor:pointer;font-weight:700;">📷 ${x[0]}</button>`).join(' ');
+
+    return `<div style="border:1px solid ${tone.bd};background:${tone.bg};border-radius:10px;padding:10px 12px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;align-items:baseline;">
+        <span style="font-weight:800;color:${tone.fg};font-size:13px;">
+          ${hasIssue?'⛔':pend?'⏳':'✅'} AL#${h(p.al_from??'?')}${p.al_to!==p.al_from?'–'+h(p.al_to??'?'):''}
+          <span style="font-weight:400;font-size:11px;color:#64748b;">· ${h(p.paid_date||'ไม่ทราบวันที่')} ${h(p.paid_time||'')}</span>
+        </span>
+        <span style="font-weight:900;font-size:14px;color:${tone.fg};">${_alFm(p.slip_amount)} ฿</span>
+      </div>
+      <div style="font-size:10px;color:#64748b;margin-top:3px;">
+        ${h(p.bank||'')} · ${h(p.from_name||'—')} → ${h(p.to_name||'—')} ${h(p.to_acct_tail||'')}
+        ${p.slip_ref?`<br><span class="mono" style="font-size:9px;">อ้างอิง ${h(p.slip_ref)}</span>`:''}
+      </div>
+      ${diff!=null&&Math.abs(diff)>=0.01?`<div style="margin-top:6px;font-size:11px;font-weight:800;color:#dc2626;">
+        ⛔ โอน${diff>0?'เกิน':'ขาด'} ${_alFm(Math.abs(diff))} — ใบสั่ง ${_alFm(p.sheet_total)} / สลิป ${_alFm(p.slip_amount)}</div>`:''}
+      ${p.issues?`<div style="margin-top:6px;font-size:10px;color:#991b1b;white-space:pre-line;background:#fff;border-radius:6px;padding:6px 8px;border:1px solid #fecaca;">${h(p.issues)}</div>`:''}
+      ${rows?`<table class="det-tbl" style="margin-top:8px;width:100%;"><tbody>${rows}</tbody></table>`:''}
+      ${photos?`<div style="margin-top:8px;display:flex;gap:6px;">${photos}</div>`:''}
+      <div style="margin-top:5px;font-size:9px;color:#94a3b8;">บันทึกโดย ${h(p.created_by||'—')}</div>
+    </div>`;
+  }).join('');
+
+  /* ── ใบที่ยังไม่ได้จ่าย ── */
+  const unpaidRows=unpaid.map(u=>`<tr>
+    <td class="mono">${h(u.al_no||('AL#'+u.al_num))}</td>
+    <td style="font-size:11px;">${h(u.bill_no||'—')}</td>
+    <td style="font-size:11px;color:#64748b;">${h(u.payee_code||'—')}</td>
+    <td style="text-align:center;">${h(u['ตู้'])}</td>
+    <td style="text-align:right;font-weight:700;">${_alFm(u['ยอด'])}</td>
+  </tr>`).join('');
+
+  body.innerHTML=`
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+      <div style="flex:1;min-width:120px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:8px 12px;">
+        <div style="font-size:10px;color:#1e40af;font-weight:700;">จ่ายถึงลำดับ</div>
+        <div style="font-size:18px;font-weight:900;color:#1d4ed8;">AL#${paidMax||'—'}</div></div>
+      <div style="flex:1;min-width:120px;background:${bad?'#fef2f2':'#f0fdf4'};border:1px solid ${bad?'#fecaca':'#bbf7d0'};border-radius:10px;padding:8px 12px;">
+        <div style="font-size:10px;color:${bad?'#991b1b':'#166534'};font-weight:700;">รายการที่ต้องดู</div>
+        <div style="font-size:18px;font-weight:900;color:${bad?'#dc2626':'#16a34a'};">${bad||'ไม่มี'}</div></div>
+      <div style="flex:1;min-width:120px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:8px 12px;">
+        <div style="font-size:10px;color:#92400e;font-weight:700;">ยังไม่ได้จ่าย</div>
+        <div style="font-size:18px;font-weight:900;color:#b45309;">${unpaid.length} ใบ</div>
+        <div style="font-size:10px;color:#b45309;">${_alFm(owe)} ฿</div></div>
+    </div>
+    <div style="font-size:12px;font-weight:800;color:#78350f;margin-bottom:6px;">📄 รายการโอน (${pays.filter(p=>p.status!=='HISTORICAL').length})</div>
+    ${cards||'<div style="color:#94a3b8;font-size:12px;padding:10px;">ยังไม่มีรายการโอนที่บันทึกผ่านบอท</div>'}
+    <details style="margin-top:10px;">
+      <summary style="font-size:12px;font-weight:800;color:#b45309;cursor:pointer;">⏳ ใบวางบิลที่ยังไม่ได้จ่าย (${unpaid.length})</summary>
+      ${unpaidRows?`<table class="det-tbl" style="margin-top:6px;width:100%;">
+        <thead><tr><th>ลำดับ</th><th>เลขที่วางบิล</th><th>ผู้รับ</th><th>ตู้</th><th style="text-align:right;">ยอด</th></tr></thead>
+        <tbody>${unpaidRows}</tbody></table>`:'<div style="color:#94a3b8;font-size:12px;padding:8px;">จ่ายครบทุกใบแล้ว 👍</div>'}
+    </details>`;
+}
+
+/* เปิดรูปหลักฐาน — ขอ signed URL ผ่าน edge function เดิม */
+async function alPayPhoto(path){
+  try{
+    const r=await fetch(`${LCB_API}/photos?path=${path}`);
+    const j=await r.json();
+    if(j.url) window.open(j.url,'_blank');
+    else alert('เปิดรูปไม่ได้: '+(j.error||'ไม่ทราบสาเหตุ'));
+  }catch(e){ alert('เปิดรูปไม่ได้: '+e.message); }
+}
+
 const _lcbSafe = s => String(s||'').replace(/[\\/:*?"<>|]/g,'-').trim();
 
 function _lcbSay(msg){
