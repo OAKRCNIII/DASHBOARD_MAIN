@@ -1513,6 +1513,37 @@ async function openAlPay(){
     return;
   }
 
+  _alPayRaw={pays,items,totals,unpaid};
+  renderAlPay();
+}
+
+/* เดือนที่เลือกอยู่ '' = ทุกเดือน · รูปแบบ YYYY-MM ตามวันโอนในสลิป */
+let _alPayRaw=null, _alMonth='';
+
+const _alMoName=ym=>{
+  if(!ym) return 'ทุกเดือน';
+  const [y,m]=ym.split('-').map(Number);
+  return ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][m-1]
+       + ' ' + (y+543);
+};
+/* ยึด "วันโอน" เป็นหลัก เพราะรีพอร์ตนี้เอาไปชนกับ STATEMENT ธนาคาร */
+const _alYm = p => (p.paid_date||'').slice(0,7);
+
+function setAlMonth(v){ _alMonth=v; renderAlPay(); }
+
+function renderAlPay(){
+  const body=document.getElementById('alPayBody');
+  if(!_alPayRaw) return;
+  const {items,totals,unpaid}=_alPayRaw;
+  _alPayPhotos={};
+
+  /* แถวยกยอด AL#1–316 ไม่มีวันโอน ไม่ต้องเอามาแสดงหรือคิดเป็นเดือน */
+  const real=_alPayRaw.pays.filter(p=>p.status!=='HISTORICAL');
+  const months=[...new Set(real.map(_alYm).filter(Boolean))].sort().reverse();
+  if(_alMonth && !months.includes(_alMonth)) _alMonth='';
+  const pays=_alMonth ? real.filter(p=>_alYm(p)===_alMonth) : real;
+  const moSum=pays.reduce((s,p)=>s+Number(p.slip_amount||0),0);
+
   const sysBy=new Map(totals.map(t=>[Number(t.al_num),t]));
   /* ── ตัวสำรอง: จับคู่ด้วยเลขที่วางบิล ──────────────────────────────
      ถ้าตอนบันทึกจริงใบนั้นได้เลข AL ไม่ตรงกับที่พิมพ์ในใบคำสั่งโอน
@@ -1530,8 +1561,9 @@ async function openAlPay(){
   });
 
   /* ── แถบสรุปบนสุด ── */
+  /* ยอดสูงสุดนับจากทุกเดือนเสมอ ไม่ใช่เฉพาะเดือนที่กรองอยู่ */
   const paidMax=Math.max(0,...items.map(i=>Number(i.al_num)||0),
-                             ...pays.map(p=>Number(p.al_to)||0));
+                             ..._alPayRaw.pays.map(p=>Number(p.al_to)||0));
   /* ใบที่ระบบว่า "ยังไม่จ่าย" แต่เลขที่วางบิลตรงกับที่จ่ายไปแล้ว
      = เลข AL เพี้ยน ไม่ใช่ค้างจ่ายจริง — แยกออกมา ไม่งั้นเสี่ยงโอนซ้ำ */
   const alShifted = unpaid.filter(u=>paidBills.has(nb(u.bill_no)));
@@ -1540,7 +1572,7 @@ async function openAlPay(){
   let bad=0;   /* นับจากการ์ดโอนด้านล่าง — เคส AL เพี้ยนถูกนับที่นั่นแล้ว */
 
   /* ── รายการโอนแต่ละครั้ง ── */
-  const cards=pays.filter(p=>p.status!=='HISTORICAL').map(p=>{
+  const cards=pays.map(p=>{
     const its=(itemsBy.get(p.id)||[]).sort((a,b)=>(a.al_num||0)-(b.al_num||0));
     let pend=0, wrong=0, alShift=0;
     const rows=its.map(it=>{
@@ -1645,6 +1677,19 @@ async function openAlPay(){
     </div>` : '';
 
   body.innerHTML=`
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;
+                background:#fdf6ec;border:1px solid #f0d9b5;border-radius:10px;padding:8px 12px;">
+      <label style="font-size:11px;font-weight:800;color:#78350f;">📅 เดือนที่โอน</label>
+      <select onchange="setAlMonth(this.value)"
+        style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:7px;border:1px solid #d6b892;background:#fff;color:#78350f;cursor:pointer;font-family:inherit;">
+        <option value=""${_alMonth?'':' selected'}>ทุกเดือน (${real.length})</option>
+        ${months.map(m=>`<option value="${m}"${m===_alMonth?' selected':''}>${_alMoName(m)} (${real.filter(p=>_alYm(p)===m).length})</option>`).join('')}
+      </select>
+      <button onclick="printAlPayReport()"
+        style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:7px;border:1px solid #78350f;background:#78350f;color:#fff;cursor:pointer;font-family:inherit;">🖨 ออกรีพอร์ต</button>
+      <span style="margin-left:auto;font-size:11px;color:#78350f;">
+        รวม <strong style="font-size:14px;">${_alFm(moSum)}</strong> ฿ · ${pays.length} รายการ</span>
+    </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
       <div style="flex:1;min-width:120px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:8px 12px;">
         <div style="font-size:10px;color:#1e40af;font-weight:700;">จ่ายถึงลำดับ</div>
@@ -1658,7 +1703,7 @@ async function openAlPay(){
         <div style="font-size:10px;color:#b45309;">${_alFm(owe)} ฿</div></div>
     </div>
     ${shiftBox}
-    <div style="font-size:12px;font-weight:800;color:#78350f;margin-bottom:6px;">📄 รายการโอน (${pays.filter(p=>p.status!=='HISTORICAL').length})</div>
+    <div style="font-size:12px;font-weight:800;color:#78350f;margin-bottom:6px;">📄 รายการโอน (${pays.length})</div>
     ${cards||'<div style="color:#94a3b8;font-size:12px;padding:10px;">ยังไม่มีรายการโอนที่บันทึกผ่านบอท</div>'}
     <details style="margin-top:10px;">
       <summary style="font-size:12px;font-weight:800;color:#b45309;cursor:pointer;">⏳ ใบวางบิลที่ยังไม่ได้จ่าย (${unpaidReal.length})</summary>
@@ -1666,6 +1711,92 @@ async function openAlPay(){
         <thead><tr><th>ลำดับ</th><th>เลขที่วางบิล</th><th>ผู้รับ</th><th>ตู้</th><th style="text-align:right;">ยอด</th></tr></thead>
         <tbody>${unpaidRows}</tbody></table>`:'<div style="color:#94a3b8;font-size:12px;padding:8px;">จ่ายครบทุกใบแล้ว 👍</div>'}
     </details>`;
+}
+
+/* ══ รีพอร์ตรายเดือน — เอาไปกางคู่กับ STATEMENT ธนาคาร ══
+   เรียงตามวัน-เวลาโอนจากเก่าไปใหม่ ให้ไล่ติ๊กทีละบรรทัดตรงกับสมุดได้เลย */
+function printAlPayReport(){
+  if(!_alPayRaw){ alert('ยังไม่ได้โหลดข้อมูล'); return; }
+  const real=_alPayRaw.pays.filter(p=>p.status!=='HISTORICAL');
+  const pays=(_alMonth ? real.filter(p=>_alYm(p)===_alMonth) : real)
+    .slice().sort((a,b)=>String(a.paid_date+(a.paid_time||'')).localeCompare(String(b.paid_date+(b.paid_time||''))));
+  if(!pays.length){ alert('เดือนนี้ไม่มีรายการโอน'); return; }
+
+  const itemsBy=new Map();
+  _alPayRaw.items.forEach(it=>{
+    if(!itemsBy.has(it.payment_id)) itemsBy.set(it.payment_id,[]);
+    itemsBy.get(it.payment_id).push(it);
+  });
+
+  const he=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const total=pays.reduce((s,p)=>s+Number(p.slip_amount||0),0);
+  const dNum=d=>d?String(Number(d.slice(8,10))):'';
+  const dMo =d=>d?_alMoName(d.slice(0,7)):'';
+
+  let n=0;
+  const rows=pays.map(p=>{
+    const its=(itemsBy.get(p.id)||[]).sort((a,b)=>(a.al_num||0)-(b.al_num||0));
+    const al=its.length ? its.map(i=>'AL#'+i.al_num).join(', ')
+                        : `AL#${p.al_from??'?'}${p.al_to!==p.al_from?'–'+(p.al_to??'?'):''}`;
+    const bills=its.map(i=>he(i.bill_no||'—')).join('<br>')||'—';
+    const payees=[...new Set(its.map(i=>i.payee).filter(Boolean))].join(', ')
+              || he(p.to_name||'—');
+    const flag=p.status==='MISMATCH' ? ' ⚠' : '';
+    return `<tr${p.status==='MISMATCH'?' class="bad"':''}>
+      <td class="c">${++n}</td>
+      <td class="c nowrap">${he(dNum(p.paid_date))} ${he(dMo(p.paid_date))}<br><span class="dim">${he(p.paid_time||'')}</span></td>
+      <td>${he(payees)}${flag}</td>
+      <td class="mono">${he(al)}</td>
+      <td class="mono sm">${bills}</td>
+      <td class="r amt">${_alFm(p.slip_amount)}</td>
+      <td class="mono xs">${he(p.slip_ref||'—')}</td>
+      <td class="c sm">${he(p.bank||'—')}<br><span class="dim">${he(p.to_acct_tail||'')}</span></td>
+    </tr>`;
+  }).join('');
+
+  const w=window.open('','_blank');
+  if(!w){ alert('เบราว์เซอร์บล็อกหน้าต่างใหม่ — อนุญาต pop-up ก่อนครับ'); return; }
+  w.document.write(`<!doctype html><html lang="th"><head><meta charset="utf-8">
+  <title>ค่าขนส่งที่โอน ${he(_alMoName(_alMonth))}</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap">
+  <style>
+    *{box-sizing:border-box;}
+    body{font-family:'Sarabun',sans-serif;margin:0;padding:16px 18px;color:#111827;background:#fff;}
+    h1{font-size:17px;margin:0;font-weight:800;}
+    .sub{font-size:11px;color:#6b7280;margin:3px 0 12px;}
+    table{width:100%;border-collapse:collapse;font-size:11px;}
+    th{background:#78350f;color:#fff;font-weight:700;font-size:10px;padding:6px 5px;text-align:left;}
+    td{border-bottom:1px solid #e5e7eb;padding:5px;vertical-align:top;}
+    .c{text-align:center;} .r{text-align:right;}
+    .mono{font-family:ui-monospace,Menlo,Consolas,monospace;}
+    .sm{font-size:10px;} .xs{font-size:8.5px;word-break:break-all;}
+    .dim{color:#9ca3af;font-size:9px;}
+    .nowrap{white-space:nowrap;}
+    .amt{font-weight:700;font-variant-numeric:tabular-nums;}
+    tr.bad td{background:#fef2f2;}
+    tfoot td{background:#fffbeb;font-weight:800;font-size:13px;border-top:2px solid #78350f;padding:8px 5px;}
+    .note{margin-top:10px;font-size:10px;color:#6b7280;}
+    @page{size:A4 landscape;margin:10mm;}
+    @media print{.noprint{display:none;}}
+    .noprint{margin-bottom:12px;}
+    .noprint button{font-family:inherit;font-size:13px;font-weight:700;padding:8px 18px;border-radius:8px;
+      border:1px solid #78350f;background:#78350f;color:#fff;cursor:pointer;}
+  </style></head><body>
+  <div class="noprint"><button onclick="window.print()">🖨 สั่งพิมพ์</button></div>
+  <h1>ค่าขนส่งที่โอนออก — ${he(_alMoName(_alMonth))}</h1>
+  <div class="sub">เรียงตามวันโอน สำหรับกางคู่กับ STATEMENT ธนาคาร &nbsp;·&nbsp; ${pays.length} รายการ</div>
+  <table>
+    <thead><tr>
+      <th class="c">#</th><th class="c">วันโอน</th><th>ผู้รับเงิน</th><th>ลำดับ</th>
+      <th>เลขที่วางบิล</th><th class="r">ยอดโอน</th><th>รหัสอ้างอิง</th><th class="c">ธนาคาร</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td colspan="5" class="r">รวมยอดโอนทั้งเดือน</td>
+      <td class="r">${_alFm(total)}</td><td colspan="2"></td></tr></tfoot>
+  </table>
+  <div class="note">⚠ = ตอนบันทึกชนยอดแล้วไม่ผ่าน ดูรายละเอียดในแดชบอร์ด</div>
+  </body></html>`);
+  w.document.close();
 }
 
 /* รูปหลักฐานของแต่ละรายการ — เก็บไว้ตอนวาดการ์ด จะได้ไม่ต้องยิงซ้ำ */
