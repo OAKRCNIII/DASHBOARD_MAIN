@@ -3046,7 +3046,12 @@ async function doLogin(){
 function _enterApp(u){
   const md=u.user_metadata||{};
   const uname=md.username||(u.email||'').split('@')[0].toUpperCase();
-  const role=md.role_dashboard||md.role_entry||'admin';   /* ไม่มี role → เห็นทั้งหมด (ไม่บล็อกใคร) */
+  const role=md.role_dashboard;   /* ต้องมี role_dashboard ถึงเข้า DASHBOARD (INK/BOW/TARN/SU/DOC = ENTRY อย่างเดียว) */
+  if(!role){
+    sbAuth.auth.signOut().catch(()=>{});
+    const err=document.getElementById('loginErr'); if(err) err.textContent='🚫 บัญชีนี้ใช้ได้เฉพาะ ENTRY — ไม่มีสิทธิ์เข้า DASHBOARD';
+    return;
+  }
   USER_ROLE=role; LOGGED_USER=uname;
   if(_MAINT_ON && LOGGED_USER!=='OAK_THIRA'){ _logLogin(uname); _showMaintScreen(); return; }
   document.getElementById('loginScreen').style.display='none';
@@ -9538,10 +9543,12 @@ async function initApp(){
   if(!USER_ROLE){
     let session=null;
     try{ session=(await sbAuth.auth.getSession()).data.session; }catch(e){}
+    const _md = (session&&session.user) ? (session.user.user_metadata||{}) : null;
+    if(_md && !_md.role_dashboard){ sbAuth.auth.signOut().catch(()=>{}); session=null; }   /* ENTRY-only → ไม่ให้เข้า DASHBOARD */
     if(session&&session.user){
       SB_TOKEN=session.access_token;
       const md=session.user.user_metadata||{};
-      USER_ROLE=md.role_dashboard||md.role_entry||'admin';
+      USER_ROLE=md.role_dashboard;
       LOGGED_USER=md.username||(session.user.email||'').split('@')[0].toUpperCase();
       const chip=document.getElementById('userChip');
       if(chip){chip.textContent='👤 '+LOGGED_USER+' ('+_roleLabel(USER_ROLE)+')';chip.style.display='inline-flex';}
