@@ -8372,6 +8372,10 @@ function renderTransport(){
 function toggleDashboard(){
   _showTransport=!_showTransport;
   if(_showTransport&&_showDebt){_showDebt=false;const db=document.getElementById('debtDashBtn');if(db)db.textContent='🏦 หนี้โรงงาน';}
+  /* ปิด FINANCE ANTS ถ้าเปิดค้างอยู่ (กันจอแบ่งครึ่ง) */
+  _showFinance=false;
+  const _fd=document.getElementById('financeDash');if(_fd)_fd.style.display='none';
+  const _fb=document.getElementById('financeBtn');if(_fb)_fb.textContent='💵 FINANCE ANTS';
   document.getElementById('mainDash').style.display=_showTransport?'none':'flex';
   document.getElementById('trDash').style.display=_showTransport?'flex':'none';
   document.getElementById('debtDash').style.display='none';
@@ -8397,6 +8401,10 @@ function toggleDebtDash(){
   document.getElementById('debtDash').style.display=_showDebt?'flex':'none';
   /* reset transport toggle too */
   if(_showDebt&&_showTransport){_showTransport=false;const tb=document.getElementById('dashToggleBtn');if(tb){tb.textContent='🚛 ค่าขนส่ง';tb.classList.remove('tr-active');}}
+  /* ปิด FINANCE ANTS ถ้าเปิดค้างอยู่ (กันจอแบ่งครึ่ง) */
+  _showFinance=false;
+  const _fd=document.getElementById('financeDash');if(_fd)_fd.style.display='none';
+  const _fb=document.getElementById('financeBtn');if(_fb)_fb.textContent='💵 FINANCE ANTS';
   const btn=document.getElementById('debtDashBtn');
   if(btn){btn.textContent=_showDebt?'📦 Dashboard หลัก':'🏦 หนี้โรงงาน';}
   if(_showDebt)renderDebtDash();
