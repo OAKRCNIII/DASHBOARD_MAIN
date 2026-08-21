@@ -1711,6 +1711,8 @@ function renderAlPay(){
   const cards=pays.map(p=>{
     const its=(itemsBy.get(p.id)||[]).sort((a,b)=>(a.al_num||0)-(b.al_num||0));
     let pend=0, wrong=0, alShift=0;
+    /* เก็บ 3 ยอดไว้สรุปท้ายการ์ด: ตามใบวางบิล · ที่หักไว้ · ที่โอนจริง */
+    let sumSys=0, sumDed=0, sumPaid=0, sysComplete=true;
     const rows=its.map(it=>{
       /* หาด้วยเลข AL ก่อน ไม่เจอค่อยถอยไปหาด้วยเลขที่วางบิล */
       let sys=sysBy.get(Number(it.al_num)), byBill=false;
@@ -1728,6 +1730,10 @@ function renderAlPay(){
       const dedWhy = advDed ? 'ตัดยอดเบิกล่วงหน้า' : (it.deduct_note||'ไม่ระบุเหตุผล');
       const dedDup = advDed>0 && manDed>0;   /* กรอกมือซ้ำกับที่ตัดไว้แล้ว */
       const expect = sys ? Number(sys['ยอด'])-ded : null;
+
+      if(sys) sumSys+=Number(sys['ยอด']); else sysComplete=false;
+      sumDed  += ded;
+      sumPaid += Number(it.amount||0);
 
       let mark,note='';
       if(!sys){ mark='⏳'; pend++; note='ยังไม่บันทึกใบวางบิล'; }
@@ -1778,6 +1784,24 @@ function renderAlPay(){
                : pend      ? {bg:'#fffbeb',bd:'#fde68a',fg:'#92400e'}
                :             {bg:'#f0fdf4',bd:'#bbf7d0',fg:'#166534'};
 
+    /* ── สรุปวิธีคิดเมื่อมีการหัก ──────────────────────────────────
+       ยอดโอนไม่เท่ากับใบวางบิลเป็นเรื่องปกติได้ ถ้ามีการตัดเบิกล่วงหน้า
+       แต่ต้องกางเลขให้ครบ 3 ตัว ไม่งั้นคนอ่านจะไม่รู้ว่าส่วนต่างหายไปไหน */
+    const dedOk = sysComplete && Math.abs(sumSys-sumDed-sumPaid)<0.01;
+    const dedBox = sumDed>0 ? `
+      <div style="margin-top:8px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:8px 11px;font-size:11px;">
+        <div style="display:flex;justify-content:space-between;gap:8px;color:#6b21a8;">
+          <span>ยอดตามใบวางบิล (AL)</span>
+          <strong>${sysComplete?_alFm(sumSys):'รอใบวางบิล'}</strong></div>
+        <div style="display:flex;justify-content:space-between;gap:8px;color:#7c3aed;">
+          <span>หักตัดยอดเบิกล่วงหน้า</span><strong>− ${_alFm(sumDed)}</strong></div>
+        <div style="display:flex;justify-content:space-between;gap:8px;margin-top:4px;padding-top:4px;
+                    border-top:1px solid #e9d5ff;color:${!sysComplete?'#6b21a8':(dedOk?'#166534':'#991b1b')};font-weight:800;">
+          <span>${sysComplete?'ต้องโอน / โอนจริงตามสลิป':'โอนจริงตามสลิป'}</span>
+          <span>${sysComplete?`${_alFm(sumSys-sumDed)} / ${_alFm(sumPaid)} ${dedOk?'✅':'❌'}`:_alFm(sumPaid)}</span></div>
+        ${sysComplete?'':'<div style="font-size:9.5px;color:#a78bfa;margin-top:3px;">ยังเทียบไม่ได้ — รอใบวางบิลเข้าระบบก่อน แต่ยอดหักลงไว้แล้ว</div>'}
+      </div>` : '';
+
     const alLabel=`AL#${p.al_from??'?'}${p.al_to!==p.al_from?'–'+(p.al_to??'?'):''}`;
     const delBtn = LOGGED_USER==='OAK_THIRA'
       ? `<button onclick="editAlPay(${p.id})" title="แก้ตัวเลขที่บอทอ่านผิด"
@@ -1810,6 +1834,7 @@ function renderAlPay(){
         ⛔ โอน${diff>0?'เกิน':'ขาด'} ${_alFm(Math.abs(diff))} — ใบสั่ง ${_alFm(p.sheet_total)} / สลิป ${_alFm(p.slip_amount)}</div>`:''}
       ${p.issues?`<div style="margin-top:6px;font-size:10px;color:#991b1b;white-space:pre-line;background:#fff;border-radius:6px;padding:6px 8px;border:1px solid #fecaca;">${h(p.issues)}</div>`:''}
       ${rows?`<table class="det-tbl" style="margin-top:8px;width:100%;"><tbody>${rows}</tbody></table>`:''}
+      ${dedBox}
       ${photos||delBtn?`<div style="margin-top:8px;display:flex;gap:6px;align-items:center;">${photos}${delBtn}</div>`:''}
       <div style="margin-top:5px;font-size:9px;color:#94a3b8;">บันทึกโดย ${h(p.created_by||'—')}</div>
     </div>`;
