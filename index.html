@@ -1529,14 +1529,21 @@ function editAlPay(id){
           <td style="padding:3px;"><input class="aeBill" style="${inp}font-family:monospace;" value="${h(it.bill_no||'')}"></td>
           <td style="padding:3px;"><input class="aePayee" style="${inp}" value="${h(it.payee||'')}"></td>
           <td style="padding:3px;"><input class="aeAmt"  style="${inp}text-align:right;" value="${it.amount??''}"></td>
-          <td style="padding:3px;"><input class="aeDed"  style="${inp}text-align:right;" value="${it.deduct??''}" placeholder="0"></td>
-          <td style="padding:3px;"><input class="aeDedN" style="${inp}" value="${h(it.deduct_note||'')}" placeholder="เช่น จ่ายล่วงหน้าแล้ว"></td>
+          <td style="padding:3px;">${(_alAdvDed.get(_alBillKey(it.bill_no))||0)
+            ? `<div style="font-size:10px;color:#6d28d9;font-weight:700;text-align:right;padding:5px 0;">💰 ${_alFm(_alAdvDed.get(_alBillKey(it.bill_no)))}</div>
+               <input class="aeDed" type="hidden" value="">`
+            : `<input class="aeDed" style="${inp}text-align:right;" value="${it.deduct??''}" placeholder="0">`}</td>
+          <td style="padding:3px;">${(_alAdvDed.get(_alBillKey(it.bill_no))||0)
+            ? `<div style="font-size:9.5px;color:#6d28d9;padding:5px 0;">ตัดยอดเบิกล่วงหน้าแล้ว</div>
+               <input class="aeDedN" type="hidden" value="">`
+            : `<input class="aeDedN" style="${inp}" value="${h(it.deduct_note||'')}" placeholder="เหตุผล">`}</td>
         </tr>`).join('')}</tbody>
       </table>
       <div style="font-size:10px;color:#94a3b8;margin-top:8px;line-height:1.6;">
         แก้แล้วระบบจะตรวจยอดใหม่ให้เอง · ลำดับ AL ซ้ำกับรายการโอนอื่นไม่ได้<br>
-        <strong style="color:#92400e;">หักไว้</strong> = ส่วนที่ไม่ได้โอนเพราะจ่ายไปแล้วทางอื่น
-        ระบบจะเทียบเป็น <em>ยอดในใบวางบิล − หักไว้ = ยอดโอน</em> · ใส่ยอดหักต้องเขียนเหตุผลด้วย
+        <strong style="color:#6d28d9;">💰 สีม่วง</strong> = ตัดยอดเบิกล่วงหน้าไว้แล้ว ระบบดึงมาให้เอง
+        แก้ที่ปุ่ม 💰 ในหน้าบริษัทขนส่ง ไม่ใช่ที่นี่ — กรอกซ้ำจะกลายเป็นหักสองรอบ<br>
+        <strong style="color:#92400e;">หักไว้</strong> (ช่องว่าง) = การหักอื่นที่ไม่ใช่เบิกล่วงหน้า ต้องเขียนเหตุผลกำกับ
       </div>
       <div style="display:flex;gap:8px;margin-top:14px;">
         <button onclick="_saveAlPay(${id})" style="flex:1;font-family:inherit;font-size:13px;font-weight:700;padding:9px;border-radius:8px;border:1px solid #78350f;background:#78350f;color:#fff;cursor:pointer;">💾 บันทึก</button>
@@ -1611,12 +1618,21 @@ async function openAlPay(){
 
   let pays,items,totals,unpaid;
   try{
-    [pays,items,totals,unpaid]=await Promise.all([
+    let advDed;
+    [pays,items,totals,unpaid,advDed]=await Promise.all([
       sbFetch('al_payments','select=*&order=id.desc'),
       sbFetch('al_payment_items','select=*'),
       sbFetch('al_bill_totals','select=*'),
       sbFetch('al_unpaid','select=*'),
+      /* ยอดตัดเบิกล่วงหน้า — ของเดิมที่บันทึกผ่านปุ่ม 💰 ในหน้าบริษัทขนส่ง
+         ต้องอ่านจากที่เดียวกัน ไม่งั้นเลขสองที่จะเพี้ยนกันทีหลัง */
+      sbFetch('advance_deductions','select=bill_no,amount'),
     ]);
+    _alAdvDed=new Map();
+    (advDed||[]).forEach(d=>{
+      const k=_alBillKey(d.bill_no);
+      if(k) _alAdvDed.set(k,(_alAdvDed.get(k)||0)+Number(d.amount||0));
+    });
   }catch(e){
     body.innerHTML=`<div style="padding:24px;color:#dc2626;font-weight:700;">โหลดข้อมูลไม่ได้ — ${h(e.message)}<br>
       <span style="font-weight:400;font-size:12px;color:#64748b;">ถ้าเพิ่งติดตั้ง ต้องรัน migrate_07_al_pay.sql ก่อน</span></div>`;
@@ -1628,7 +1644,17 @@ async function openAlPay(){
 }
 
 /* เดือนที่เลือกอยู่ '' = ทุกเดือน · รูปแบบ YYYY-MM ตามวันโอนในสลิป */
-let _alPayRaw=null, _alMonth='';
+let _alPayRaw=null, _alMonth='', _alAdvDed=new Map();
+
+/* เลขที่วางบิลเขียนกันหลายแบบ ต้องทำให้เป็นมาตรฐานก่อนเทียบ
+     2569-SP-05             → 2569-SP-005   (เลขท้ายไม่เติมศูนย์)
+     N51/69(2569-TAWAT-23)  → 2569-TAWAT-023 (มีข้อความครอบ)
+   ใช้ทั้งตอนหายอดตัดเบิกล่วงหน้า และตอนจับคู่ใบวางบิลสำรอง */
+const _alBillKey=s=>{
+  const m=String(s||'').toUpperCase().match(/(\d{4})\s*-\s*([A-Z&.]+)\s*-\s*(\d+)/);
+  return m ? `${m[1]}-${m[2]}-${m[3].padStart(3,'0')}`
+           : String(s||'').toUpperCase().replace(/\s+/g,'');
+};
 
 const _alMoName=ym=>{
   if(!ym) return 'ทุกเดือน';
@@ -1659,7 +1685,7 @@ function renderAlPay(){
      ถ้าตอนบันทึกจริงใบนั้นได้เลข AL ไม่ตรงกับที่พิมพ์ในใบคำสั่งโอน
      (สลับลำดับ / แทรกใบอื่นก่อน) การผูกด้วยเลข AL อย่างเดียวจะพัง
      แล้วใบที่ "จ่ายไปแล้ว" จะไปโผล่ในรายการค้างจ่าย → เสี่ยงโอนซ้ำ  */
-  const nb=s=>String(s||'').toUpperCase().replace(/\s+/g,'');
+  const nb=_alBillKey;   /* ใช้ตัวเดียวกับที่หายอดตัดเบิกล่วงหน้า */
   const sysByBill=new Map(totals.filter(t=>t.bill_no).map(t=>[nb(t.bill_no),t]));
   const paidBills=new Set(items.map(it=>nb(it.bill_no)).filter(Boolean));
 
@@ -1690,10 +1716,17 @@ function renderAlPay(){
       let sys=sysBy.get(Number(it.al_num)), byBill=false;
       if(!sys && it.bill_no){ sys=sysByBill.get(nb(it.bill_no)); byBill=!!sys; }
 
-      /* ยอดหัก — บางใบโอนไม่เต็มจำนวน เช่น เคยจ่ายล่วงหน้าไปแล้ว
-         สูตรที่ถูกคือ  ยอดในระบบ − ยอดหัก = ยอดโอน
-         โชว์วิธีคิดเต็มเสมอ ไม่ใช่ทำให้ขึ้นเขียวเฉยๆ */
-      const ded=Number(it.deduct||0);
+      /* ยอดหัก — บางใบโอนไม่เต็มจำนวน เพราะไปตัดกับยอดเบิกล่วงหน้า
+         สูตรที่ถูกคือ  ยอดในใบวางบิล − ยอดหัก = ยอดโอน
+
+         แหล่งหลักคือตาราง advance_deductions ที่บันทึกผ่านปุ่ม 💰
+         ในหน้าบริษัทขนส่งอยู่แล้ว — ไม่เก็บซ้ำที่นี่ เพราะสองที่จะเพี้ยนกัน
+         ส่วนช่อง deduct ในรายการโอน เก็บไว้เผื่อการหักที่ไม่ใช่เบิกล่วงหน้า */
+      const advDed=_alAdvDed.get(_alBillKey(it.bill_no))||0;
+      const manDed=Number(it.deduct||0);
+      const ded = advDed || manDed;
+      const dedWhy = advDed ? 'ตัดยอดเบิกล่วงหน้า' : (it.deduct_note||'ไม่ระบุเหตุผล');
+      const dedDup = advDed>0 && manDed>0;   /* กรอกมือซ้ำกับที่ตัดไว้แล้ว */
       const expect = sys ? Number(sys['ยอด'])-ded : null;
 
       let mark,note='';
@@ -1705,12 +1738,18 @@ function renderAlPay(){
       }
       else if(ded){
         mark='✅';
-        note=`${_alFm(sys['ยอด'])} − ${_alFm(ded)} · ${h(it.deduct_note||'ไม่ระบุเหตุผล')}`;
+        note=`${_alFm(sys['ยอด'])} − ${_alFm(ded)} · ${h(dedWhy)}`;
       }
       else { mark='✅'; note=`${sys['ตู้']} ตู้`; }
 
       /* ยังไม่มีใบวางบิลให้เทียบ แต่มีการหักไว้ — บอกไว้ไม่ให้ลืม */
-      if(!sys && ded) note += ` · หักไว้ ${_alFm(ded)} (${h(it.deduct_note||'ไม่ระบุเหตุผล')})`;
+      if(!sys && ded) note += ` · หักไว้ ${_alFm(ded)} (${h(dedWhy)})`;
+
+      /* กรอกยอดหักมือ ทั้งที่ตัดในระบบเบิกล่วงหน้าไปแล้ว = เสี่ยงหักซ้ำ */
+      if(dedDup){
+        mark='⚠️'; wrong++;
+        note=`หักซ้ำ! ตัดเบิกล่วงหน้าไว้ ${_alFm(advDed)} แต่กรอกมืออีก ${_alFm(manDed)} — ลบช่องกรอกมือออก`;
+      }
 
       /* จ่ายถูกใบ แต่เลข AL ในระบบไม่ตรงกับที่พิมพ์ในใบคำสั่งโอน */
       if(byBill){
@@ -1866,9 +1905,13 @@ function printAlPayReport(){
                         : `AL#${p.al_from??'?'}${p.al_to!==p.al_from?'–'+(p.al_to??'?'):''}`;
     /* ยอดหักต้องโผล่ในรีพอร์ตด้วย ไม่งั้นตอนชนกับ statement
        จะงงว่าทำไมยอดโอนไม่เท่ากับใบวางบิล */
-    const bills=its.map(i=>he(i.bill_no||'—')
-      + (Number(i.deduct||0) ? ` <span class="ded">(หัก ${_alFm(i.deduct)} — ${he(i.deduct_note||'')})</span>` : '')
-    ).join('<br>')||'—';
+    const bills=its.map(i=>{
+      const ad=_alAdvDed.get(_alBillKey(i.bill_no))||0;
+      const md=Number(i.deduct||0);
+      const d=ad||md;
+      return he(i.bill_no||'—')
+        + (d ? ` <span class="ded">(หัก ${_alFm(d)} — ${he(ad?'ตัดยอดเบิกล่วงหน้า':(i.deduct_note||''))})</span>` : '');
+    }).join('<br>')||'—';
     const payees=[...new Set(its.map(i=>i.payee).filter(Boolean))].join(', ')
               || he(p.to_name||'—');
     const flag=p.status==='MISMATCH' ? ' ⚠' : '';
