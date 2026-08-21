@@ -1469,6 +1469,96 @@ const _alFm = n => (n==null||n==='') ? '—'
 
 function closeAlPay(){ document.getElementById('alPayBg').style.display='none'; }
 
+/* ══ แก้รายการโอนที่บอทอ่านผิด — เฉพาะ OAK_THIRA + PIN ══
+   แก้ได้: วันโอน · รหัสอ้างอิง · ยอดในใบคำสั่ง · ยอดโอนจริง
+           และรายบรรทัด (ลำดับ AL · เลขที่วางบิล · ผู้รับ · ยอด)
+   เซิร์ฟเวอร์จะคำนวณผลตรวจใหม่ให้เอง แก้ถูกแล้วสีแดงจะหายไป */
+function editAlPay(id){
+  if(LOGGED_USER!=='OAK_THIRA'){ alert('เฉพาะ OAK_THIRA เท่านั้นที่แก้ได้'); return; }
+  const p=(_alPayRaw?.pays||[]).find(x=>x.id===id);
+  if(!p){ alert('ไม่เจอรายการนี้'); return; }
+  const its=(_alPayRaw.items||[]).filter(x=>x.payment_id===id)
+    .sort((a,b)=>(a.al_num||0)-(b.al_num||0));
+
+  let bg=document.getElementById('alEditBg');
+  if(!bg){
+    bg=document.createElement('div');
+    bg.id='alEditBg';
+    /* z-index ต่ำกว่าหน้าต่างใส่ PIN (9900) ไม่งั้น PIN จะไปอยู่ข้างหลัง */
+    bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9350;'
+                   +'align-items:center;justify-content:center;padding:14px;';
+    bg.onclick=e=>{ if(e.target===bg) bg.style.display='none'; };
+    document.body.appendChild(bg);
+  }
+  const inp='width:100%;font-family:inherit;font-size:12px;padding:5px 7px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#0f172a;';
+  const lbl='font-size:10px;font-weight:700;color:#64748b;display:block;margin-bottom:2px;';
+  bg.innerHTML=`<div style="background:#fff;border-radius:14px;width:min(700px,96vw);max-height:88vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+    <div style="padding:13px 18px;background:#78350f;color:#fff;border-radius:14px 14px 0 0;display:flex;align-items:center;">
+      <span style="font-size:14px;font-weight:800;">✏️ แก้รายการโอน #${id}</span>
+      <button onclick="document.getElementById('alEditBg').style.display='none'"
+        style="margin-left:auto;background:none;border:none;color:#fff;font-size:18px;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:16px 18px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;">
+        <div><label style="${lbl}">วันโอน</label><input id="aeDate" type="date" style="${inp}" value="${h(p.paid_date||'')}"></div>
+        <div><label style="${lbl}">ยอดในใบคำสั่ง</label><input id="aeSheet" style="${inp}" value="${p.sheet_total??''}"></div>
+        <div><label style="${lbl}">ยอดโอนจริง (สลิป)</label><input id="aeSlip" style="${inp}" value="${p.slip_amount??''}"></div>
+        <div style="grid-column:1/-1;"><label style="${lbl}">รหัสอ้างอิงสลิป</label><input id="aeRef" style="${inp}font-family:monospace;" value="${h(p.slip_ref||'')}"></div>
+      </div>
+      <div style="font-size:11px;font-weight:800;color:#78350f;margin-bottom:6px;">รายบรรทัด (${its.length})</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead><tr style="background:#fdf6ec;">
+          <th style="padding:5px;text-align:left;font-size:10px;width:70px;">ลำดับ AL</th>
+          <th style="padding:5px;text-align:left;font-size:10px;">เลขที่วางบิล</th>
+          <th style="padding:5px;text-align:left;font-size:10px;">ผู้รับเงิน</th>
+          <th style="padding:5px;text-align:left;font-size:10px;width:90px;">ยอด</th>
+        </tr></thead>
+        <tbody>${its.map(it=>`<tr data-iid="${it.id}">
+          <td style="padding:3px;"><input class="aeAl"   style="${inp}font-family:monospace;" value="${it.al_num??''}"></td>
+          <td style="padding:3px;"><input class="aeBill" style="${inp}font-family:monospace;" value="${h(it.bill_no||'')}"></td>
+          <td style="padding:3px;"><input class="aePayee" style="${inp}" value="${h(it.payee||'')}"></td>
+          <td style="padding:3px;"><input class="aeAmt"  style="${inp}text-align:right;" value="${it.amount??''}"></td>
+        </tr>`).join('')}</tbody>
+      </table>
+      <div style="font-size:10px;color:#94a3b8;margin-top:8px;">
+        แก้แล้วระบบจะตรวจยอดใหม่ให้เอง · ลำดับ AL ซ้ำกับรายการโอนอื่นไม่ได้
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        <button onclick="_saveAlPay(${id})" style="flex:1;font-family:inherit;font-size:13px;font-weight:700;padding:9px;border-radius:8px;border:1px solid #78350f;background:#78350f;color:#fff;cursor:pointer;">💾 บันทึก</button>
+        <button onclick="document.getElementById('alEditBg').style.display='none'" style="font-family:inherit;font-size:13px;font-weight:700;padding:9px 18px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;cursor:pointer;">ยกเลิก</button>
+      </div>
+    </div>
+  </div>`;
+  bg.style.display='flex';
+}
+
+function _saveAlPay(id){
+  const g=i=>document.getElementById(i).value;
+  const items=[...document.querySelectorAll('#alEditBg tbody tr')].map(tr=>({
+    id: Number(tr.dataset.iid),
+    al_num: tr.querySelector('.aeAl').value,
+    bill_no: tr.querySelector('.aeBill').value,
+    payee: tr.querySelector('.aePayee').value,
+    amount: tr.querySelector('.aeAmt').value,
+  }));
+  const body={ id, paid_date:g('aeDate'), slip_ref:g('aeRef'),
+               sheet_total:g('aeSheet'), slip_amount:g('aeSlip'), items };
+  requirePin(async()=>{
+    try{
+      const r=await fetch(`${LCB_API}/payedit`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_TOKEN}`},
+        body: JSON.stringify(body),
+      });
+      const j=await r.json();
+      if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+      document.getElementById('alEditBg').style.display='none';
+      alert(`บันทึกแล้ว — ผลตรวจใหม่: ${j.status==='OK'?'✅ ผ่าน':'⛔ ยังไม่ผ่าน'}`);
+      openAlPay();
+    }catch(e){ alert('บันทึกไม่สำเร็จ: '+e.message); }
+  }, `ยืนยันแก้รายการโอน #${id}`);
+}
+
 /* ลบรายการโอนที่บันทึกผิด — เฉพาะ OAK_THIRA เหมือนกติกาลบตู้
    จำเป็นต้องมี เพราะฝั่งไลน์ตกลงกันว่ารับข้อมูลอย่างเดียว แก้ไม่ได้
    ลบแล้วเลข AL จะกลับมาว่าง บันทึกการโอนจริงทับได้ */
@@ -1617,8 +1707,10 @@ function renderAlPay(){
 
     const alLabel=`AL#${p.al_from??'?'}${p.al_to!==p.al_from?'–'+(p.al_to??'?'):''}`;
     const delBtn = LOGGED_USER==='OAK_THIRA'
-      ? `<button onclick="delAlPay(${p.id},'${alLabel}')" title="ลบรายการโอนนี้ออกจากระบบ"
-          style="margin-left:auto;border:1px solid #fecaca;background:#fff;color:#dc2626;font-size:10px;font-weight:800;border-radius:6px;padding:3px 10px;cursor:pointer;font-family:inherit;">✕ ลบ</button>`
+      ? `<button onclick="editAlPay(${p.id})" title="แก้ตัวเลขที่บอทอ่านผิด"
+          style="margin-left:auto;border:1px solid #d6b892;background:#fff;color:#78350f;font-size:10px;font-weight:800;border-radius:6px;padding:3px 10px;cursor:pointer;font-family:inherit;">✏️ แก้ไข</button>
+         <button onclick="delAlPay(${p.id},'${alLabel}')" title="ลบรายการโอนนี้ออกจากระบบ"
+          style="border:1px solid #fecaca;background:#fff;color:#dc2626;font-size:10px;font-weight:800;border-radius:6px;padding:3px 10px;cursor:pointer;font-family:inherit;">✕ ลบ</button>`
       : '';
 
     _alPayPhotos[p.id] = [['ใบคำสั่งโอน',p.photo_sheet_path],['สลิปธนาคาร',p.photo_slip_path]]
