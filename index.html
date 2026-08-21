@@ -1520,17 +1520,23 @@ function editAlPay(id){
           <th style="padding:5px;text-align:left;font-size:10px;width:70px;">ลำดับ AL</th>
           <th style="padding:5px;text-align:left;font-size:10px;">เลขที่วางบิล</th>
           <th style="padding:5px;text-align:left;font-size:10px;">ผู้รับเงิน</th>
-          <th style="padding:5px;text-align:left;font-size:10px;width:90px;">ยอด</th>
+          <th style="padding:5px;text-align:left;font-size:10px;width:85px;">ยอดโอน</th>
+          <th style="padding:5px;text-align:left;font-size:10px;width:75px;background:#fef3c7;">หักไว้</th>
+          <th style="padding:5px;text-align:left;font-size:10px;background:#fef3c7;">เหตุผลที่หัก</th>
         </tr></thead>
         <tbody>${its.map(it=>`<tr data-iid="${it.id}">
           <td style="padding:3px;"><input class="aeAl"   style="${inp}font-family:monospace;" value="${it.al_num??''}"></td>
           <td style="padding:3px;"><input class="aeBill" style="${inp}font-family:monospace;" value="${h(it.bill_no||'')}"></td>
           <td style="padding:3px;"><input class="aePayee" style="${inp}" value="${h(it.payee||'')}"></td>
           <td style="padding:3px;"><input class="aeAmt"  style="${inp}text-align:right;" value="${it.amount??''}"></td>
+          <td style="padding:3px;"><input class="aeDed"  style="${inp}text-align:right;" value="${it.deduct??''}" placeholder="0"></td>
+          <td style="padding:3px;"><input class="aeDedN" style="${inp}" value="${h(it.deduct_note||'')}" placeholder="เช่น จ่ายล่วงหน้าแล้ว"></td>
         </tr>`).join('')}</tbody>
       </table>
-      <div style="font-size:10px;color:#94a3b8;margin-top:8px;">
-        แก้แล้วระบบจะตรวจยอดใหม่ให้เอง · ลำดับ AL ซ้ำกับรายการโอนอื่นไม่ได้
+      <div style="font-size:10px;color:#94a3b8;margin-top:8px;line-height:1.6;">
+        แก้แล้วระบบจะตรวจยอดใหม่ให้เอง · ลำดับ AL ซ้ำกับรายการโอนอื่นไม่ได้<br>
+        <strong style="color:#92400e;">หักไว้</strong> = ส่วนที่ไม่ได้โอนเพราะจ่ายไปแล้วทางอื่น
+        ระบบจะเทียบเป็น <em>ยอดในใบวางบิล − หักไว้ = ยอดโอน</em> · ใส่ยอดหักต้องเขียนเหตุผลด้วย
       </div>
       <div style="display:flex;gap:8px;margin-top:14px;">
         <button onclick="_saveAlPay(${id})" style="flex:1;font-family:inherit;font-size:13px;font-weight:700;padding:9px;border-radius:8px;border:1px solid #78350f;background:#78350f;color:#fff;cursor:pointer;">💾 บันทึก</button>
@@ -1549,7 +1555,12 @@ function _saveAlPay(id){
     bill_no: tr.querySelector('.aeBill').value,
     payee: tr.querySelector('.aePayee').value,
     amount: tr.querySelector('.aeAmt').value,
+    deduct: tr.querySelector('.aeDed').value,
+    deduct_note: tr.querySelector('.aeDedN').value,
   }));
+  /* หักเงินโดยไม่บอกเหตุผล = สร้างจุดบอดถาวร ต้องกันตั้งแต่ตรงนี้ */
+  const noWhy=items.find(i=>Number(i.deduct||0)>0 && !String(i.deduct_note||'').trim());
+  if(noWhy){ alert(`AL#${noWhy.al_num} หักไว้ ${noWhy.deduct} แต่ยังไม่ได้เขียนเหตุผล\n\nต้องเขียนกำกับทุกครั้งครับ`); return; }
   const body={ id, paid_date:g('aeDate'), slip_ref:g('aeRef'),
                sheet_total:g('aeSheet'), slip_amount:g('aeSlip'), items };
   requirePin(async()=>{
@@ -1679,13 +1690,27 @@ function renderAlPay(){
       let sys=sysBy.get(Number(it.al_num)), byBill=false;
       if(!sys && it.bill_no){ sys=sysByBill.get(nb(it.bill_no)); byBill=!!sys; }
 
+      /* ยอดหัก — บางใบโอนไม่เต็มจำนวน เช่น เคยจ่ายล่วงหน้าไปแล้ว
+         สูตรที่ถูกคือ  ยอดในระบบ − ยอดหัก = ยอดโอน
+         โชว์วิธีคิดเต็มเสมอ ไม่ใช่ทำให้ขึ้นเขียวเฉยๆ */
+      const ded=Number(it.deduct||0);
+      const expect = sys ? Number(sys['ยอด'])-ded : null;
+
       let mark,note='';
       if(!sys){ mark='⏳'; pend++; note='ยังไม่บันทึกใบวางบิล'; }
-      else if(it.amount!=null && Math.abs(Number(sys['ยอด'])-Number(it.amount))>=0.01){
+      else if(it.amount!=null && Math.abs(expect-Number(it.amount))>=0.01){
         mark='❌'; wrong++;
-        note=`ระบบ ${_alFm(sys['ยอด'])} (ต่าง ${_alFm(Math.abs(Number(sys['ยอด'])-Number(it.amount)))})`;
+        note=`ระบบ ${_alFm(sys['ยอด'])}${ded?` − ${_alFm(ded)} = ${_alFm(expect)}`:''}`
+           + ` (ต่าง ${_alFm(Math.abs(expect-Number(it.amount)))})`;
+      }
+      else if(ded){
+        mark='✅';
+        note=`${_alFm(sys['ยอด'])} − ${_alFm(ded)} · ${h(it.deduct_note||'ไม่ระบุเหตุผล')}`;
       }
       else { mark='✅'; note=`${sys['ตู้']} ตู้`; }
+
+      /* ยังไม่มีใบวางบิลให้เทียบ แต่มีการหักไว้ — บอกไว้ไม่ให้ลืม */
+      if(!sys && ded) note += ` · หักไว้ ${_alFm(ded)} (${h(it.deduct_note||'ไม่ระบุเหตุผล')})`;
 
       /* จ่ายถูกใบ แต่เลข AL ในระบบไม่ตรงกับที่พิมพ์ในใบคำสั่งโอน */
       if(byBill){
@@ -1839,7 +1864,11 @@ function printAlPayReport(){
     const its=(itemsBy.get(p.id)||[]).sort((a,b)=>(a.al_num||0)-(b.al_num||0));
     const al=its.length ? its.map(i=>'AL#'+i.al_num).join(', ')
                         : `AL#${p.al_from??'?'}${p.al_to!==p.al_from?'–'+(p.al_to??'?'):''}`;
-    const bills=its.map(i=>he(i.bill_no||'—')).join('<br>')||'—';
+    /* ยอดหักต้องโผล่ในรีพอร์ตด้วย ไม่งั้นตอนชนกับ statement
+       จะงงว่าทำไมยอดโอนไม่เท่ากับใบวางบิล */
+    const bills=its.map(i=>he(i.bill_no||'—')
+      + (Number(i.deduct||0) ? ` <span class="ded">(หัก ${_alFm(i.deduct)} — ${he(i.deduct_note||'')})</span>` : '')
+    ).join('<br>')||'—';
     const payees=[...new Set(its.map(i=>i.payee).filter(Boolean))].join(', ')
               || he(p.to_name||'—');
     const flag=p.status==='MISMATCH' ? ' ⚠' : '';
@@ -1872,6 +1901,7 @@ function printAlPayReport(){
     .mono{font-family:ui-monospace,Menlo,Consolas,monospace;}
     .sm{font-size:10px;} .xs{font-size:8.5px;word-break:break-all;}
     .dim{color:#9ca3af;font-size:9px;}
+    .ded{color:#92400e;font-size:9px;font-family:'Sarabun',sans-serif;}
     .nowrap{white-space:nowrap;}
     .amt{font-weight:700;font-variant-numeric:tabular-nums;}
     tr.bad td{background:#fef2f2;}
