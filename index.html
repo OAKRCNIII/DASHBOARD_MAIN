@@ -1926,7 +1926,10 @@ function printAlPayReport(){
   let n=0;
   const rows=pays.map(p=>{
     const its=(itemsBy.get(p.id)||[]).sort((a,b)=>(a.al_num||0)-(b.al_num||0));
-    const al=its.length ? its.map(i=>'AL#'+i.al_num).join(', ')
+    /* ลำดับ · ผู้รับเงิน · เลขที่วางบิล เรียงลงมาบรรทัดต่อบรรทัดให้ตรงกัน
+       จะได้กวาดตาตามแนวนอนแล้วรู้ว่าใบไหนของใครทันที
+       ผู้รับเงินไม่ตัดชื่อซ้ำ เพราะถ้าตัดแล้วบรรทัดจะเลื่อนไม่ตรงกับใบ */
+    const al=its.length ? its.map(i=>'AL#'+(i.al_num??'?')).join('<br>')
                         : `AL#${p.al_from??'?'}${p.al_to!==p.al_from?'–'+(p.al_to??'?'):''}`;
     /* ยอดหักต้องโผล่ในรีพอร์ตด้วย ไม่งั้นตอนชนกับ statement
        จะงงว่าทำไมยอดโอนไม่เท่ากับใบวางบิล */
@@ -1937,14 +1940,14 @@ function printAlPayReport(){
       return he(i.bill_no||'—')
         + (d ? ` <span class="ded">(หัก ${_alFm(d)} — ${he(ad?'ตัดยอดเบิกล่วงหน้า':(i.deduct_note||''))})</span>` : '');
     }).join('<br>')||'—';
-    const payees=[...new Set(its.map(i=>i.payee).filter(Boolean))].join(', ')
-              || he(p.to_name||'—');
+    const payees=its.length ? its.map(i=>he(i.payee||'—')).join('<br>')
+                            : he(p.to_name||'—');
     const flag=p.status==='MISMATCH' ? ' ⚠' : '';
     return `<tr${p.status==='MISMATCH'?' class="bad"':''}>
       <td class="c">${++n}</td>
       <td class="c nowrap">${he(dNum(p.paid_date))} ${he(dMo(p.paid_date))}<br><span class="dim">${he(p.paid_time||'')}</span></td>
-      <td>${he(payees)}${flag}</td>
-      <td class="mono">${he(al)}</td>
+      <td>${payees}${flag}</td>
+      <td class="mono">${al}</td>
       <td class="mono sm">${bills}</td>
       <td class="r amt">${_alFm(p.slip_amount)}</td>
       <td class="mono xs">${he(p.slip_ref||'—')}</td>
