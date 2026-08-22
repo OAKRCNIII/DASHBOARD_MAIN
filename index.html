@@ -1021,7 +1021,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
       <span class="dupe-dismiss">คลิกเพื่อดูรายละเอียด →</span>
     </div>
     <!-- Duplicate modal -->
-    <div class="dupe-modal-bg" id="trDupeModalBg" onmousedown="this._d=(event.target===this)" onclick="if(event.target===this&&this._d)closeTrDupeModal();this._d=false">
+    <div class="dupe-modal-bg" id="trDupeModalBg" onclick="if(event.target===this)closeTrDupeModal()">
       <div class="dupe-modal">
         <div class="dupe-modal-hdr">
           <span class="dupe-modal-title">⚠️ รายการที่อาจจ่ายซ้ำ</span>
@@ -1051,9 +1051,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
       </div>
     </div>
     <!-- ══ ชนยอดโอนค่าขนส่ง (AL) — ใบคำสั่งโอน vs สลิปธนาคาร ══ -->
-    <div class="tr-al-bg" id="alPayBg"
-         onmousedown="this._d=(event.target===this)"
-         onclick="if(event.target===this&&this._d)closeAlPay();this._d=false">
+    <div class="tr-al-bg" id="alPayBg" onclick="if(event.target===this)closeAlPay()">
       <div class="tr-al-modal">
         <div class="tr-al-hdr" style="background:#78350f;">
           <span class="tr-al-title">🧾 ชนยอดโอนค่าขนส่ง</span>
@@ -1151,7 +1149,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
   </div><!-- end #financeDash -->
   <!-- Debt print select modal -->
   <!-- SHIP PAID MODAL -->
-  <div id="shipPaidModalBg" onmousedown="this._d=(event.target===this)" onclick="if(event.target===this&&this._d)closeShipPaidModal();this._d=false" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;align-items:center;justify-content:center;">
+  <div id="shipPaidModalBg" onclick="if(event.target===this)closeShipPaidModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:16px;padding:24px;min-width:300px;max-width:360px;width:90vw;box-shadow:0 8px 40px rgba(0,0,0,.25);">
       <div style="font-size:15px;font-weight:900;color:#1e40af;margin-bottom:4px;">🚛 บันทึกการชำระค่าขนส่ง</div>
       <div id="shipPaidModalInfo" style="font-size:12px;color:#64748b;margin-bottom:18px;"></div>
@@ -1201,7 +1199,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
   </div>
 
   <!-- ADVANCE PAYMENT MODAL -->
-  <div id="advModalBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9150;align-items:center;justify-content:center;" onmousedown="this._d=(event.target===this)" onclick="if(event.target===this&&this._d)closeAdvModal();this._d=false">
+  <div id="advModalBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9150;align-items:center;justify-content:center;" onclick="if(event.target===this)closeAdvModal()">
     <div style="background:#fff;border-radius:18px;padding:22px 20px;width:min(480px,95vw);max-height:88vh;overflow-y:auto;box-shadow:0 12px 50px rgba(0,0,0,.3);">
       <!-- Header -->
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
@@ -1471,121 +1469,6 @@ const _alFm = n => (n==null||n==='') ? '—'
 
 function closeAlPay(){ document.getElementById('alPayBg').style.display='none'; }
 
-/* ══ แก้รายการโอนที่บอทอ่านผิด — เฉพาะ OAK_THIRA + PIN ══
-   แก้ได้: วันโอน · รหัสอ้างอิง · ยอดในใบคำสั่ง · ยอดโอนจริง
-           และรายบรรทัด (ลำดับ AL · เลขที่วางบิล · ผู้รับ · ยอด)
-   เซิร์ฟเวอร์จะคำนวณผลตรวจใหม่ให้เอง แก้ถูกแล้วสีแดงจะหายไป */
-function editAlPay(id){
-  if(LOGGED_USER!=='OAK_THIRA'){ alert('เฉพาะ OAK_THIRA เท่านั้นที่แก้ได้'); return; }
-  const p=(_alPayRaw?.pays||[]).find(x=>x.id===id);
-  if(!p){ alert('ไม่เจอรายการนี้'); return; }
-  const its=(_alPayRaw.items||[]).filter(x=>x.payment_id===id)
-    .sort((a,b)=>(a.al_num||0)-(b.al_num||0));
-
-  let bg=document.getElementById('alEditBg');
-  if(!bg){
-    bg=document.createElement('div');
-    bg.id='alEditBg';
-    /* z-index ต่ำกว่าหน้าต่างใส่ PIN (9900) ไม่งั้น PIN จะไปอยู่ข้างหลัง */
-    bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9350;'
-                   +'align-items:center;justify-content:center;padding:14px;';
-    /* ปิดเฉพาะตอนที่ "เริ่มกด" บนพื้นหลังจริงๆ
-       ถ้าดูแค่ตอนปล่อยเมาส์ การลากเลือกข้อความในช่องแล้วปล่อยเลยกรอบ
-       จะถูกนับเป็นคลิกพื้นหลัง กรอบปิด ข้อมูลที่พิมพ์ไว้หายทั้งหมด */
-    bg.addEventListener('mousedown', e=>{ bg._downOnBg = (e.target===bg); });
-    bg.addEventListener('click', e=>{
-      if(e.target===bg && bg._downOnBg) bg.style.display='none';
-      bg._downOnBg=false;
-    });
-    document.body.appendChild(bg);
-  }
-  const inp='width:100%;font-family:inherit;font-size:12px;padding:5px 7px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#0f172a;';
-  const lbl='font-size:10px;font-weight:700;color:#64748b;display:block;margin-bottom:2px;';
-  bg.innerHTML=`<div style="background:#fff;border-radius:14px;width:min(700px,96vw);max-height:88vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.35);">
-    <div style="padding:13px 18px;background:#78350f;color:#fff;border-radius:14px 14px 0 0;display:flex;align-items:center;">
-      <span style="font-size:14px;font-weight:800;">✏️ แก้รายการโอน #${id}</span>
-      <button onclick="document.getElementById('alEditBg').style.display='none'"
-        style="margin-left:auto;background:none;border:none;color:#fff;font-size:18px;cursor:pointer;">✕</button>
-    </div>
-    <div style="padding:16px 18px;">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;">
-        <div><label style="${lbl}">วันโอน</label><input id="aeDate" type="date" style="${inp}" value="${h(p.paid_date||'')}"></div>
-        <div><label style="${lbl}">ยอดในใบคำสั่ง</label><input id="aeSheet" style="${inp}" value="${p.sheet_total??''}"></div>
-        <div><label style="${lbl}">ยอดโอนจริง (สลิป)</label><input id="aeSlip" style="${inp}" value="${p.slip_amount??''}"></div>
-        <div style="grid-column:1/-1;"><label style="${lbl}">รหัสอ้างอิงสลิป</label><input id="aeRef" style="${inp}font-family:monospace;" value="${h(p.slip_ref||'')}"></div>
-      </div>
-      <div style="font-size:11px;font-weight:800;color:#78350f;margin-bottom:6px;">รายบรรทัด (${its.length})</div>
-      <table style="width:100%;border-collapse:collapse;font-size:11px;">
-        <thead><tr style="background:#fdf6ec;">
-          <th style="padding:5px;text-align:left;font-size:10px;width:70px;">ลำดับ AL</th>
-          <th style="padding:5px;text-align:left;font-size:10px;">เลขที่วางบิล</th>
-          <th style="padding:5px;text-align:left;font-size:10px;">ผู้รับเงิน</th>
-          <th style="padding:5px;text-align:left;font-size:10px;width:85px;">ยอดโอน</th>
-          <th style="padding:5px;text-align:left;font-size:10px;width:75px;background:#fef3c7;">หักไว้</th>
-          <th style="padding:5px;text-align:left;font-size:10px;background:#fef3c7;">เหตุผลที่หัก</th>
-        </tr></thead>
-        <tbody>${its.map(it=>`<tr data-iid="${it.id}">
-          <td style="padding:3px;"><input class="aeAl"   style="${inp}font-family:monospace;" value="${it.al_num??''}"></td>
-          <td style="padding:3px;"><input class="aeBill" style="${inp}font-family:monospace;" value="${h(it.bill_no||'')}"></td>
-          <td style="padding:3px;"><input class="aePayee" style="${inp}" value="${h(it.payee||'')}"></td>
-          <td style="padding:3px;"><input class="aeAmt"  style="${inp}text-align:right;" value="${it.amount??''}"></td>
-          <td style="padding:3px;">${(_alAdvDed.get(_alBillKey(it.bill_no))||0)
-            ? `<div style="font-size:10px;color:#6d28d9;font-weight:700;text-align:right;padding:5px 0;">💰 ${_alFm(_alAdvDed.get(_alBillKey(it.bill_no)))}</div>
-               <input class="aeDed" type="hidden" value="">`
-            : `<input class="aeDed" style="${inp}text-align:right;" value="${it.deduct??''}" placeholder="0">`}</td>
-          <td style="padding:3px;">${(_alAdvDed.get(_alBillKey(it.bill_no))||0)
-            ? `<div style="font-size:9.5px;color:#6d28d9;padding:5px 0;">ตัดยอดเบิกล่วงหน้าแล้ว</div>
-               <input class="aeDedN" type="hidden" value="">`
-            : `<input class="aeDedN" style="${inp}" value="${h(it.deduct_note||'')}" placeholder="เหตุผล">`}</td>
-        </tr>`).join('')}</tbody>
-      </table>
-      <div style="font-size:10px;color:#94a3b8;margin-top:8px;line-height:1.6;">
-        แก้แล้วระบบจะตรวจยอดใหม่ให้เอง · ลำดับ AL ซ้ำกับรายการโอนอื่นไม่ได้<br>
-        <strong style="color:#6d28d9;">💰 สีม่วง</strong> = ตัดยอดเบิกล่วงหน้าไว้แล้ว ระบบดึงมาให้เอง
-        แก้ที่ปุ่ม 💰 ในหน้าบริษัทขนส่ง ไม่ใช่ที่นี่ — กรอกซ้ำจะกลายเป็นหักสองรอบ<br>
-        <strong style="color:#92400e;">หักไว้</strong> (ช่องว่าง) = การหักอื่นที่ไม่ใช่เบิกล่วงหน้า ต้องเขียนเหตุผลกำกับ
-      </div>
-      <div style="display:flex;gap:8px;margin-top:14px;">
-        <button onclick="_saveAlPay(${id})" style="flex:1;font-family:inherit;font-size:13px;font-weight:700;padding:9px;border-radius:8px;border:1px solid #78350f;background:#78350f;color:#fff;cursor:pointer;">💾 บันทึก</button>
-        <button onclick="document.getElementById('alEditBg').style.display='none'" style="font-family:inherit;font-size:13px;font-weight:700;padding:9px 18px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;cursor:pointer;">ยกเลิก</button>
-      </div>
-    </div>
-  </div>`;
-  bg.style.display='flex';
-}
-
-function _saveAlPay(id){
-  const g=i=>document.getElementById(i).value;
-  const items=[...document.querySelectorAll('#alEditBg tbody tr')].map(tr=>({
-    id: Number(tr.dataset.iid),
-    al_num: tr.querySelector('.aeAl').value,
-    bill_no: tr.querySelector('.aeBill').value,
-    payee: tr.querySelector('.aePayee').value,
-    amount: tr.querySelector('.aeAmt').value,
-    deduct: tr.querySelector('.aeDed').value,
-    deduct_note: tr.querySelector('.aeDedN').value,
-  }));
-  /* หักเงินโดยไม่บอกเหตุผล = สร้างจุดบอดถาวร ต้องกันตั้งแต่ตรงนี้ */
-  const noWhy=items.find(i=>Number(i.deduct||0)>0 && !String(i.deduct_note||'').trim());
-  if(noWhy){ alert(`AL#${noWhy.al_num} หักไว้ ${noWhy.deduct} แต่ยังไม่ได้เขียนเหตุผล\n\nต้องเขียนกำกับทุกครั้งครับ`); return; }
-  const body={ id, paid_date:g('aeDate'), slip_ref:g('aeRef'),
-               sheet_total:g('aeSheet'), slip_amount:g('aeSlip'), items };
-  requirePin(async()=>{
-    try{
-      const r=await fetch(`${LCB_API}/payedit`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_TOKEN}`},
-        body: JSON.stringify(body),
-      });
-      const j=await r.json();
-      if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
-      document.getElementById('alEditBg').style.display='none';
-      alert(`บันทึกแล้ว — ผลตรวจใหม่: ${j.status==='OK'?'✅ ผ่าน':'⛔ ยังไม่ผ่าน'}`);
-      openAlPay();
-    }catch(e){ alert('บันทึกไม่สำเร็จ: '+e.message); }
-  }, `ยืนยันแก้รายการโอน #${id}`);
-}
-
 /* ลบรายการโอนที่บันทึกผิด — เฉพาะ OAK_THIRA เหมือนกติกาลบตู้
    จำเป็นต้องมี เพราะฝั่งไลน์ตกลงกันว่ารับข้อมูลอย่างเดียว แก้ไม่ได้
    ลบแล้วเลข AL จะกลับมาว่าง บันทึกการโอนจริงทับได้ */
@@ -1618,21 +1501,12 @@ async function openAlPay(){
 
   let pays,items,totals,unpaid;
   try{
-    let advDed;
-    [pays,items,totals,unpaid,advDed]=await Promise.all([
+    [pays,items,totals,unpaid]=await Promise.all([
       sbFetch('al_payments','select=*&order=id.desc'),
       sbFetch('al_payment_items','select=*'),
       sbFetch('al_bill_totals','select=*'),
       sbFetch('al_unpaid','select=*'),
-      /* ยอดตัดเบิกล่วงหน้า — ของเดิมที่บันทึกผ่านปุ่ม 💰 ในหน้าบริษัทขนส่ง
-         ต้องอ่านจากที่เดียวกัน ไม่งั้นเลขสองที่จะเพี้ยนกันทีหลัง */
-      sbFetch('advance_deductions','select=bill_no,amount'),
     ]);
-    _alAdvDed=new Map();
-    (advDed||[]).forEach(d=>{
-      const k=_alBillKey(d.bill_no);
-      if(k) _alAdvDed.set(k,(_alAdvDed.get(k)||0)+Number(d.amount||0));
-    });
   }catch(e){
     body.innerHTML=`<div style="padding:24px;color:#dc2626;font-weight:700;">โหลดข้อมูลไม่ได้ — ${h(e.message)}<br>
       <span style="font-weight:400;font-size:12px;color:#64748b;">ถ้าเพิ่งติดตั้ง ต้องรัน migrate_07_al_pay.sql ก่อน</span></div>`;
@@ -1644,17 +1518,7 @@ async function openAlPay(){
 }
 
 /* เดือนที่เลือกอยู่ '' = ทุกเดือน · รูปแบบ YYYY-MM ตามวันโอนในสลิป */
-let _alPayRaw=null, _alMonth='', _alAdvDed=new Map();
-
-/* เลขที่วางบิลเขียนกันหลายแบบ ต้องทำให้เป็นมาตรฐานก่อนเทียบ
-     2569-SP-05             → 2569-SP-005   (เลขท้ายไม่เติมศูนย์)
-     N51/69(2569-TAWAT-23)  → 2569-TAWAT-023 (มีข้อความครอบ)
-   ใช้ทั้งตอนหายอดตัดเบิกล่วงหน้า และตอนจับคู่ใบวางบิลสำรอง */
-const _alBillKey=s=>{
-  const m=String(s||'').toUpperCase().match(/(\d{4})\s*-\s*([A-Z&.]+)\s*-\s*(\d+)/);
-  return m ? `${m[1]}-${m[2]}-${m[3].padStart(3,'0')}`
-           : String(s||'').toUpperCase().replace(/\s+/g,'');
-};
+let _alPayRaw=null, _alMonth='';
 
 const _alMoName=ym=>{
   if(!ym) return 'ทุกเดือน';
@@ -1685,7 +1549,7 @@ function renderAlPay(){
      ถ้าตอนบันทึกจริงใบนั้นได้เลข AL ไม่ตรงกับที่พิมพ์ในใบคำสั่งโอน
      (สลับลำดับ / แทรกใบอื่นก่อน) การผูกด้วยเลข AL อย่างเดียวจะพัง
      แล้วใบที่ "จ่ายไปแล้ว" จะไปโผล่ในรายการค้างจ่าย → เสี่ยงโอนซ้ำ  */
-  const nb=_alBillKey;   /* ใช้ตัวเดียวกับที่หายอดตัดเบิกล่วงหน้า */
+  const nb=s=>String(s||'').toUpperCase().replace(/\s+/g,'');
   const sysByBill=new Map(totals.filter(t=>t.bill_no).map(t=>[nb(t.bill_no),t]));
   const paidBills=new Set(items.map(it=>nb(it.bill_no)).filter(Boolean));
 
@@ -1711,51 +1575,18 @@ function renderAlPay(){
   const cards=pays.map(p=>{
     const its=(itemsBy.get(p.id)||[]).sort((a,b)=>(a.al_num||0)-(b.al_num||0));
     let pend=0, wrong=0, alShift=0;
-    /* เก็บ 3 ยอดไว้สรุปท้ายการ์ด: ตามใบวางบิล · ที่หักไว้ · ที่โอนจริง */
-    let sumSys=0, sumDed=0, sumPaid=0, sysComplete=true;
     const rows=its.map(it=>{
       /* หาด้วยเลข AL ก่อน ไม่เจอค่อยถอยไปหาด้วยเลขที่วางบิล */
       let sys=sysBy.get(Number(it.al_num)), byBill=false;
       if(!sys && it.bill_no){ sys=sysByBill.get(nb(it.bill_no)); byBill=!!sys; }
 
-      /* ยอดหัก — บางใบโอนไม่เต็มจำนวน เพราะไปตัดกับยอดเบิกล่วงหน้า
-         สูตรที่ถูกคือ  ยอดในใบวางบิล − ยอดหัก = ยอดโอน
-
-         แหล่งหลักคือตาราง advance_deductions ที่บันทึกผ่านปุ่ม 💰
-         ในหน้าบริษัทขนส่งอยู่แล้ว — ไม่เก็บซ้ำที่นี่ เพราะสองที่จะเพี้ยนกัน
-         ส่วนช่อง deduct ในรายการโอน เก็บไว้เผื่อการหักที่ไม่ใช่เบิกล่วงหน้า */
-      const advDed=_alAdvDed.get(_alBillKey(it.bill_no))||0;
-      const manDed=Number(it.deduct||0);
-      const ded = advDed || manDed;
-      const dedWhy = advDed ? 'ตัดยอดเบิกล่วงหน้า' : (it.deduct_note||'ไม่ระบุเหตุผล');
-      const dedDup = advDed>0 && manDed>0;   /* กรอกมือซ้ำกับที่ตัดไว้แล้ว */
-      const expect = sys ? Number(sys['ยอด'])-ded : null;
-
-      if(sys) sumSys+=Number(sys['ยอด']); else sysComplete=false;
-      sumDed  += ded;
-      sumPaid += Number(it.amount||0);
-
       let mark,note='';
       if(!sys){ mark='⏳'; pend++; note='ยังไม่บันทึกใบวางบิล'; }
-      else if(it.amount!=null && Math.abs(expect-Number(it.amount))>=0.01){
+      else if(it.amount!=null && Math.abs(Number(sys['ยอด'])-Number(it.amount))>=0.01){
         mark='❌'; wrong++;
-        note=`ระบบ ${_alFm(sys['ยอด'])}${ded?` − ${_alFm(ded)} = ${_alFm(expect)}`:''}`
-           + ` (ต่าง ${_alFm(Math.abs(expect-Number(it.amount)))})`;
-      }
-      else if(ded){
-        mark='✅';
-        note=`${_alFm(sys['ยอด'])} − ${_alFm(ded)} · ${h(dedWhy)}`;
+        note=`ระบบ ${_alFm(sys['ยอด'])} (ต่าง ${_alFm(Math.abs(Number(sys['ยอด'])-Number(it.amount)))})`;
       }
       else { mark='✅'; note=`${sys['ตู้']} ตู้`; }
-
-      /* ยังไม่มีใบวางบิลให้เทียบ แต่มีการหักไว้ — บอกไว้ไม่ให้ลืม */
-      if(!sys && ded) note += ` · หักไว้ ${_alFm(ded)} (${h(dedWhy)})`;
-
-      /* กรอกยอดหักมือ ทั้งที่ตัดในระบบเบิกล่วงหน้าไปแล้ว = เสี่ยงหักซ้ำ */
-      if(dedDup){
-        mark='⚠️'; wrong++;
-        note=`หักซ้ำ! ตัดเบิกล่วงหน้าไว้ ${_alFm(advDed)} แต่กรอกมืออีก ${_alFm(manDed)} — ลบช่องกรอกมือออก`;
-      }
 
       /* จ่ายถูกใบ แต่เลข AL ในระบบไม่ตรงกับที่พิมพ์ในใบคำสั่งโอน */
       if(byBill){
@@ -1784,30 +1615,10 @@ function renderAlPay(){
                : pend      ? {bg:'#fffbeb',bd:'#fde68a',fg:'#92400e'}
                :             {bg:'#f0fdf4',bd:'#bbf7d0',fg:'#166534'};
 
-    /* ── สรุปวิธีคิดเมื่อมีการหัก ──────────────────────────────────
-       ยอดโอนไม่เท่ากับใบวางบิลเป็นเรื่องปกติได้ ถ้ามีการตัดเบิกล่วงหน้า
-       แต่ต้องกางเลขให้ครบ 3 ตัว ไม่งั้นคนอ่านจะไม่รู้ว่าส่วนต่างหายไปไหน */
-    const dedOk = sysComplete && Math.abs(sumSys-sumDed-sumPaid)<0.01;
-    const dedBox = sumDed>0 ? `
-      <div style="margin-top:8px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:8px 11px;font-size:11px;">
-        <div style="display:flex;justify-content:space-between;gap:8px;color:#6b21a8;">
-          <span>ยอดตามใบวางบิล (AL)</span>
-          <strong>${sysComplete?_alFm(sumSys):'รอใบวางบิล'}</strong></div>
-        <div style="display:flex;justify-content:space-between;gap:8px;color:#7c3aed;">
-          <span>หักตัดยอดเบิกล่วงหน้า</span><strong>− ${_alFm(sumDed)}</strong></div>
-        <div style="display:flex;justify-content:space-between;gap:8px;margin-top:4px;padding-top:4px;
-                    border-top:1px solid #e9d5ff;color:${!sysComplete?'#6b21a8':(dedOk?'#166534':'#991b1b')};font-weight:800;">
-          <span>${sysComplete?'ต้องโอน / โอนจริงตามสลิป':'โอนจริงตามสลิป'}</span>
-          <span>${sysComplete?`${_alFm(sumSys-sumDed)} / ${_alFm(sumPaid)} ${dedOk?'✅':'❌'}`:_alFm(sumPaid)}</span></div>
-        ${sysComplete?'':'<div style="font-size:9.5px;color:#a78bfa;margin-top:3px;">ยังเทียบไม่ได้ — รอใบวางบิลเข้าระบบก่อน แต่ยอดหักลงไว้แล้ว</div>'}
-      </div>` : '';
-
     const alLabel=`AL#${p.al_from??'?'}${p.al_to!==p.al_from?'–'+(p.al_to??'?'):''}`;
     const delBtn = LOGGED_USER==='OAK_THIRA'
-      ? `<button onclick="editAlPay(${p.id})" title="แก้ตัวเลขที่บอทอ่านผิด"
-          style="margin-left:auto;border:1px solid #d6b892;background:#fff;color:#78350f;font-size:10px;font-weight:800;border-radius:6px;padding:3px 10px;cursor:pointer;font-family:inherit;">✏️ แก้ไข</button>
-         <button onclick="delAlPay(${p.id},'${alLabel}')" title="ลบรายการโอนนี้ออกจากระบบ"
-          style="border:1px solid #fecaca;background:#fff;color:#dc2626;font-size:10px;font-weight:800;border-radius:6px;padding:3px 10px;cursor:pointer;font-family:inherit;">✕ ลบ</button>`
+      ? `<button onclick="delAlPay(${p.id},'${alLabel}')" title="ลบรายการโอนนี้ออกจากระบบ"
+          style="margin-left:auto;border:1px solid #fecaca;background:#fff;color:#dc2626;font-size:10px;font-weight:800;border-radius:6px;padding:3px 10px;cursor:pointer;font-family:inherit;">✕ ลบ</button>`
       : '';
 
     _alPayPhotos[p.id] = [['ใบคำสั่งโอน',p.photo_sheet_path],['สลิปธนาคาร',p.photo_slip_path]]
@@ -1834,7 +1645,6 @@ function renderAlPay(){
         ⛔ โอน${diff>0?'เกิน':'ขาด'} ${_alFm(Math.abs(diff))} — ใบสั่ง ${_alFm(p.sheet_total)} / สลิป ${_alFm(p.slip_amount)}</div>`:''}
       ${p.issues?`<div style="margin-top:6px;font-size:10px;color:#991b1b;white-space:pre-line;background:#fff;border-radius:6px;padding:6px 8px;border:1px solid #fecaca;">${h(p.issues)}</div>`:''}
       ${rows?`<table class="det-tbl" style="margin-top:8px;width:100%;"><tbody>${rows}</tbody></table>`:''}
-      ${dedBox}
       ${photos||delBtn?`<div style="margin-top:8px;display:flex;gap:6px;align-items:center;">${photos}${delBtn}</div>`:''}
       <div style="margin-top:5px;font-size:9px;color:#94a3b8;">บันทึกโดย ${h(p.created_by||'—')}</div>
     </div>`;
@@ -1928,15 +1738,7 @@ function printAlPayReport(){
     const its=(itemsBy.get(p.id)||[]).sort((a,b)=>(a.al_num||0)-(b.al_num||0));
     const al=its.length ? its.map(i=>'AL#'+i.al_num).join(', ')
                         : `AL#${p.al_from??'?'}${p.al_to!==p.al_from?'–'+(p.al_to??'?'):''}`;
-    /* ยอดหักต้องโผล่ในรีพอร์ตด้วย ไม่งั้นตอนชนกับ statement
-       จะงงว่าทำไมยอดโอนไม่เท่ากับใบวางบิล */
-    const bills=its.map(i=>{
-      const ad=_alAdvDed.get(_alBillKey(i.bill_no))||0;
-      const md=Number(i.deduct||0);
-      const d=ad||md;
-      return he(i.bill_no||'—')
-        + (d ? ` <span class="ded">(หัก ${_alFm(d)} — ${he(ad?'ตัดยอดเบิกล่วงหน้า':(i.deduct_note||''))})</span>` : '');
-    }).join('<br>')||'—';
+    const bills=its.map(i=>he(i.bill_no||'—')).join('<br>')||'—';
     const payees=[...new Set(its.map(i=>i.payee).filter(Boolean))].join(', ')
               || he(p.to_name||'—');
     const flag=p.status==='MISMATCH' ? ' ⚠' : '';
@@ -1969,7 +1771,6 @@ function printAlPayReport(){
     .mono{font-family:ui-monospace,Menlo,Consolas,monospace;}
     .sm{font-size:10px;} .xs{font-size:8.5px;word-break:break-all;}
     .dim{color:#9ca3af;font-size:9px;}
-    .ded{color:#92400e;font-size:9px;font-family:'Sarabun',sans-serif;}
     .nowrap{white-space:nowrap;}
     .amt{font-weight:700;font-variant-numeric:tabular-nums;}
     tr.bad td{background:#fef2f2;}
@@ -3122,6 +2923,20 @@ async function loadData(forceRefresh=false){
     }
   });
 
+  /* ── 10b. VESSEL_DRAFT — เรือที่แพลนใน draft (sheet WEB) มีอินวอยซ์ แต่ยังไม่ ADD TO DATABASE ── */
+  const _finalKeys = new Set(vessel.map(r=>(r.vessel||'').trim().toUpperCase()+'|'+(r.date||'')));
+  const vesselDraft = vesselPlanRows
+    .filter(r => (r.sheet_name||'')==='WEB'
+              && r.invoice_no && !(r.invoice_no||'').toUpperCase().startsWith('LOY-')
+              && r.vessel_name && r.sail_date)
+    .map(r=>({
+      inv:r.invoice_no||'', des:r.destination||'-', bkg:r.bkg_no||'-',
+      vol:parseFloat(r.vol)||0, vessel:r.vessel_name||'',
+      date:r.sail_date?fmtDateFromISO(r.sail_date):'-',
+    }))
+    /* ตัดเรือที่ finalize แล้ว (vessel+date มีใน vessels) → เหลือเฉพาะ draft ล้วน */
+    .filter(r=>!_finalKeys.has((r.vessel||'').trim().toUpperCase()+'|'+r.date));
+
   /* ── 11. Build trMap from transport_bills ── */
   const trMap={};
   let latestOgmAl='-',latestAllAl='-';
@@ -3178,7 +2993,7 @@ async function loadData(forceRefresh=false){
     ogmPriceHistory[sh].push({inv:r.invoice_no,entry});
   });
 
-  return{byMonth,flat,stock,vessel,fees:feesMap,stmtInfo,pendCtrs,dbMap,
+  return{byMonth,flat,stock,vessel,vesselDraft,fees:feesMap,stmtInfo,pendCtrs,dbMap,
     trMatched,billInfoTr,dupesTr,
     ogmPriceMap,ogmPriceLatest,ogmPriceHistory,
     vesselPlan,vesselPlanFloat,billedAnts,paidAnts,
@@ -3188,7 +3003,7 @@ async function loadData(forceRefresh=false){
 /* =====================================================
    DASHBOARD STATE
 ===================================================== */
-let FLAT=[],BY_MONTH={},STOCK={groups:[],stats:{}},VESSEL=[],FEES={},STMT={latestNo:'',latestBalance:0,latestDate:''},TRANSPORT={},PEND_CTRS=[];
+let FLAT=[],BY_MONTH={},STOCK={groups:[],stats:{}},VESSEL=[],VESSEL_DRAFT=[],FEES={},STMT={latestNo:'',latestBalance:0,latestDate:''},TRANSPORT={},PEND_CTRS=[];
 let OLD_INV=new Set(); /* normInv → อินวอยซ์เก่าที่ไม่มีข้อมูล month/year (ถือว่าจัดลงเรือแล้ว) */
 let DB_MAP={}; /* raw database map — ใช้สำหรับ transport matching */
 let OGM_PRICE_MAP={}; /* normInv → { กนกทอง, นาเมืองเพชร, นาวาพารา } prices */
@@ -4964,7 +4779,7 @@ let _vslViewMode='list'; /* 'list' | 'cal' */
 let _vslCalYear=new Date().getFullYear();
 let _vslCalMonth=new Date().getMonth(); /* 0-indexed */
 function renderVessel(){
-  if(!VESSEL.length){document.getElementById('vesselWrap').innerHTML='<div class="placeholder"><div class="ico">🚢</div><p>ยังไม่มีข้อมูลเรือ — ใส่พาธ VESSEL_MANAGE.xlsm ในหน้าตั้งค่า</p></div>';return;}
+  if(!VESSEL.length&&!VESSEL_DRAFT.length){document.getElementById('vesselWrap').innerHTML='<div class="placeholder"><div class="ico">🚢</div><p>ยังไม่มีข้อมูลเรือ — ใส่พาธ VESSEL_MANAGE.xlsm ในหน้าตั้งค่า</p></div>';return;}
   const groups={};VESSEL.forEach(r=>{const k=r.vessel+'|||'+r.date;if(!groups[k])groups[k]={vessel:r.vessel,date:r.date,rows:[],vol:0};groups[k].rows.push(r);groups[k].vol+=r.vol;});
   const all=[...new Set(VESSEL.map(r=>r.vessel))].sort();
   let sorted=Object.values(groups).sort((a,b)=>pDate(b.date)-pDate(a.date));
@@ -4972,8 +4787,30 @@ function renderVessel(){
   if(_vslViewMode==='cal'){renderVesselCal();return;}
   if(_vslFilter)sorted=sorted.filter(g=>g.vessel===_vslFilter);
   const hasFees=_canSeeFees()&&Object.keys(FEES).length>0;const fm=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}):'-';
+  /* เรือ draft (แพลนแล้ว มีอินวอยซ์ ยังไม่ ADD DATABASE) — group เหมือน finalized */
+  const dgroups={};VESSEL_DRAFT.forEach(r=>{const k=r.vessel+'|||'+r.date;if(!dgroups[k])dgroups[k]={vessel:r.vessel,date:r.date,rows:[],vol:0};dgroups[k].rows.push(r);dgroups[k].vol+=r.vol;});
+  let draftGroups=Object.values(dgroups).sort((a,b)=>pDate(b.date)-pDate(a.date));
+  if(_vslFilter)draftGroups=draftGroups.filter(g=>g.vessel===_vslFilter);
+  const draftNames=[...new Set(VESSEL_DRAFT.map(r=>r.vessel))].filter(v=>!all.includes(v)).sort();
+
   let opts=`<option value="">🚢 เรือทั้งหมด (${all.length} ลำ)</option>`;all.forEach(v=>{opts+=`<option value="${h(v)}"${v===_vslFilter?' selected':''}>${h(v)}</option>`;});
+  draftNames.forEach(v=>{opts+=`<option value="${h(v)}"${v===_vslFilter?' selected':''}>🗓️ ${h(v)} (ยังไม่ FINAL)</option>`;});
   let out=`<div style="padding:4px 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><label style="font-size:12px;color:#475569;font-weight:600;">กรองเรือ:</label><select id="vslSel" onchange="_vslFilter=this.value;renderVessel();" style="padding:6px 12px;border:1.5px solid #bfdbfe;border-radius:8px;font-size:13px;background:#fff;color:#1e40af;cursor:pointer;min-width:220px;">${opts}</select><button onclick="showVesselPdfModal()" style="padding:6px 14px;border:1.5px solid #0ea5e9;border-radius:8px;background:#eff6ff;color:#0369a1;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;">🖨️ PDF</button><button onclick="_vslViewMode='cal';_vslCalYear=new Date().getFullYear();_vslCalMonth=new Date().getMonth();renderVessel();" style="padding:6px 14px;border:1.5px solid #8b5cf6;border-radius:8px;background:#f5f3ff;color:#6d28d9;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📅 มุมมองปฏิทิน</button></div>`;
+
+  /* ── การ์ด DRAFT (โปร่งๆ มีป้าย) แสดงบนสุด ── */
+  if(draftGroups.length){
+    out+=`<div style="margin:2px 0 8px;font-size:12.5px;font-weight:800;color:#92400e;display:flex;align-items:center;gap:6px;">🗓️ เรือที่กำลังแพลน — ยังไม่ FINAL (${draftGroups.length} ลำ)</div>`;
+    draftGroups.forEach(g=>{
+      out+=`<div class="vessel-card" style="position:relative;overflow:hidden;opacity:.94;background:repeating-linear-gradient(45deg,#fffdf6,#fffdf6 13px,#fdf3d8 13px,#fdf3d8 26px);border:2px dashed #f59e0b;box-shadow:none;">
+        <div style="position:absolute;top:13px;right:-40px;transform:rotate(38deg);background:#f59e0b;color:#fff;font-size:10px;font-weight:800;padding:3px 46px;letter-spacing:2px;box-shadow:0 1px 4px rgba(0,0,0,.25);z-index:2;">DRAFT</div>
+        <div class="vessel-head" style="background:linear-gradient(90deg,#b45309,#78350f);"><span class="vessel-name">🚢 ${h(g.vessel)}</span><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span class="vessel-badge">📅 ${h(g.date)}</span><span class="vessel-badge">${g.rows.length} INV · ${g.vol} ตู้</span><span class="vessel-badge" style="background:#fef3c7;color:#92400e;">⚠️ ยังไม่ ADD DATABASE</span></div></div>
+        <table class="vtbl"><thead><tr><th>#</th><th>อินวอยซ์</th><th>ปลายทาง</th><th>BKG</th><th style="text-align:center;">ตู้</th></tr></thead><tbody>`;
+      g.rows.forEach((r,i)=>{const s=pst(getPfx(r.inv));out+=`<tr><td style="color:#94a3b8;font-size:11px;">${i+1}</td><td><span class="finv-badge" style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd}">${h(getPfx(r.inv))}</span>${h(r.inv)}</td><td style="color:#64748b;font-size:11px;">${h(r.des)}</td><td style="font-family:monospace;font-weight:600;color:#475569;">${h(r.bkg)}</td><td style="font-weight:700;color:#16a34a;text-align:center;">${r.vol}</td></tr>`;});
+      out+=`<tr style="background:#fef3c7;border-top:2px solid #fcd34d;"><td colspan="4" style="text-align:right;font-weight:700;font-size:11px;color:#92400e;padding:8px 12px;">รวมเรือลำนี้ (draft)</td><td style="text-align:center;font-weight:800;color:#b45309;padding:8px 12px;">${g.vol}</td></tr>`;
+      out+='</tbody></table></div>';
+    });
+    if(sorted.length)out+=`<div style="margin:14px 0 8px;font-size:12.5px;font-weight:800;color:#1e40af;">✅ เรือที่ ADD DATABASE แล้ว</div>`;
+  }
   sorted.forEach(g=>{
     let oc=0,tl=0;g.rows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}});const tot=oc+tl;
     const _gvn=g.vessel.replace(/\s+\d+[NSEW](\s*\([^)]*\))?$/i,'').replace(/[\s\/]+V\.\w+$/i,'').trim();const _gmmsi=VESSEL_MMSI[_gvn.toUpperCase()]||VESSEL_MMSI[_gvn]||null;const _gurl=_gmmsi?'https://www.vesselfinder.com/vessels/details/'+_gmmsi:'https://www.vesselfinder.com/?name='+encodeURIComponent(_gvn);
@@ -9718,7 +9555,7 @@ function showSetup(err){
   updateFolderUI();
 }
 function showDashboard(data){
-  FLAT=data.flat;BY_MONTH=data.byMonth;STOCK=data.stock;VESSEL=data.vessel||[];FEES=data.fees||{};STMT=data.stmtInfo||{};TR_DATA=(data.trMatched||[]).filter(d=>d.month!=='-'); /* กรองอินวอยซ์เก่าปี 2025 (ไม่ระบุ) ออกจากทุก transport view */BILL_INFO_TR=data.billInfoTr||{ogm:'-',all:'-'};TR_DUPES=data.dupesTr||[];PEND_CTRS=data.pendCtrs||[];DB_MAP=data.dbMap||{};OGM_PRICE_MAP=data.ogmPriceMap||{};OGM_PRICE_LATEST=data.ogmPriceLatest||{};OGM_PRICE_HISTORY=data.ogmPriceHistory||{};VESSEL_PLAN=data.vesselPlan||{};VESSEL_PLAN_FLOAT=data.vesselPlanFloat||{};BILLED_ANTS=data.billedAnts||new Map();PAID_ANTS=data.paidAnts||new Map();BANK_BAL=data.bankBal||[];BILL_ANTS_META=(BILLED_ANTS._meta)||{week:0,year:0};PRICE_UPDATE_TABLE=data.priceUpdateTable||[];TR_UNPAID=data.unpaidTr||[];
+  FLAT=data.flat;BY_MONTH=data.byMonth;STOCK=data.stock;VESSEL=data.vessel||[];VESSEL_DRAFT=data.vesselDraft||[];FEES=data.fees||{};STMT=data.stmtInfo||{};TR_DATA=(data.trMatched||[]).filter(d=>d.month!=='-'); /* กรองอินวอยซ์เก่าปี 2025 (ไม่ระบุ) ออกจากทุก transport view */BILL_INFO_TR=data.billInfoTr||{ogm:'-',all:'-'};TR_DUPES=data.dupesTr||[];PEND_CTRS=data.pendCtrs||[];DB_MAP=data.dbMap||{};OGM_PRICE_MAP=data.ogmPriceMap||{};OGM_PRICE_LATEST=data.ogmPriceLatest||{};OGM_PRICE_HISTORY=data.ogmPriceHistory||{};VESSEL_PLAN=data.vesselPlan||{};VESSEL_PLAN_FLOAT=data.vesselPlanFloat||{};BILLED_ANTS=data.billedAnts||new Map();PAID_ANTS=data.paidAnts||new Map();BANK_BAL=data.bankBal||[];BILL_ANTS_META=(BILLED_ANTS._meta)||{week:0,year:0};PRICE_UPDATE_TABLE=data.priceUpdateTable||[];TR_UNPAID=data.unpaidTr||[];
   hideLoad();document.getElementById('app').style.display='flex';
   const now=new Date();document.getElementById('lastUpd').textContent='☁️ Supabase · '+pad(now.getHours())+':'+pad(now.getMinutes());
   renderTabs();renderStatsMain();const m=Object.keys(BY_MONTH).sort()[0];if(m)selMonth(m);
