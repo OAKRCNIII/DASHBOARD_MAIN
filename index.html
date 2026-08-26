@@ -912,6 +912,12 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
             <button class="fqbtn fqfac" data-facf="today">วันนี้</button>
             <button class="fqbtn fqfac" data-facf="tomorrow">พรุ่งนี้</button>
           </div>
+          <div class="fdate-bar" id="facSrcBar" style="margin-top:8px;">
+            <label>📦 ที่มา:</label>
+            <button class="fqbtn fqsrc fqfac-active" data-facsrc="all">ทั้งหมด</button>
+            <button class="fqbtn fqsrc" data-facsrc="PADANG">🚂 ปาดัง</button>
+            <button class="fqbtn fqsrc" data-facsrc="LCB">🚢 แหลมฉบัง</button>
+          </div>
           <div class="fdate-bar" style="margin-top:8px;">
             <button id="btnPrintFactory" style="font-size:10px;padding:5px 14px;background:#0f2a52;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;height:28px;letter-spacing:.3px;">🖨️ PRINT PDF</button>
           </div>
@@ -5602,6 +5608,7 @@ const todayIso=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth
 const dAgoIso=n=>{const d=new Date();d.setDate(d.getDate()-n);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());};
 const mStartIso=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-01';};
 let FAC_FAC_FILTER='all';
+let FAC_SRC_FILTER='all';   /* all | PADANG | LCB */
 function renderFactory(){
   const fr=isoInt(document.getElementById('fDateFrom').value),to=isoInt(document.getElementById('fDateTo').value);
   const todayFmt=fmtDate(new Date());const tom=new Date();tom.setDate(tom.getDate()+1);const tomFmt=fmtDate(tom);
@@ -5613,6 +5620,9 @@ function renderFactory(){
     if(yrM&&parseInt(yrM[1])<2026)return;
     if(!d.details||!d.details.length)return;
     (d.details||[]).forEach(row=>{
+    const _src=row._src||'PADANG';
+    if(FAC_SRC_FILTER==='PADANG'&&_src==='LCB')return;   /* กด ปาดัง → ตู้/อินวอยซ์ LCB ไม่ขึ้น */
+    if(FAC_SRC_FILTER==='LCB'&&_src!=='LCB')return;       /* กด แหลมฉบัง → เฉพาะ LCB */
     const fd=row['เข้าโรงงาน']||'-';
     if(FAC_FAC_FILTER==='today'&&fd!==todayFmt)return;
     if(FAC_FAC_FILTER==='tomorrow'&&fd!==tomFmt)return;
@@ -5665,6 +5675,7 @@ function renderFactory(){
     });
   });
   document.querySelectorAll('#facFilterBar [data-facf]').forEach(b=>b.classList.toggle('fqfac-active',b.dataset.facf===FAC_FAC_FILTER));
+  document.querySelectorAll('#facSrcBar [data-facsrc]').forEach(b=>b.classList.toggle('fqfac-active',b.dataset.facsrc===FAC_SRC_FILTER));
   document.getElementById('factoryTable').innerHTML=dates.length?`<table class="ftbl"><tbody>${rows}</tbody></table>`:'<div style="padding:40px;text-align:center;color:#64748b;font-size:12px;">ไม่พบข้อมูลในช่วงวันที่เลือก</div>';
   const fromV=document.getElementById('fDateFrom').value,toV=document.getElementById('fDateTo').value;
   let rl='';if(fromV&&toV)rl=' · '+fromV.split('-').reverse().join('/')+'–'+toV.split('-').reverse().join('/');else if(fromV)rl=' · จาก '+fromV.split('-').reverse().join('/');else if(toV)rl=' · ถึง '+toV.split('-').reverse().join('/');
@@ -5707,6 +5718,9 @@ function doFacPrint(dates){
   dates.forEach((dt,pi)=>{
     const im={};
     FLAT.forEach(d=>{(d.details||[]).forEach(row=>{
+      const _src=row._src||'PADANG';
+      if(FAC_SRC_FILTER==='PADANG'&&_src==='LCB')return;
+      if(FAC_SRC_FILTER==='LCB'&&_src!=='LCB')return;
       const fd=row['เข้าโรงงาน']||'-';
       const rowDt=(row.DATE_PICKUP&&row.DATE_PICKUP!=='-')?row.DATE_PICKUP:'-';
       if(rowDt!==dt)return;
@@ -9953,6 +9967,7 @@ document.getElementById('fDateTo').addEventListener('change',renderFactory);
 document.getElementById('fDateClr').addEventListener('click',()=>{document.getElementById('fDateFrom').value='';document.getElementById('fDateTo').value='';renderFactory();});
 document.getElementById('fDateBar').addEventListener('click',e=>{const b=e.target.closest('.fqbtn[data-fq]');if(!b)return;if(b.dataset.fq==='7d'){document.getElementById('fDateFrom').value=dAgoIso(6);document.getElementById('fDateTo').value=todayIso();}else if(b.dataset.fq==='month'){document.getElementById('fDateFrom').value=mStartIso();document.getElementById('fDateTo').value=todayIso();}renderFactory();});
 document.getElementById('facFilterBar').addEventListener('click',e=>{const b=e.target.closest('.fqfac[data-facf]');if(!b)return;FAC_FAC_FILTER=b.dataset.facf;renderFactory();});
+document.getElementById('facSrcBar').addEventListener('click',e=>{const b=e.target.closest('.fqsrc[data-facsrc]');if(!b)return;FAC_SRC_FILTER=b.dataset.facsrc;renderFactory();});
 document.getElementById('btnPrintFactory').addEventListener('click',printFactory);
 document.getElementById('facPrintCancel').addEventListener('click',closeFacPrintModal);
 document.getElementById('facPrintModal').addEventListener('click',e=>{if(e.target===document.getElementById('facPrintModal'))closeFacPrintModal();});
