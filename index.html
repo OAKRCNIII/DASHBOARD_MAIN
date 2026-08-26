@@ -5734,12 +5734,11 @@ function doFacPrint(dates){
       tbRows+=`</tr>`;
     });
     const thCols=facCols.map(fd=>`<th style="background:#1e3a5f;color:#fff;padding:7px 14px;font-size:12pt;text-align:center;white-space:nowrap;">${esc(fd)}</th>`).join('');
-    const pb=pi<dates.length-1?'page-break-after:always;':'';
-    pages+=`<div style="${pb}padding-bottom:4mm;">
+    pages+=`<div class="sheet"><div class="fit">
 <div class="hd"><h1>🏭 สรุปตู้เข้าโรงงาน &nbsp;·&nbsp; วันรับตู้ ${esc(dt)}</h1>
 <p>${ttl} ตู้ · ${ins.length} อินวอยซ์ &nbsp;|&nbsp; วันเข้าโรงงาน: ${facCols.map(fd=>esc(fd)).join(' · ')}</p></div>
 <table><thead><tr><th style="background:#1e3a5f;color:#fff;padding:7px 14px;font-size:12pt;text-align:left;white-space:nowrap;">อินวอยซ์</th>${thCols}</tr></thead><tbody>${tbRows}</tbody></table>
-<div class="ft">พิมพ์เมื่อ ${new Date().toLocaleString('th-TH')}</div></div>`;
+<div class="ft">พิมพ์เมื่อ ${new Date().toLocaleString('th-TH')}</div></div></div>`;
   });
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>สรุปตู้เข้าโรงงาน</title>
@@ -5751,9 +5750,19 @@ body{font-family:'Segoe UI',Tahoma,'Noto Sans Thai',sans-serif;font-size:12pt;co
 .hd p{font-size:11pt;color:#64748b;margin-top:3px;}
 table{width:100%;border-collapse:collapse;}
 .ft{margin-top:4mm;font-size:9pt;color:#94a3b8;text-align:right;}
+.sheet{width:277mm;height:188mm;overflow:hidden;}
+.sheet:not(:last-child){page-break-after:always;}
+.fit{width:277mm;transform-origin:top left;}
 @page{@bottom-right{content:"หน้า " counter(page);font-family:'Sarabun',sans-serif;font-size:9pt;color:#94a3b8;}}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
 </style></head><body>${pages}
-<script>window.onload=function(){window.print();};<\/script>
+<script>window.onload=function(){
+  document.querySelectorAll('.sheet').forEach(function(sh){
+    var fit=sh.querySelector('.fit'); if(!fit)return;
+    var s=Math.min(1, sh.clientHeight/fit.scrollHeight, sh.clientWidth/fit.scrollWidth);
+    if(s<1) fit.style.transform='scale('+s+')';   /* เนื้อหาเยอะ → ย่อพอดี 1 A4; น้อย → คงตัวใหญ่ */
+  });
+  window.print();
+};<\/script>
 </body></html>`;
   const win=window.open('','_blank');win.document.write(html);win.document.close();
 }
