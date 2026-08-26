@@ -5620,7 +5620,8 @@ function renderFactory(){
     if(!dm[dt])dm[dt]={};
     if(!dm[dt][d.inv])dm[dt][d.inv]={};
     if(!dm[dt][d.inv][fd])dm[dt][d.inv][fd]=[];
-    dm[dt][d.inv][fd].push(row['ทะเบียนรถ']||'-');
+    /* เก็บทะเบียน + เบอร์ตู้ จาก row เดียวกัน → จับคู่ถูกโดยอัตโนมัติ (inv+ทะเบียน+วันเข้าโรงงาน) */
+    dm[dt][d.inv][fd].push({truck:row['ทะเบียนรถ']||'-', ctr:row['เบอร์ตู้']||''});
   });});
   let dates=Object.keys(dm).filter(dt=>dt!=='-').sort((a,b)=>pDate(b)-pDate(a));
   if(fr||to)dates=dates.filter(dt=>{const v=pDate(dt);if(!v)return false;if(fr&&v<fr)return false;if(to&&v>to)return false;return true;});
@@ -5648,12 +5649,17 @@ function renderFactory(){
     /* Invoice rows */
     ins.forEach((inv,ii)=>{
       const pfx=getPfx(inv);const s=pst(pfx);const bg=ii%2===0?'':'background:#fafafa;';
-      rows+=`<tr style="${bg}"><td class="finv-cell" style="border-left:3px solid ${s.tx};${bg}vertical-align:top;"><span class="finv-badge" style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd}">${h(pfx)}</span>${h(inv)}</td>`;
+      /* ชื่อเรือ + เลขบุคกิ้ง ต่ออินวอยซ์ (แผนจริงก่อน แล้วค่อย vessels finalized) */
+      const _vp=VESSEL_PLAN[inv.toUpperCase()]; let _vn='',_bk='';
+      if(_vp){ _vn=_vp.vessel||''; _bk=_vp.bkg||''; }
+      else { const _vr=VESSEL.find(v=>normInv(v.inv)===normInv(inv)); if(_vr){ _vn=_vr.vessel||''; _bk=_vr.bkg||''; } }
+      const _vslLine=(_vn||(_bk&&_bk!=='-'))?`<div style="font-size:9px;color:#64748b;margin-top:2px;font-weight:400;">${_vn?`🚢 ${h(_vn)}`:''}${_bk&&_bk!=='-'?`${_vn?' · ':''}BKG ${h(_bk)}`:''}</div>`:'';
+      rows+=`<tr style="${bg}"><td class="finv-cell" style="border-left:3px solid ${s.tx};${bg}vertical-align:top;"><span class="finv-badge" style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd}">${h(pfx)}</span>${h(inv)}${_vslLine}</td>`;
       facCols.forEach(fd=>{
         const trucks=im[inv][fd]||[];
         const isT=fd===todayFmt,isTm=fd===tomFmt;
         const col=isT?'color:#16a34a;font-weight:600;':isTm?'color:#1d4ed8;font-weight:600;':'color:#475569;';
-        rows+=trucks.length?`<td class="ftrk-cell" style="${col}vertical-align:top;">${trucks.map(t=>h(t)).join('<br>')}</td>`:`<td class="ftrk-cell" style="text-align:center;color:#cbd5e1;vertical-align:top;">—</td>`;
+        rows+=trucks.length?`<td class="ftrk-cell" style="${col}vertical-align:top;">${trucks.map(t=>`${h(t.truck)}${t.ctr?` <span style="font-family:monospace;font-size:9px;color:#94a3b8;">${h(t.ctr)}</span>`:''}`).join('<br>')}</td>`:`<td class="ftrk-cell" style="text-align:center;color:#cbd5e1;vertical-align:top;">—</td>`;
       });
       rows+=`</tr>`;
     });
@@ -5706,7 +5712,7 @@ function doFacPrint(dates){
       if(rowDt!==dt)return;
       if(!im[d.inv])im[d.inv]={};
       if(!im[d.inv][fd])im[d.inv][fd]=[];
-      im[d.inv][fd].push(row['ทะเบียนรถ']||'-');
+      im[d.inv][fd].push({truck:row['ทะเบียนรถ']||'-', ctr:row['เบอร์ตู้']||''});
     });});
     const ins=Object.keys(im);
     const facDateSet=new Set();
@@ -5716,10 +5722,14 @@ function doFacPrint(dates){
     let tbRows='';
     ins.forEach((inv,ii)=>{
       const pfx=getPfx(inv);const s=pst(pfx);const bg=ii%2===1?'background:#f8fafc;':'';
-      tbRows+=`<tr style="${bg}"><td style="border:1px solid #e2e8f0;padding:4px 8px;white-space:nowrap;vertical-align:top;${bg}"><span style="font-size:7pt;font-weight:700;padding:1px 5px;border-radius:3px;margin-right:5px;background:${s.bg};color:${s.tx};border:1px solid ${s.bd};">${esc(pfx)}</span>${esc(inv)}</td>`;
+      const _vp=VESSEL_PLAN[inv.toUpperCase()]; let _vn='',_bk='';
+      if(_vp){ _vn=_vp.vessel||''; _bk=_vp.bkg||''; }
+      else { const _vr=VESSEL.find(v=>normInv(v.inv)===normInv(inv)); if(_vr){ _vn=_vr.vessel||''; _bk=_vr.bkg||''; } }
+      const _vslLine=(_vn||(_bk&&_bk!=='-'))?`<div style="font-size:7pt;color:#64748b;margin-top:2px;">${_vn?`🚢 ${esc(_vn)}`:''}${_bk&&_bk!=='-'?`${_vn?' · ':''}BKG ${esc(_bk)}`:''}</div>`:'';
+      tbRows+=`<tr style="${bg}"><td style="border:1px solid #e2e8f0;padding:4px 8px;white-space:nowrap;vertical-align:top;${bg}"><span style="font-size:7pt;font-weight:700;padding:1px 5px;border-radius:3px;margin-right:5px;background:${s.bg};color:${s.tx};border:1px solid ${s.bd};">${esc(pfx)}</span>${esc(inv)}${_vslLine}</td>`;
       facCols.forEach(fd=>{
         const trucks=im[inv][fd]||[];
-        tbRows+=trucks.length?`<td style="border:1px solid #e2e8f0;padding:4px 8px;text-align:center;white-space:nowrap;vertical-align:top;${bg}">${trucks.map(t=>esc(t)).join('<br>')}</td>`:`<td style="border:1px solid #e2e8f0;padding:4px 8px;text-align:center;color:#cbd5e1;vertical-align:top;${bg}">—</td>`;
+        tbRows+=trucks.length?`<td style="border:1px solid #e2e8f0;padding:4px 8px;text-align:center;white-space:nowrap;vertical-align:top;${bg}">${trucks.map(t=>`${esc(t.truck)}${t.ctr?` <span style="font-family:monospace;font-size:7pt;color:#94a3b8;">${esc(t.ctr)}</span>`:''}`).join('<br>')}</td>`:`<td style="border:1px solid #e2e8f0;padding:4px 8px;text-align:center;color:#cbd5e1;vertical-align:top;${bg}">—</td>`;
       });
       tbRows+=`</tr>`;
     });
