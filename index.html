@@ -5725,32 +5725,32 @@ function doFacPrint(dates){
       const _vp=VESSEL_PLAN[inv.toUpperCase()]; let _vn='',_bk='';
       if(_vp){ _vn=_vp.vessel||''; _bk=_vp.bkg||''; }
       else { const _vr=VESSEL.find(v=>normInv(v.inv)===normInv(inv)); if(_vr){ _vn=_vr.vessel||''; _bk=_vr.bkg||''; } }
-      const _vslLine=(_vn||(_bk&&_bk!=='-'))?`<div style="font-size:7pt;color:#64748b;margin-top:2px;">${_vn?`🚢 ${esc(_vn)}`:''}${_bk&&_bk!=='-'?`${_vn?' · ':''}BKG ${esc(_bk)}`:''}</div>`:'';
-      tbRows+=`<tr style="${bg}"><td style="border:1px solid #e2e8f0;padding:4px 8px;white-space:nowrap;vertical-align:top;${bg}"><span style="font-size:7pt;font-weight:700;padding:1px 5px;border-radius:3px;margin-right:5px;background:${s.bg};color:${s.tx};border:1px solid ${s.bd};">${esc(pfx)}</span>${esc(inv)}${_vslLine}</td>`;
+      const _vslLine=(_vn||(_bk&&_bk!=='-'))?`<div style="font-size:9.5pt;color:#475569;margin-top:3px;">${_vn?`🚢 ${esc(_vn)}`:''}${_bk&&_bk!=='-'?`${_vn?' · ':''}BKG ${esc(_bk)}`:''}</div>`:'';
+      tbRows+=`<tr style="${bg}"><td style="border:1px solid #cbd5e1;padding:7px 12px;white-space:nowrap;vertical-align:top;${bg}"><span style="font-size:9.5pt;font-weight:700;padding:2px 7px;border-radius:4px;margin-right:6px;background:${s.bg};color:${s.tx};border:1px solid ${s.bd};">${esc(pfx)}</span>${esc(inv)}${_vslLine}</td>`;
       facCols.forEach(fd=>{
         const trucks=im[inv][fd]||[];
-        tbRows+=trucks.length?`<td style="border:1px solid #e2e8f0;padding:4px 8px;text-align:center;white-space:nowrap;vertical-align:top;${bg}">${trucks.map(t=>`${esc(t.truck)}${t.ctr?` <span style="font-family:monospace;font-size:7pt;color:#94a3b8;">${esc(t.ctr)}</span>`:''}`).join('<br>')}</td>`:`<td style="border:1px solid #e2e8f0;padding:4px 8px;text-align:center;color:#cbd5e1;vertical-align:top;${bg}">—</td>`;
+        tbRows+=trucks.length?`<td style="border:1px solid #cbd5e1;padding:7px 12px;text-align:center;white-space:nowrap;vertical-align:top;${bg}">${trucks.map(t=>`${esc(t.truck)}${t.ctr?`<br><span style="font-family:monospace;font-size:9pt;color:#64748b;">${esc(t.ctr)}</span>`:''}`).join('<br>')}</td>`:`<td style="border:1px solid #cbd5e1;padding:7px 12px;text-align:center;color:#cbd5e1;vertical-align:top;${bg}">—</td>`;
       });
       tbRows+=`</tr>`;
     });
-    const thCols=facCols.map(fd=>`<th style="background:#1e3a5f;color:#fff;padding:6px 12px;font-size:8pt;text-align:center;white-space:nowrap;">${esc(fd)}</th>`).join('');
+    const thCols=facCols.map(fd=>`<th style="background:#1e3a5f;color:#fff;padding:7px 14px;font-size:12pt;text-align:center;white-space:nowrap;">${esc(fd)}</th>`).join('');
     const pb=pi<dates.length-1?'page-break-after:always;':'';
     pages+=`<div style="${pb}padding-bottom:4mm;">
 <div class="hd"><h1>🏭 สรุปตู้เข้าโรงงาน &nbsp;·&nbsp; วันรับตู้ ${esc(dt)}</h1>
 <p>${ttl} ตู้ · ${ins.length} อินวอยซ์ &nbsp;|&nbsp; วันเข้าโรงงาน: ${facCols.map(fd=>esc(fd)).join(' · ')}</p></div>
-<table><thead><tr><th style="background:#1e3a5f;color:#fff;padding:6px 12px;font-size:8pt;text-align:left;white-space:nowrap;">อินวอยซ์</th>${thCols}</tr></thead><tbody>${tbRows}</tbody></table>
+<table><thead><tr><th style="background:#1e3a5f;color:#fff;padding:7px 14px;font-size:12pt;text-align:left;white-space:nowrap;">อินวอยซ์</th>${thCols}</tr></thead><tbody>${tbRows}</tbody></table>
 <div class="ft">พิมพ์เมื่อ ${new Date().toLocaleString('th-TH')}</div></div>`;
   });
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>สรุปตู้เข้าโรงงาน</title>
 <style>*{box-sizing:border-box;margin:0;padding:0;}
 @page{size:A4 landscape;margin:10mm;}
-body{font-family:'Segoe UI',Tahoma,'Noto Sans Thai',sans-serif;font-size:9pt;color:#0f172a;background:#fff;width:277mm;}
+body{font-family:'Segoe UI',Tahoma,'Noto Sans Thai',sans-serif;font-size:12pt;color:#0f172a;background:#fff;width:277mm;}
 .hd{margin-bottom:5mm;padding-bottom:3mm;border-bottom:2px solid #0f2a52;}
-.hd h1{font-size:12pt;font-weight:700;color:#0f2a52;}
-.hd p{font-size:8pt;color:#64748b;margin-top:3px;}
+.hd h1{font-size:18pt;font-weight:700;color:#0f2a52;}
+.hd p{font-size:11pt;color:#64748b;margin-top:3px;}
 table{width:100%;border-collapse:collapse;}
-.ft{margin-top:4mm;font-size:7pt;color:#94a3b8;text-align:right;}
+.ft{margin-top:4mm;font-size:9pt;color:#94a3b8;text-align:right;}
 @page{@bottom-right{content:"หน้า " counter(page);font-family:'Sarabun',sans-serif;font-size:9pt;color:#94a3b8;}}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
 </style></head><body>${pages}
 <script>window.onload=function(){window.print();};<\/script>
