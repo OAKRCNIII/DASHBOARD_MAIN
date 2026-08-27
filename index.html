@@ -1494,6 +1494,22 @@ async function openVgmModal(inv){
     bg.innerHTML=`<div style="background:#fff;border-radius:14px;padding:24px;color:#dc2626;font-weight:700;">โหลดข้อมูลตู้ไม่ได้ — ${h(e.message)}</div>`;
     return;
   }
+  /* 0 แถวโดยไม่ error = สิทธิ์อ่านตารางไม่เปิด ไม่ใช่ไม่มีตู้จริง
+     บอกให้ตรงสาเหตุ ไม่งั้นจะไปนั่งหาว่าตู้หายไปไหน */
+  if(!_vgmRows.length){
+    bg.innerHTML=`<div style="background:#fff;border-radius:14px;width:min(460px,94vw);padding:22px 24px;">
+      <div style="font-size:14px;font-weight:800;color:#b91c1c;margin-bottom:8px;">ดึงข้อมูลตู้ไม่ได้</div>
+      <div style="font-size:12.5px;color:#475569;line-height:1.7;">
+        อ่านตาราง <code>lcb_containers</code> ได้ 0 แถว ทั้งที่อินวอยซ์นี้มีตู้อยู่<br>
+        สาเหตุที่พบบ่อยคือ<strong>ยังไม่ได้เปิดสิทธิ์อ่านตาราง</strong> — รัน
+        <code>migrate_10_lcb_read.sql</code> แล้วลองใหม่<br>
+        ถ้ารันแล้วยังไม่ได้ ให้ล็อกอินใหม่อีกครั้ง
+      </div>
+      <button onclick="document.getElementById('vgmBg').style.display='none'"
+        style="margin-top:14px;font-family:inherit;font-size:13px;font-weight:700;padding:8px 18px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;cursor:pointer;">ปิด</button>
+    </div>`;
+    return;
+  }
   const noTare=_vgmRows.filter(r=>r.tare_kg==null);
   const pfx=String(inv).split('-')[0].toUpperCase();
   const sg=VGM_SIGNER[pfx]||{name:'',email:''};
