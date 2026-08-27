@@ -1497,6 +1497,13 @@ async function openVgmModal(inv){
   const noTare=_vgmRows.filter(r=>r.tare_kg==null);
   const pfx=String(inv).split('-')[0].toUpperCase();
   const sg=VGM_SIGNER[pfx]||{name:'',email:''};
+
+  /* booking ของสายเรือมาจากตอนจัดเรือ (ตาราง vessels) ไม่ใช่ใบ EIR
+     eir_ref_no บนใบ EIR เป็นเลขของลานตู้ คนละตัว ใช้แทนกันไม่ได้ */
+  const vr=(typeof VESSEL!=='undefined'?VESSEL:[]).find(r=>normInv(r.inv)===normInv(inv));
+  const bkg=(vr&&vr.bkg&&vr.bkg!=='-')?vr.bkg:'';
+  /* จำนวนตู้ที่จัดเรือไว้ ควรเท่ากับที่บันทึกรูปไว้ ไม่งั้นไฟล์ VGM จะขาด/เกิน */
+  const planN=vr?Number(vr.vol||0):0;
   const inp='width:100%;font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;';
   const lbl='font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:3px;';
 
@@ -1509,11 +1516,13 @@ async function openVgmModal(inv){
     <div style="padding:16px 18px;">
       <div style="background:#f7fee7;border:1px solid #d9f99d;border-radius:9px;padding:9px 12px;font-size:12px;color:#3f6212;margin-bottom:14px;">
         ดึงเบอร์ตู้ ${_vgmRows.length} ใบ พร้อม TARE จากรูปตู้ที่บันทึกไว้
+        ${vr?`<br>เรือ ${h(vr.vessel||'—')} · ออก ${h(vr.date||'—')}`:''}
         ${noTare.length?`<br><strong style="color:#b91c1c;">⚠️ ${noTare.length} ใบไม่มี TARE — ต้องแก้ก่อนออกไฟล์</strong>`:''}
+        ${planN&&planN!==_vgmRows.length?`<br><strong style="color:#b91c1c;">⚠️ จัดเรือไว้ ${planN} ตู้ แต่มีรูปในระบบ ${_vgmRows.length} ตู้ — ไฟล์จะไม่ครบ</strong>`:''}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div style="grid-column:1/-1;"><label style="${lbl}">BOOKING REFERENCE</label>
-          <input id="vgmBk" style="${inp}font-family:monospace;font-weight:700;" placeholder="GTD1042782" autocomplete="off"></div>
+        <div style="grid-column:1/-1;"><label style="${lbl}">BOOKING REFERENCE${bkg?' <span style="color:#4d7c0f;">· ดึงจากตอนจัดเรือ</span>':' <span style="color:#b45309;">· ยังไม่ได้จัดเรือ ต้องพิมพ์เอง</span>'}</label>
+          <input id="vgmBk" style="${inp}font-family:monospace;font-weight:700;" value="${h(bkg)}" placeholder="GTD1042782" autocomplete="off"></div>
         <div><label style="${lbl}">น้ำหนักสินค้าต่อตู้ (kg)</label>
           <input id="vgmCargo" style="${inp}text-align:right;font-weight:700;" value="${VGM_DEFAULT_CARGO}"></div>
         <div><label style="${lbl}">วิธีชั่ง</label>
