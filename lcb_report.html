@@ -63,14 +63,26 @@ td.seq{font-weight:600;color:#000}          /* ← ลำดับต้อง�
   tbody tr:nth-child(even){background:#fafbfc !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   @page{size:A4 portrait;margin:12mm}
 }
+/* ย่อขนาดเฉพาะตอน "ดูบนจอ" — ไม่เอาตอนแคปเป็นรูป/PDF
+   html2canvas วาดจากสภาพที่เห็นบนจอจริง ถ้าปล่อยให้ย่อ ตัวหนังสือจะล้น
+   ช่องจนทับกัน (เบอร์ตู้ทับเลขซีล) เลยกันด้วย html:not(.shooting) */
 @media(max-width:820px){
-  .sheet{width:auto;padding:14px;margin:10px}
-  .tbox h1{font-size:19px}
-  .l1{font-size:15px}.l1 b{font-size:19px}.l2{font-size:13px}
-  th,td{font-size:12px;height:8mm;padding:0 2px}
-  thead th{font-size:11px}
-  .c-ctr{font-size:13px}.c-truck{font-size:11px}.c-wt{font-size:11px}.c-fac{font-size:11px}
+  html:not(.shooting) .sheet{width:auto;padding:14px;margin:10px}
+  html:not(.shooting) .tbox h1{font-size:19px}
+  html:not(.shooting) .l1{font-size:15px}
+  html:not(.shooting) .l1 b{font-size:19px}
+  html:not(.shooting) .l2{font-size:13px}
+  html:not(.shooting) th,html:not(.shooting) td{font-size:12px;height:8mm;padding:0 2px}
+  html:not(.shooting) thead th{font-size:11px}
+  html:not(.shooting) .c-ctr{font-size:13px}
+  html:not(.shooting) .c-truck{font-size:11px}
+  html:not(.shooting) .c-wt{font-size:11px}
+  html:not(.shooting) .c-fac{font-size:11px}
 }
+/* ตอนแคป บังคับความกว้างกระดาษเต็มเสมอ ไม่ว่าจอจะแคบแค่ไหน */
+html.shooting .sheet{width:210mm !important;margin:0 !important;
+  padding:15mm 14mm 12mm !important;box-shadow:none !important}
+html.shooting body{width:210mm}
 </style>
 </head>
 <body>
@@ -175,10 +187,25 @@ async function sheetCanvas(){
     await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 3000))]);
   }
   say('กำลังวาดหน้ากระดาษ…');
-  return html2canvas(sheet, {
-    scale: Math.min(3, Math.max(2, 1600 / sheet.offsetWidth)),
-    backgroundColor: '#ffffff', useCORS: true, logging: false,
-  });
+  /* บังคับให้หน้ากระดาษกลับไปกว้างเต็ม A4 ก่อนแคป
+     ไม่งั้นบนมือถือจะได้รูปที่ตัวหนังสือล้นช่องทับกัน */
+  document.documentElement.classList.add('shooting');
+  try{
+    /* รอให้เบราว์เซอร์คำนวณหน้าใหม่ก่อนแคป
+       ใช้ setTimeout ไม่ใช่ requestAnimationFrame เพราะ rAF ไม่ทำงาน
+       ตอนหน้าเว็บถูกซ่อน/สลับแอป — เบราว์เซอร์ในไลน์เจอบ่อย แล้วจะค้างยาว */
+    sheet.offsetHeight;                       /* บังคับคำนวณ layout ใหม่ */
+    await new Promise(r => setTimeout(r, 60));
+    const w = sheet.offsetWidth, hgt = sheet.offsetHeight;
+    return await html2canvas(sheet, {
+      scale: Math.min(3, Math.max(2, 1600 / w)),
+      backgroundColor: '#ffffff', useCORS: true, logging: false,
+      width: w, height: hgt, windowWidth: w, windowHeight: hgt,
+      scrollX: 0, scrollY: 0,
+    });
+  } finally {
+    document.documentElement.classList.remove('shooting');
+  }
 }
 
 function fileName(ext){
