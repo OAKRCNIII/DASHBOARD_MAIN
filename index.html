@@ -820,6 +820,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
       <button class="dash-toggle-btn" id="debtDashBtn" onclick="toggleDebtDash()" style="background:#92400e;border-color:#92400e;">🏦 หนี้โรงงาน</button>
       <button class="dash-toggle-btn" id="financeBtn" onclick="toggleFinanceDash()" style="background:#0f172a;border-color:#0f172a;display:none;">💵 FINANCE ANTS</button>
       <button class="hdr-btn" id="refreshBtn">🔄 รีเฟรช</button>
+      <button class="hdr-btn" id="syncNowBtn" onclick="triggerSyncNow()" title="สั่ง GitHub sync ข้อมูล Excel เดี๋ยวนี้ (ไม่ต้องรอ 30 นาที)" style="background:#0f766e;border-color:#0f766e;color:#fff;">⚡ SYNC เดี๋ยวนี้</button>
       <button class="hdr-btn" id="settingsBtn">⚙️ ตั้งค่า</button>
       <button class="hdr-btn" id="pushBtn" onclick="togglePush()" title="แจ้งเตือนตู้ว่างเหลือน้อยกว่า 50 (เด้งมือถือ)">🔇</button>
       <span id="userChip" style="display:none;"></span>
@@ -3541,6 +3542,23 @@ function parsePaidAnts(wb){
     map.set(normInv(invRaw),{amount,datePaid});
   }
   return map;
+}
+/* ⚡ ปุ่ม SYNC เดี๋ยวนี้ — เรียก Edge Function trigger-sync → สั่ง GitHub Actions รัน sync ทันที (ไม่รอ 30 นาที) */
+async function triggerSyncNow(){
+  if(!confirm('สั่ง SYNC ข้อมูลเดี๋ยวนี้?\n(GitHub จะดึง Excel จาก Dropbox → เข้าฐานข้อมูล ~2-3 นาที)')) return;
+  const btn=document.getElementById('syncNowBtn'); const old=btn?btn.innerHTML:'';
+  if(btn){ btn.disabled=true; btn.innerHTML='⏳ กำลังสั่ง...'; }
+  try{
+    const res=await fetch(SB_URL+'/functions/v1/trigger-sync',{
+      method:'POST',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_TOKEN,'Content-Type':'application/json'},
+      body:'{}'
+    });
+    let d={}; try{ d=await res.json(); }catch(e){}
+    if(res.ok && d.ok){ alert('✅ สั่ง SYNC สำเร็จ!\nGitHub กำลังรัน — ข้อมูลจะเข้าใน ~2-3 นาที\nจากนั้นกด 🔄 รีเฟรช'); }
+    else{ alert('⚠️ สั่ง SYNC ไม่สำเร็จ\n'+(d.error||('HTTP '+res.status))); }
+  }catch(e){ alert('⚠️ เชื่อมต่อไม่ได้: '+(e&&e.message||e)); }
+  finally{ if(btn){ btn.disabled=false; btn.innerHTML=old; } }
 }
 const _DB_CACHE_KEY='ants_raw_v2';const _DB_CACHE_TTL=10*60*1000;
 async function loadData(forceRefresh=false){
