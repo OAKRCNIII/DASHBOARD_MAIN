@@ -814,6 +814,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
         <span style="font-size:14px;font-weight:700;color:#0f172a;">Logistics Dashboard</span>
       </h1>
       <div class="sub" id="lastUpd" style="padding-left:2px;">—</div>
+      <div class="sub" id="lastSyncLabel" style="padding-left:2px;font-size:11px;color:#0f766e;font-weight:700;"></div>
     </div>
     <div class="hdr-right">
       <button class="dash-toggle-btn" id="dashToggleBtn" onclick="toggleDashboard()">🚛 ค่าขนส่ง</button>
@@ -1456,7 +1457,7 @@ function _lazyScript(src){
 }
 
 /* ⚠️ v ต้องตรงกับ REPORT_V ใน edge function line-lcb — GitHub Pages แคช 10 นาที */
-const LCB_REPORT_URL='https://oakrcniii.github.io/DASHBOARD_MAIN/lcb_report.html?v=12';
+const LCB_REPORT_URL='https://oakrcniii.github.io/DASHBOARD_MAIN/lcb_report.html?v=11';
 /* ══════════════════════════════════════════════════════════════
    ออกใบ SHIPPING INSTRUCTIONS (SI)
 
@@ -3579,6 +3580,18 @@ async function triggerSyncNow(){
     else{ alert('⚠️ สั่ง SYNC ไม่สำเร็จ\n'+(d.error||('HTTP '+res.status))); }
   }catch(e){ alert('⚠️ เชื่อมต่อไม่ได้: '+(e&&e.message||e)); }
   finally{ if(btn){ btn.disabled=false; btn.innerHTML=old; } }
+}
+/* 🔄 SYNC ล่าสุด — ดึงจาก bookings.created_at (เปลี่ยนก็ต่อเมื่อ sync เขียนข้อมูลจริงสำเร็จ ไม่ใช่แค่กดปุ่ม) */
+async function updateLastSyncLabel(){
+  try{
+    const rows=await sbFetch('bookings','select=created_at&order=created_at.desc&limit=1');
+    const el=document.getElementById('lastSyncLabel'); if(!el||!rows||!rows[0])return;
+    const t=new Date(rows[0].created_at);
+    const mins=Math.max(0,Math.round((Date.now()-t.getTime())/60000));
+    const ago= mins<1?'เมื่อกี้' : mins<60?mins+' นาทีก่อน' : Math.floor(mins/60)+' ชม. '+(mins%60)+' นาทีก่อน';
+    const p2=n=>String(n).padStart(2,'0');
+    el.textContent=`🔄 SYNC ข้อมูลล่าสุด ${p2(t.getHours())}:${p2(t.getMinutes())} น. · ${ago}`;
+  }catch(e){}
 }
 const _DB_CACHE_KEY='ants_raw_v2';const _DB_CACHE_TTL=10*60*1000;
 async function loadData(forceRefresh=false){
@@ -10465,6 +10478,7 @@ function showDashboard(data){
   FLAT=data.flat;BY_MONTH=data.byMonth;STOCK=data.stock;VESSEL=data.vessel||[];VESSEL_DRAFT=data.vesselDraft||[];FEES=data.fees||{};STMT=data.stmtInfo||{};TR_DATA=(data.trMatched||[]).filter(d=>d.month!=='-'); /* กรองอินวอยซ์เก่าปี 2025 (ไม่ระบุ) ออกจากทุก transport view */BILL_INFO_TR=data.billInfoTr||{ogm:'-',all:'-'};TR_DUPES=data.dupesTr||[];PEND_CTRS=data.pendCtrs||[];DB_MAP=data.dbMap||{};OGM_PRICE_MAP=data.ogmPriceMap||{};OGM_PRICE_LATEST=data.ogmPriceLatest||{};OGM_PRICE_HISTORY=data.ogmPriceHistory||{};VESSEL_PLAN=data.vesselPlan||{};VESSEL_PLAN_FLOAT=data.vesselPlanFloat||{};BILLED_ANTS=data.billedAnts||new Map();PAID_ANTS=data.paidAnts||new Map();BANK_BAL=data.bankBal||[];BILL_ANTS_META=(BILLED_ANTS._meta)||{week:0,year:0};PRICE_UPDATE_TABLE=data.priceUpdateTable||[];TR_UNPAID=data.unpaidTr||[];
   hideLoad();document.getElementById('app').style.display='flex';
   const now=new Date();document.getElementById('lastUpd').textContent='☁️ Supabase · '+pad(now.getHours())+':'+pad(now.getMinutes());
+  updateLastSyncLabel();
   renderTabs();renderStatsMain();const m=Object.keys(BY_MONTH).sort()[0];if(m)selMonth(m);
   applyRoleRestrictions();
   /* บนมือถือ/แท็บเล็ต (รวม Z Fold 6 unfolded) ให้เริ่มที่หน้าหลัก */
