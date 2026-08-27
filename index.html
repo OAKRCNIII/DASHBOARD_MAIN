@@ -3742,8 +3742,9 @@ async function loadData(forceRefresh=false){
     }
   });
 
-  /* ── 10b. VESSEL_DRAFT — เรือที่แพลนใน draft (sheet WEB) มีอินวอยซ์ แต่ยังไม่ ADD TO DATABASE ── */
-  const _finalKeys = new Set(vessel.map(r=>(r.vessel||'').trim().toUpperCase()+'|'+(r.date||'')));
+  /* ── 10b. VESSEL_DRAFT — อินวอยซ์ใน draft (sheet WEB) ที่ยังไม่ ADD TO DATABASE ── */
+  /* กรองระดับ "อินวอยซ์" (ไม่ใช่ vessel+date) → เรือที่ ADD แล้วแต่มี re-plan เพิ่มอินวอยซ์ใหม่ จะโชว์เฉพาะตัวใหม่ (delta) ด้วย */
+  const _finalInvSet = new Set(vessel.map(r=>normInv(r.inv)));
   const vesselDraft = vesselPlanRows
     .filter(r => (r.sheet_name||'')==='WEB'
               && r.invoice_no && !(r.invoice_no||'').toUpperCase().startsWith('LOY-')
@@ -3753,8 +3754,8 @@ async function loadData(forceRefresh=false){
       vol:parseFloat(r.vol)||0, vessel:r.vessel_name||'',
       date:r.sail_date?fmtDateFromISO(r.sail_date):'-',
     }))
-    /* ตัดเรือที่ finalize แล้ว (vessel+date มีใน vessels) → เหลือเฉพาะ draft ล้วน */
-    .filter(r=>!_finalKeys.has((r.vessel||'').trim().toUpperCase()+'|'+r.date));
+    /* เก็บเฉพาะอินวอยซ์ที่ยังไม่มีใน vessels (ยังไม่ finalize) */
+    .filter(r=>!_finalInvSet.has(normInv(r.inv)));
 
   /* ── 11. Build trMap from transport_bills ── */
   const trMap={};
@@ -5650,6 +5651,11 @@ function renderVessel(){
   const dgroups={};VESSEL_DRAFT.forEach(r=>{const k=r.vessel+'|||'+r.date;if(!dgroups[k])dgroups[k]={vessel:r.vessel,date:r.date,rows:[],vol:0};dgroups[k].rows.push(r);dgroups[k].vol+=r.vol;});
   let draftGroups=Object.values(dgroups).sort((a,b)=>pDate(b.date)-pDate(a.date));
   if(_vslFilter)draftGroups=draftGroups.filter(g=>g.vessel===_vslFilter);
+  /* แยก draft 2 กลุ่ม: ลำที่ finalize แล้ว → รวม delta เข้าการ์ด final; ลำใหม่ล้วน → การ์ด draft แยกบนสุด */
+  const _finalVslKeys = new Set(sorted.map(g=>g.vessel.trim().toUpperCase()+'|'+g.date));
+  const draftByVsl = {};
+  draftGroups.forEach(g=>{ draftByVsl[g.vessel.trim().toUpperCase()+'|'+g.date]=g.rows; });
+  const draftStandalone = draftGroups.filter(g=>!_finalVslKeys.has(g.vessel.trim().toUpperCase()+'|'+g.date));
   const draftNames=[...new Set(VESSEL_DRAFT.map(r=>r.vessel))].filter(v=>!all.includes(v)).sort();
 
   let opts=`<option value="">🚢 เรือทั้งหมด (${all.length} ลำ)</option>`;all.forEach(v=>{opts+=`<option value="${h(v)}"${v===_vslFilter?' selected':''}>${h(v)}</option>`;});
@@ -5657,9 +5663,9 @@ function renderVessel(){
   let out=`<div style="padding:4px 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><label style="font-size:12px;color:#475569;font-weight:600;">กรองเรือ:</label><select id="vslSel" onchange="_vslFilter=this.value;renderVessel();" style="padding:6px 12px;border:1.5px solid #bfdbfe;border-radius:8px;font-size:13px;background:#fff;color:#1e40af;cursor:pointer;min-width:220px;">${opts}</select><button onclick="showVesselPdfModal()" style="padding:6px 14px;border:1.5px solid #0ea5e9;border-radius:8px;background:#eff6ff;color:#0369a1;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;">🖨️ PDF</button><button onclick="_vslViewMode='cal';_vslCalYear=new Date().getFullYear();_vslCalMonth=new Date().getMonth();renderVessel();" style="padding:6px 14px;border:1.5px solid #8b5cf6;border-radius:8px;background:#f5f3ff;color:#6d28d9;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📅 มุมมองปฏิทิน</button></div>`;
 
   /* ── การ์ด DRAFT (โปร่งๆ มีป้าย) แสดงบนสุด ── */
-  if(draftGroups.length){
-    out+=`<div style="margin:2px 0 8px;font-size:12.5px;font-weight:800;color:#92400e;display:flex;align-items:center;gap:6px;">🗓️ เรือที่กำลังแพลน — ยังไม่ FINAL (${draftGroups.length} ลำ)</div>`;
-    draftGroups.forEach(g=>{
+  if(draftStandalone.length){
+    out+=`<div style="margin:2px 0 8px;font-size:12.5px;font-weight:800;color:#92400e;display:flex;align-items:center;gap:6px;">🗓️ เรือที่กำลังแพลน — ยังไม่ FINAL (${draftStandalone.length} ลำ)</div>`;
+    draftStandalone.forEach(g=>{
       let oc=0,tl=0;g.rows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}});const tot=oc+tl;
       out+=`<div class="vessel-card" style="position:relative;overflow:hidden;opacity:.94;background:repeating-linear-gradient(45deg,#fffdf6,#fffdf6 13px,#fdf3d8 13px,#fdf3d8 26px);border:2px dashed #f59e0b;box-shadow:none;">
         <div style="position:absolute;top:13px;right:-40px;transform:rotate(38deg);background:#f59e0b;color:#fff;font-size:10px;font-weight:800;padding:3px 46px;letter-spacing:2px;box-shadow:0 1px 4px rgba(0,0,0,.25);z-index:2;">DRAFT</div>
@@ -5674,14 +5680,19 @@ function renderVessel(){
     if(sorted.length)out+=`<div style="margin:14px 0 8px;font-size:12.5px;font-weight:800;color:#1e40af;">✅ เรือที่ ADD DATABASE แล้ว</div>`;
   }
   sorted.forEach(g=>{
-    let oc=0,tl=0;g.rows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}});const tot=oc+tl;
+    const _dkey=g.vessel.trim().toUpperCase()+'|'+g.date;
+    const _draftRows=(draftByVsl[_dkey]||[]).map(r=>({...r,_draft:true}));   /* delta ที่ยังไม่ ADD */
+    const allRows=[...g.rows,..._draftRows];
+    const _allVol=allRows.reduce((s,r)=>s+(parseFloat(r.vol)||0),0);
+    let oc=0,tl=0;allRows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}});const tot=oc+tl;
     const _gvn=g.vessel.replace(/\s+\d+[NSEW](\s*\([^)]*\))?$/i,'').replace(/[\s\/]+V\.\w+$/i,'').trim();const _gmmsi=VESSEL_MMSI[_gvn.toUpperCase()]||VESSEL_MMSI[_gvn]||null;const _gurl=_gmmsi?'https://www.vesselfinder.com/vessels/details/'+_gmmsi:'https://www.vesselfinder.com/?name='+encodeURIComponent(_gvn);
-    out+=`<div class="vessel-card"><div class="vessel-head"><span class="vessel-name">🚢 ${h(g.vessel)}</span><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span class="vessel-badge">📅 ${h(g.date)}</span><span class="vessel-badge">${g.rows.length} INV · ${g.vol} ตู้</span>${hasFees&&tot>0?`<span class="vessel-badge">💰 ${fm(tot)} RM</span>`:''}<span onclick="window.open('${_gurl}','_blank','noopener,noreferrer')" style="cursor:pointer;font-size:11px;padding:2px 8px;border-radius:6px;background:#dbeafe;color:#1d4ed8;font-weight:700;user-select:none;" title="ดูตำแหน่งเรือบน VesselFinder">🛰️ ติดตามเรือ</span></div></div>`;
+    const _draftBadge=_draftRows.length?`<span class="vessel-badge" style="background:#fef3c7;color:#92400e;">🕒 ${_draftRows.length} ยังไม่ ADD</span>`:'';
+    out+=`<div class="vessel-card"><div class="vessel-head"><span class="vessel-name">🚢 ${h(g.vessel)}</span><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span class="vessel-badge">📅 ${h(g.date)}</span><span class="vessel-badge">${allRows.length} INV · ${_allVol} ตู้</span>${_draftBadge}${hasFees&&tot>0?`<span class="vessel-badge">💰 ${fm(tot)} RM</span>`:''}<span onclick="window.open('${_gurl}','_blank','noopener,noreferrer')" style="cursor:pointer;font-size:11px;padding:2px 8px;border-radius:6px;background:#dbeafe;color:#1d4ed8;font-weight:700;user-select:none;" title="ดูตำแหน่งเรือบน VesselFinder">🛰️ ติดตามเรือ</span></div></div>`;
     const fh=hasFees?'<th style="text-align:right;">OCF (RM)</th><th style="text-align:right;">TLX (RM)</th><th style="text-align:right;color:#7c3aed;">ตู้ละ (RM)</th>':'';
     out+=`<table class="vtbl"><thead><tr><th>#</th><th>อินวอยซ์</th><th>ปลายทาง</th><th>BKG</th><th style="text-align:center;">ตู้</th>${fh}</tr></thead><tbody>`;
-    g.rows.forEach((r,i)=>{const s=pst(getPfx(r.inv));out+=`<tr><td style="color:#94a3b8;font-size:11px;">${i+1}</td><td><span class="finv-badge" style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd}">${h(getPfx(r.inv))}</span>${h(r.inv)}</td><td style="color:#64748b;font-size:11px;">${h(r.des)}</td><td style="font-family:monospace;font-weight:600;color:#475569;">${h(r.bkg)}</td><td style="font-weight:700;color:#16a34a;text-align:center;">${r.vol}</td>${_vslFeeCells(r,g.vessel,hasFees,fm)}</tr>`;
+    allRows.forEach((r,i)=>{const s=pst(getPfx(r.inv));const _dr=r._draft;out+=`<tr${_dr?' style="background:#fffbeb;"':''}><td style="color:#94a3b8;font-size:11px;${_dr?'border-left:3px solid #f59e0b;':''}">${i+1}</td><td><span class="finv-badge" style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd}">${h(getPfx(r.inv))}</span>${h(r.inv)}${_dr?` <span style="font-size:8.5px;font-weight:800;color:#c2410c;background:#ffedd5;border:1px solid #fdba74;border-radius:4px;padding:0 4px;">DRAFT</span>`:''}</td><td style="color:#64748b;font-size:11px;">${h(r.des)}</td><td style="font-family:monospace;font-weight:600;color:#475569;">${h(r.bkg)}</td><td style="font-weight:700;color:${_dr?'#c2410c':'#16a34a'};text-align:center;">${r.vol}</td>${_vslFeeCells(r,g.vessel,hasFees,fm)}</tr>`;
     });
-    if(hasFees){const perCtrAvg=oc>0&&g.vol>0?oc/g.vol:0;out+=`<tr style="background:#f0f9ff;border-top:2px solid #bfdbfe;"><td colspan="5" style="text-align:right;font-weight:700;font-size:11px;color:#1e40af;padding:8px 12px;">รวมเรือลำนี้</td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#16a34a;">${fm(oc)}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#2563eb;">${fm(tl)}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:700;color:#7c3aed;font-size:10px;">${perCtrAvg>0?fm(perCtrAvg)+' avg':'-'}</span></td></tr><tr style="background:#dbeafe;"><td colspan="5" style="text-align:right;font-weight:700;font-size:11px;color:#1e40af;padding:6px 12px;">รวม OCF+TLX</td><td colspan="3" style="text-align:right;padding:6px 12px;font-weight:800;font-size:13px;color:#1e3a8a;">${fm(tot)} RM</td></tr>`;}
+    if(hasFees){const perCtrAvg=oc>0&&_allVol>0?oc/_allVol:0;out+=`<tr style="background:#f0f9ff;border-top:2px solid #bfdbfe;"><td colspan="5" style="text-align:right;font-weight:700;font-size:11px;color:#1e40af;padding:8px 12px;">รวมเรือลำนี้${_draftRows.length?' (รวม '+_draftRows.length+' draft)':''}</td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#16a34a;">${fm(oc)}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#2563eb;">${fm(tl)}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:700;color:#7c3aed;font-size:10px;">${perCtrAvg>0?fm(perCtrAvg)+' avg':'-'}</span></td></tr><tr style="background:#dbeafe;"><td colspan="5" style="text-align:right;font-weight:700;font-size:11px;color:#1e40af;padding:6px 12px;">รวม OCF+TLX</td><td colspan="3" style="text-align:right;padding:6px 12px;font-weight:800;font-size:13px;color:#1e3a8a;">${fm(tot)} RM</td></tr>`;}
     out+='</tbody></table></div>';
   });
   document.getElementById('vesselWrap').innerHTML=out;
