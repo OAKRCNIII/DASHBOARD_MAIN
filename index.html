@@ -1457,6 +1457,266 @@ function _lazyScript(src){
 /* ⚠️ v ต้องตรงกับ REPORT_V ใน edge function line-lcb — GitHub Pages แคช 10 นาที */
 const LCB_REPORT_URL='https://oakrcniii.github.io/DASHBOARD_MAIN/lcb_report.html?v=11';
 /* ══════════════════════════════════════════════════════════════
+   ออกใบ SHIPPING INSTRUCTIONS (SI)
+
+   จัดหน้าตามใบจริงที่ส่ง SCORPIO — ฟอนต์ Cordia New · กรอบซ้าย
+   Shipper/Consignee/Notify · ตารางตู้ท้ายใบ
+
+   ⚠️ ใบที่ทำมือแต่ละใบวางไม่เหมือนกัน (J-05 62 แถว · T-19 78 แถว)
+      เพราะที่อยู่ผู้รับยาวไม่เท่ากัน แล้วทุกอย่างใต้บล็อกเลื่อนตาม
+      ตัวนี้จึงคำนวณตำแหน่งแถวจากจำนวนบรรทัดที่อยู่จริง ไม่ใช่ตำแหน่งตายตัว
+
+   น้ำหนักที่แจ้งสายเรือใช้ 28,500/ตู้ ซึ่ง "ตั้งใจให้ต่าง" จากใบโรงงาน
+   NET คำนวณเป็น GROSS − จำนวนมัด ตามกติกาโรงงาน (มัดละ 1 กก.)
+   ══════════════════════════════════════════════════════════════ */
+const SI_GROSS_PER_CTR = 28500;
+const SI_AGENT = 'SCORPIO LOGISTICS CO.,LTD';
+const SI_SHIPPER = [
+  'BANSONG PARAWOOD CO., LTD.',
+  '83 MOO 3 T.WIENGSRA, A.WIENGSRA,',
+  'SURATTHANEE 84190  THAILAND',
+  'TEL (+66) 77-267317 FAX (+66) 77-267317',
+  'Commercial registration no. : 0845537000390',
+];
+let _siInv='', _siData=null;
+
+async function openSiModal(inv){
+  _siInv=inv;
+  let bg=document.getElementById('siBg');
+  if(!bg){
+    bg=document.createElement('div');
+    bg.id='siBg';
+    bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9350;'
+                   +'align-items:center;justify-content:center;padding:14px;';
+    bg.addEventListener('mousedown',e=>{ bg._d=(e.target===bg); });
+    bg.addEventListener('click',e=>{ if(e.target===bg&&bg._d) bg.style.display='none'; bg._d=false; });
+    document.body.appendChild(bg);
+  }
+  bg.innerHTML='<div style="background:#fff;border-radius:14px;padding:30px 34px;color:#64748b;">กำลังโหลด…</div>';
+  bg.style.display='flex';
+
+  let ctrs, cons;
+  try{
+    [ctrs,cons]=await Promise.all([
+      sbFetch('lcb_containers',
+        `select=container_no,seal_no,bundle_count,cargo_m3&invoice_no=eq.${encodeURIComponent(inv)}&order=id`),
+      sbFetch('si_consignees','select=*'),
+    ]);
+  }catch(e){
+    bg.innerHTML=`<div style="background:#fff;border-radius:14px;padding:24px;color:#dc2626;font-weight:700;">โหลดข้อมูลไม่ได้ — ${h(e.message)}</div>`;
+    return;
+  }
+
+  const miss=ctrs.filter(c=>c.bundle_count==null||c.cargo_m3==null);
+  const vr=(typeof VESSEL!=='undefined'?VESSEL:[]).find(r=>normInv(r.inv)===normInv(inv));
+  const d=(FLAT||[]).find(x=>normInv(x.inv)===normInv(inv))||{};
+  const em=(cons||[]).find(c=>c.customer_key===d.customer);
+
+  _siData={inv, ctrs, vessel:(vr&&vr.vessel)||'', bkg:(vr&&vr.bkg!=='-'&&vr.bkg)||'',
+           dest:(d.des||(vr&&vr.des)||'').toUpperCase(), email:(em&&em.email)||'',
+           consignee:[], hs:'440729'};
+
+  const inp='width:100%;font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;';
+  const lbl='font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:3px;';
+  const today=new Date();
+  const MON=['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+
+  bg.innerHTML=`<div style="background:#fff;border-radius:14px;width:min(680px,96vw);max-height:88vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+    <div style="padding:13px 18px;background:#1e3a5f;color:#fff;border-radius:14px 14px 0 0;display:flex;align-items:center;">
+      <span style="font-size:14px;font-weight:800;">📋 ใบ SHIPPING INSTRUCTIONS — ${h(inv)}</span>
+      <button onclick="document.getElementById('siBg').style.display='none'"
+        style="margin-left:auto;background:none;border:none;color:#fff;font-size:18px;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:16px 18px;">
+      ${miss.length?`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:11px 14px;margin-bottom:14px;">
+        <div style="font-size:12.5px;font-weight:800;color:#991b1b;">⛔ ยังไม่มีข้อมูลโรงงาน ${miss.length} ตู้ — ออกใบไม่ได้</div>
+        <div style="font-size:11px;color:#991b1b;margin-top:4px;">${miss.map(c=>h(c.container_no)).join(', ')}</div>
+        <div style="font-size:11px;color:#7f1d1d;margin-top:5px;">กด <strong>🏭 รับใบโรงงาน</strong> อัปโหลด PDF ก่อน</div>
+      </div>`:`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;font-weight:800;color:#166534;">
+        ✅ ข้อมูลครบ ${ctrs.length} ตู้ — มัดรวม ${ctrs.reduce((s,c)=>s+Number(c.bundle_count||0),0)} · M³ ${Math.round(ctrs.reduce((s,c)=>s+Number(c.cargo_m3||0),0)*100)/100}</div>`}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div><label style="${lbl}">วันที่ออกใบ (DATED)</label>
+          <input id="siDated" style="${inp}" value="${MON[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}"></div>
+        <div><label style="${lbl}">SHIPPED ON BOARD</label>
+          <input id="siBoard" style="${inp}" placeholder="08/09/2026"></div>
+        <div><label style="${lbl}">BOOKING NO.</label>
+          <input id="siBkg" style="${inp}font-family:monospace;font-weight:700;" value="${h(_siData.bkg)}"></div>
+        <div><label style="${lbl}">Ocean Vessel</label>
+          <input id="siVessel" style="${inp}" value="${h(_siData.vessel)}"></div>
+        <div><label style="${lbl}">Port of Discharge</label>
+          <input id="siDest" style="${inp}" value="${h(_siData.dest)}${_siData.dest&&!/CHINA/i.test(_siData.dest)?', CHINA':''}"></div>
+        <div><label style="${lbl}">HS CODE</label>
+          <input id="siHs" style="${inp}" value="440729"></div>
+        <div style="grid-column:1/-1;"><label style="${lbl}">ผู้รับปลายทาง — บรรทัดต่อบรรทัด (วางจากใบ PDF โรงงาน)</label>
+          <textarea id="siCons" rows="6" style="${inp}font-family:monospace;font-size:11.5px;line-height:1.6;"
+            placeholder="FOSHAN NEW JINXIANGMU BOARD CO., LTD&#10;NO. 89, RONGZHOU TIANBIAN INDUSTRIAL ZONE, NANZHUANG&#10;TOWN, CHANCHENG DISTRICT, FOSHAN CITY CHINA&#10;TEL: 13760972671"></textarea>
+          <div style="font-size:10px;color:#94a3b8;margin-top:3px;">
+            ชื่อและที่อยู่ต้องเอาจากใบ PDF ของงวดนี้ — ลูกค้าชื่อเดียวกันอาจคนละที่อยู่</div></div>
+        <div style="grid-column:1/-1;"><label style="${lbl}">บรรทัดอีเมล (ต่อท้ายที่อยู่)</label>
+          <input id="siEmail" style="${inp}font-size:11.5px;" value="${h(_siData.email)}"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button ${miss.length?'disabled':''} onclick="_siMake()"
+          style="flex:1;font-family:inherit;font-size:13px;font-weight:700;padding:10px;border-radius:8px;border:1px solid ${miss.length?'#e2e8f0':'#1e3a5f'};background:${miss.length?'#f1f5f9':'#1e3a5f'};color:${miss.length?'#94a3b8':'#fff'};cursor:${miss.length?'not-allowed':'pointer'};">
+          ${miss.length?'⛔ ข้อมูลโรงงานยังไม่ครบ':'📊 ออกไฟล์ Excel'}</button>
+        <button onclick="document.getElementById('siBg').style.display='none'"
+          style="font-family:inherit;font-size:13px;font-weight:700;padding:10px 18px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;cursor:pointer;">ปิด</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function _siMake(){
+  const g=i=>document.getElementById(i).value.trim();
+  const cons=g('siCons').split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!cons.length){ alert('ยังไม่ได้ใส่ที่อยู่ผู้รับ — ต้องวางจากใบ PDF ของงวดนี้'); return; }
+  if(!g('siVessel')){ alert('ยังไม่ได้ใส่ชื่อเรือ'); return; }
+  if(!g('siBoard')){ alert('ยังไม่ได้ใส่วัน SHIPPED ON BOARD'); return; }
+
+  /* ในใบจริง บรรทัดอีเมลอยู่ "ก่อน" บรรทัด USCI เสมอ
+     ที่อยู่ที่วางมาจาก PDF มี USCI ติดมาด้วย จึงต้องแทรกอีเมลไว้หน้ามัน */
+  const email=g('siEmail');
+  let block=cons.slice();
+  if(email){
+    const i=block.findIndex(s=>/^USCI/i.test(s));
+    if(i>=0) block.splice(i,0,email); else block.push(email);
+  }
+  const ctrs=_siData.ctrs;
+  const gross=SI_GROSS_PER_CTR;
+  const rowsC=ctrs.map(c=>({no:c.container_no, seal:c.seal_no||'',
+    bundles:Number(c.bundle_count), m3:Number(c.cargo_m3),
+    net:gross-Number(c.bundle_count), gross}));
+  const totB=rowsC.reduce((s,r)=>s+r.bundles,0);
+  const totN=rowsC.reduce((s,r)=>s+r.net,0);
+  const totG=rowsC.reduce((s,r)=>s+r.gross,0);
+  const totM=Math.round(rowsC.reduce((s,r)=>s+r.m3,0)*100)/100;
+
+  await _lazyScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
+  const ws={}, merges=[], rowsH=[];
+  const thin={style:'thin',color:{rgb:'FF000000'}};
+  let maxR=0, maxC=15;
+  /* f=ฟอนต์ · z=ขนาด · b=หนา · u=ขีดเส้นใต้ · a=จัดแนวนอน · bd=ขอบ l r t b */
+  const put=(r,c,v,o)=>{
+    o=o||{};
+    const ref=XLSX.utils.encode_cell({r,c});
+    const num=(typeof v==='number');
+    ws[ref]={t:num?'n':'s', v:(v==null?'':v)};
+    ws[ref].s={
+      font:{name:o.f||'Cordia New', sz:o.z||14, bold:o.b!==false, underline:!!o.u},
+      alignment:{vertical:'center', horizontal:o.a||undefined, wrapText:false},
+      border:{left:o.L?thin:undefined, right:o.R?thin:undefined,
+              top:o.T?thin:undefined, bottom:o.B?thin:undefined},
+    };
+    if(r>maxR) maxR=r;
+  };
+  const hgt=(r,pt)=>{ rowsH[r]={hpt:pt}; };
+  /* ลากเส้นกรอบซ้าย (คอลัมน์ A และ F) ให้ทุกแถวในช่วง */
+  const boxSide=(r1,r2)=>{ for(let r=r1;r<=r2;r++){ for(const c of [0,5]){
+      const ref=XLSX.utils.encode_cell({r,c});
+      if(!ws[ref]) put(r,c,'');
+      ws[ref].s.border[c===0?'left':'right']=thin; } } };
+  const boxLine=(r,c1,c2,side)=>{ for(let c=c1;c<=c2;c++){
+      const ref=XLSX.utils.encode_cell({r,c});
+      if(!ws[ref]) put(r,c,'');
+      ws[ref].s.border[side]=thin; } };
+
+  let R=0;
+  put(R,0,`PLS MAIL COPY B/L TO ants.star1@gmail.com`,{z:22});
+  boxLine(R,0,11,'bottom'); merges.push({s:{r:R,c:0},e:{r:R,c:11}}); hgt(R,29.2); R++;
+  put(R,0,'SHIPPING INSTRUCTIONS',{z:16,a:'center'});
+  merges.push({s:{r:R,c:0},e:{r:R,c:11}}); hgt(R,24.8); R+=2;
+
+  put(R,0,`TO :      ${SI_AGENT}`,{z:16});
+  put(R,7,`  DATED  ${g('siDated')}`,{z:14,a:'center'});
+  merges.push({s:{r:R,c:0},e:{r:R,c:5}},{s:{r:R,c:7},e:{r:R,c:11}}); hgt(R,21.8); R++;
+  put(R,0,'PLEASE SHIP THE UNDERMENTIONED RUBBER WOOD',{z:16});
+  put(R,7,`NO. ${_siInv}`,{z:14,a:'center'});
+  merges.push({s:{r:R,c:7},e:{r:R,c:11}}); hgt(R,21.8); R+=2;
+
+  const boxTop=R;
+  put(R,0,'Shipper',{z:12}); boxLine(R,0,5,'top'); hgt(R,18); R++;
+  SI_SHIPPER.forEach((s,i)=>{ put(R,0,s); hgt(R,19.5);
+    if(i===0) put(R,7,'SHIPPED ON BOARD :',{z:12});
+    if(i===1) put(R,7,g('siBoard'));
+    if(i===3){ put(R,7,`BOOKING NO.: ${g('siBkg')}`); boxLine(R,7,11,'top'); boxLine(R,7,11,'bottom');
+               merges.push({s:{r:R,c:7},e:{r:R,c:11}}); }
+    R++; });
+
+  put(R,0,"Consignee (If 'To Order' so indicate)",{z:12}); boxLine(R,0,5,'top'); hgt(R,19.5); R++;
+  const consTop=R;
+  block.forEach((s,i)=>{ put(R,0,s); hgt(R,17.2);
+    if(i===2){ put(R,7,`HS CODE : ${g('siHs')}`); boxLine(R,7,10,'top'); boxLine(R,7,10,'bottom');
+               merges.push({s:{r:R,c:7},e:{r:R,c:10}}); }
+    R++; });
+  put(R,0,''); hgt(R,14.2); R++;
+
+  put(R,0,'Notify Party (noclaim shall attach for failure to notify)',{z:12});
+  boxLine(R,0,5,'top'); hgt(R,19.5); R++;
+  block.forEach(s=>{ put(R,0,s); hgt(R,17.2); R++; });
+  put(R,0,''); hgt(R,12.8); boxLine(R,0,5,'bottom'); R++;
+
+  put(R,0,'Local vessel',{z:12}); put(R,3,'Port of Loading',{z:12});
+  boxLine(R,0,5,'top'); hgt(R,21); R++;
+  put(R,3,'LAEM CHABANG, THAILAND'); hgt(R,19.5); R++;
+  put(R,0,'Ocean Vessel',{z:12}); put(R,3,'Port of Discharge',{z:12});
+  boxLine(R,0,5,'top'); hgt(R,20.2); R++;
+  put(R,0,g('siVessel')); put(R,3,g('siDest')); hgt(R,21); R++;
+  boxSide(boxTop,R-1);
+
+  const tblTop=R;
+  put(R,0,'MARK & NO.',{a:'center'}); put(R,1,'QUANTITY',{a:'center'});
+  put(R,3,'DESCRIPTION',{a:'center'}); put(R,9,'WEIGHT',{a:'center'});
+  boxLine(R,0,10,'top'); boxLine(R,0,10,'bottom'); hgt(R,20.2); R++;
+  put(R,0,'BSW',{a:'center'}); put(R,1,`${totB} BUNDLES`,{a:'center'});
+  put(R,3,'RUBBER WOOD K.D. SAWN TIMBER'); put(R,9,'NET WEIGHT',{a:'center'});
+  hgt(R,21); R++;
+  put(R,9,`${totN.toLocaleString('en-US')}.00 KGS.`,{a:'center'}); hgt(R,17.2); R++;
+  put(R,3,'(PLS INDICATE THE SHIPPING AGENT AT PORT OF DISCHARGE'); hgt(R,17.2); R++;
+  put(R,3,'FINAL DESTINATION.)'); hgt(R,17.2); R+=2;
+  put(R,3,`${ctrs.length}X40' HQ CONTAINERS`); put(R,9,'GROSS WEIGHT',{a:'center'}); hgt(R,21); R+=2;
+  put(R,3,'"FREIGHT PREPAID"'); put(R,9,`${totG.toLocaleString('en-US')}.00 KGS.`,{a:'center'});
+  hgt(R,17.2); R+=2;
+  put(R,3,'" DO NOT SHOW M3 AND N.W. ON B/L"'); hgt(R,18); R++;
+  /* เส้นกรอบตารางบน–ล่าง และเส้นตั้งคั่นช่อง */
+  for(let r=tblTop;r<R;r++){ for(const c of [0,1,3,8,10]){
+    const ref=XLSX.utils.encode_cell({r,c});
+    if(!ws[ref]) put(r,c,'');
+    ws[ref].s.border.left=thin; } }
+  boxLine(R,0,10,'top'); put(R,0,''); hgt(R,9); R+=2;
+
+  ['TOTAL QUANTITY :','TOTAL NET WEIGHT :','TOTAL GROSS WEIGHT :','TOTAL MEASUREMENT:']
+    .forEach((lb,i)=>{
+      put(R,0,lb);
+      put(R,3,[totB,totN,totG,totM][i]);
+      put(R,4,['BUNDLES','KGS.','KGS.','CUBIC METRES'][i]);
+      hgt(R,18.8); R++; });
+  R++;
+
+  /* หัวตารางต้องตรงคอลัมน์กับค่าข้างล่าง: C=มัด E=NET H=GROSS K=M3 */
+  [[0,'CONT. NO.'],[1,'SEAL NO.'],[2,'QUANTITY'],[4,'NET WEIGHT'],
+   [7,'GROSS WEIGHT'],[10,'MEASUREMENT']]
+    .forEach(([c,lb])=>{ put(R,c,lb,{u:true, a:c>=2?'center':undefined}); });
+  hgt(R,18); R++;
+  rowsC.forEach(r=>{
+    put(R,0,r.no); put(R,1,r.seal);
+    put(R,2,r.bundles,{a:'center'}); put(R,3,'BUNDLES');
+    put(R,4,r.net,{a:'center'});    put(R,5,'KGS.');
+    put(R,7,r.gross,{a:'center'});  put(R,9,'KGS.');
+    put(R,10,r.m3,{a:'center'});    put(R,11,'M3');
+    hgt(R,21); R++;
+  });
+
+  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:maxR,c:maxC}});
+  ws['!cols']=[17,17.1,5.1,17.4,11.9,6.4,1,6.3,5.9,8.6,9.6,7.3,6.3,9.1,9.1,9.1].map(w=>({wch:w}));
+  ws['!rows']=Array.from({length:maxR+1},(_,i)=>rowsH[i]||{});
+  ws['!merges']=merges;
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, String(_siInv).replace(/[\\/:*?\[\]]/g,'-'));
+  XLSX.writeFile(wb, `SI ${g('siBkg')||'-'} (${String(_siInv).replace(/\//g,'-')}).xlsx`);
+  document.getElementById('siBg').style.display='none';
+}
+
+/* ══════════════════════════════════════════════════════════════
    รับใบ PROFORMA INVOICE ของโรงงาน (PDF)
 
    เอาแค่ 2 ช่องที่ระบบไม่มีทางรู้เอง — จำนวนมัด กับ ปริมาตร M³
@@ -4574,6 +4834,9 @@ function showInvDetail(id,panelId){
   /* รับใบ PROFORMA ของโรงงาน — ต้นทางของจำนวนมัด/ปริมาตร ที่ใบ SI ต้องใช้ */
   if(LCB_INV.has(String(d.inv).trim()))
     out+=` <button onclick="openFactoryModal('${_invEsc}')" style="padding:6px 14px;background:#7c2d12;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🏭 รับใบโรงงาน</button>`;
+  /* ใบ SI — ต้องรับใบโรงงานเข้ามาก่อนถึงจะออกได้ */
+  if(LCB_INV.has(String(d.inv).trim()))
+    out+=` <button onclick="openSiModal('${_invEsc}')" style="padding:6px 14px;background:#1e3a5f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📋 ใบ SI</button>`;
   /* ไฟล์ VGM — เฉพาะแหลมฉบัง เพราะต้องใช้ TARE ที่บอทอ่านจากรูปตู้ */
   if(LCB_INV.has(String(d.inv).trim()))
     out+=` <button onclick="openVgmModal('${_invEsc}')" style="padding:6px 14px;background:#4d7c0f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">⚖️ ไฟล์ VGM</button>`;
