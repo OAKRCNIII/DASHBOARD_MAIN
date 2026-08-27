@@ -3576,7 +3576,10 @@ async function triggerSyncNow(){
       body:'{}'
     });
     let d={}; try{ d=await res.json(); }catch(e){}
-    if(res.ok && d.ok){ alert('✅ สั่ง SYNC สำเร็จ!\nGitHub กำลังรัน — ข้อมูลจะเข้าใน ~2-3 นาที\nจากนั้นกด 🔄 รีเฟรช'); }
+    if(res.ok && d.ok){
+      try{ sessionStorage.removeItem(_DB_CACHE_KEY); }catch(e){}   /* ล้าง cache → รีเฟรชครั้งหน้าได้ข้อมูลสด */
+      alert('✅ สั่ง SYNC สำเร็จ!\n\nGitHub กำลังดึงข้อมูลจาก Excel (~2-3 นาที)\nล้าง cache ให้แล้ว → รอ 2-3 นาที แล้วกด 🔄 รีเฟรช จะเห็นข้อมูลใหม่');
+    }
     else{ alert('⚠️ สั่ง SYNC ไม่สำเร็จ\n'+(d.error||('HTTP '+res.status))); }
   }catch(e){ alert('⚠️ เชื่อมต่อไม่ได้: '+(e&&e.message||e)); }
   finally{ if(btn){ btn.disabled=false; btn.innerHTML=old; } }
