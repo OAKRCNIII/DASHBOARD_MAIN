@@ -4831,9 +4831,6 @@ function showInvDetail(id,panelId){
   /* รูปตู้ — เฉพาะแหลมฉบัง (ปาดังไม่มีรูปในระบบ) */
   if(LCB_INV.has(String(d.inv).trim()))
     out+=` <button onclick="openLcbPhotos('${_invEsc}')" style="padding:6px 14px;background:#9d174d;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📷 รูปตู้</button>`;
-  /* รับใบ PROFORMA ของโรงงาน — ต้นทางของจำนวนมัด/ปริมาตร ที่ใบ SI ต้องใช้ */
-  if(LCB_INV.has(String(d.inv).trim()))
-    out+=` <button onclick="openFactoryModal('${_invEsc}')" style="padding:6px 14px;background:#7c2d12;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🏭 รับใบโรงงาน</button>`;
   /* ใบ SI — ต้องรับใบโรงงานเข้ามาก่อนถึงจะออกได้ */
   if(LCB_INV.has(String(d.inv).trim()))
     out+=` <button onclick="openSiModal('${_invEsc}')" style="padding:6px 14px;background:#1e3a5f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📋 ใบ SI</button>`;
@@ -4842,6 +4839,12 @@ function showInvDetail(id,panelId){
     out+=` <button onclick="openVgmModal('${_invEsc}')" style="padding:6px 14px;background:#4d7c0f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">⚖️ ไฟล์ VGM</button>`;
   /* ใบแจ้งเบอร์ตู้ — ทุกอินวอยซ์ หน้ารายงานสลับคอลัมน์ตามท่าเรือให้เอง */
   out+=` <button onclick="openLcbReport('${_invEsc}')" style="padding:6px 14px;background:#1a3a6b;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📄 ใบแจ้งเบอร์ตู้</button>`;
+  /* ── ฝั่งรับข้อมูลเข้า วางไว้ขวาสุดแยกจากปุ่มออกเอกสาร ──
+     ปุ่มอื่นคือ "ออก" เอกสาร ปุ่มนี้คือ "รับ" เข้า คนละทิศทางกัน
+     ต้องกดปุ่มนี้ก่อน ปุ่มใบ SI ถึงจะใช้ได้ */
+  if(LCB_INV.has(String(d.inv).trim()))
+    out+=` <span style="display:inline-block;width:1px;height:22px;background:#e2e8f0;margin:0 6px;vertical-align:middle;"></span>`
+      + ` <button onclick="openFactoryModal('${_invEsc}')" title="อัปโหลดใบ PROFORMA ของโรงงาน — ต้องทำก่อนออกใบ SI" style="padding:6px 14px;background:#fff;border:1.5px solid #7c2d12;border-radius:7px;color:#7c2d12;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">⬇️ รับใบโรงงาน</button>`;
   if(_canSeeFees()&&(d.prefix==='INV'||d.prefix==='SHL'))out+=`<button onclick="openQuotationModal('${_invEsc}')" style="padding:6px 14px;background:#1e3a5f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🖨️ ใบเสนอราคา</button>`;
   out+=`</div>`;}
   let _curMmsi=null;
