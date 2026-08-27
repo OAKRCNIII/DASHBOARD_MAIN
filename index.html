@@ -1456,6 +1456,146 @@ function _lazyScript(src){
 
 /* ⚠️ v ต้องตรงกับ REPORT_V ใน edge function line-lcb — GitHub Pages แคช 10 นาที */
 const LCB_REPORT_URL='https://oakrcniii.github.io/DASHBOARD_MAIN/lcb_report.html?v=11';
+/* ══════════════════════════════════════════════════════════════
+   ไฟล์ VGM — น้ำหนักตู้บรรจุที่ต้องแจ้งสายเรือก่อนขึ้นเรือ
+
+   VGM = TARE + น้ำหนักสินค้า
+     TARE          พิมพ์อยู่บนบานประตูตู้ บอทอ่านจากรูปไว้แล้ว
+     น้ำหนักสินค้า  โรงงานเป็นคนกำหนด ไม่มีในระบบ ต้องกรอกเอง
+
+   วิธีชั่ง SM2 = คำนวณเอา (ไม่ได้ชั่งตู้ทั้งใบ) ตรงกับที่ใช้อยู่
+   ══════════════════════════════════════════════════════════════ */
+const VGM_SIGNER = {          /* ผู้ลงนามประจำแต่ละโรงงาน */
+  BSW: { name:'CHUREERATH MEEPAT', email:'ants.star1@gmail.com' },
+};
+const VGM_DEFAULT_CARGO = 28500;   /* น้ำหนักสินค้าต่อตู้ที่ใช้ประจำ */
+let _vgmRows=[], _vgmInv='';
+
+async function openVgmModal(inv){
+  _vgmInv=inv;
+  let bg=document.getElementById('vgmBg');
+  if(!bg){
+    bg=document.createElement('div');
+    bg.id='vgmBg';
+    bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9350;'
+                   +'align-items:center;justify-content:center;padding:14px;';
+    /* ปิดเฉพาะตอนเริ่มกดบนพื้นหลังจริง กันลากเมาส์ออกแล้วปิดทิ้ง */
+    bg.addEventListener('mousedown',e=>{ bg._d=(e.target===bg); });
+    bg.addEventListener('click',e=>{ if(e.target===bg&&bg._d) bg.style.display='none'; bg._d=false; });
+    document.body.appendChild(bg);
+  }
+  bg.innerHTML='<div style="background:#fff;border-radius:14px;padding:30px 34px;color:#64748b;">กำลังโหลด…</div>';
+  bg.style.display='flex';
+
+  try{
+    _vgmRows=await sbFetch('lcb_containers',
+      `select=container_no,tare_kg,max_gross_kg,seal_no&invoice_no=eq.${encodeURIComponent(inv)}&order=id`);
+  }catch(e){
+    bg.innerHTML=`<div style="background:#fff;border-radius:14px;padding:24px;color:#dc2626;font-weight:700;">โหลดข้อมูลตู้ไม่ได้ — ${h(e.message)}</div>`;
+    return;
+  }
+  const noTare=_vgmRows.filter(r=>r.tare_kg==null);
+  const pfx=String(inv).split('-')[0].toUpperCase();
+  const sg=VGM_SIGNER[pfx]||{name:'',email:''};
+  const inp='width:100%;font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;';
+  const lbl='font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:3px;';
+
+  bg.innerHTML=`<div style="background:#fff;border-radius:14px;width:min(560px,96vw);max-height:88vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+    <div style="padding:13px 18px;background:#4d7c0f;color:#fff;border-radius:14px 14px 0 0;display:flex;align-items:center;">
+      <span style="font-size:14px;font-weight:800;">⚖️ ไฟล์ VGM — ${h(inv)}</span>
+      <button onclick="document.getElementById('vgmBg').style.display='none'"
+        style="margin-left:auto;background:none;border:none;color:#fff;font-size:18px;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:16px 18px;">
+      <div style="background:#f7fee7;border:1px solid #d9f99d;border-radius:9px;padding:9px 12px;font-size:12px;color:#3f6212;margin-bottom:14px;">
+        ดึงเบอร์ตู้ ${_vgmRows.length} ใบ พร้อม TARE จากรูปตู้ที่บันทึกไว้
+        ${noTare.length?`<br><strong style="color:#b91c1c;">⚠️ ${noTare.length} ใบไม่มี TARE — ต้องแก้ก่อนออกไฟล์</strong>`:''}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div style="grid-column:1/-1;"><label style="${lbl}">BOOKING REFERENCE</label>
+          <input id="vgmBk" style="${inp}font-family:monospace;font-weight:700;" placeholder="GTD1042782" autocomplete="off"></div>
+        <div><label style="${lbl}">น้ำหนักสินค้าต่อตู้ (kg)</label>
+          <input id="vgmCargo" style="${inp}text-align:right;font-weight:700;" value="${VGM_DEFAULT_CARGO}"></div>
+        <div><label style="${lbl}">วิธีชั่ง</label>
+          <input id="vgmMethod" style="${inp}" value="2"></div>
+        <div><label style="${lbl}">ผู้ลงนาม</label>
+          <input id="vgmSign" style="${inp}" value="${h(sg.name)}"></div>
+        <div><label style="${lbl}">อีเมลติดต่อ</label>
+          <input id="vgmMail" style="${inp}" value="${h(sg.email)}"></div>
+      </div>
+      <div id="vgmWarn" style="margin-top:12px;"></div>
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        <button onclick="_vgmMake()" style="flex:1;font-family:inherit;font-size:13px;font-weight:700;padding:10px;border-radius:8px;border:1px solid #4d7c0f;background:#4d7c0f;color:#fff;cursor:pointer;">📊 ออกไฟล์ Excel</button>
+        <button onclick="document.getElementById('vgmBg').style.display='none'" style="font-family:inherit;font-size:13px;font-weight:700;padding:10px 18px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;cursor:pointer;">ปิด</button>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('vgmCargo').addEventListener('input',_vgmCheck);
+  _vgmCheck();
+}
+
+/* เตือนตู้ที่ VGM จะเกินพิกัดบนป้าย — ต้องรู้ก่อนส่งไฟล์ ไม่ใช่ไปโดนที่ท่า */
+function _vgmCheck(){
+  const cargo=parseFloat(document.getElementById('vgmCargo').value)||0;
+  const box=document.getElementById('vgmWarn');
+  const over=[], tight=[];
+  _vgmRows.forEach(r=>{
+    const t=Number(r.tare_kg||0), g=Number(r.max_gross_kg||0);
+    if(!t||!g) return;
+    const head=g-(t+cargo);
+    if(head<0) over.push({no:r.container_no,vgm:t+cargo,max:g,over:-head});
+    else if(head<=200) tight.push({no:r.container_no,head});
+  });
+  box.innerHTML =
+    (over.length?`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:9px;padding:9px 12px;font-size:12px;color:#991b1b;margin-bottom:6px;">
+      <strong>⛔ เกินพิกัดตู้ ${over.length} ใบ — ห้ามส่งแบบนี้</strong>
+      ${over.map(o=>`<div style="font-size:11px;margin-top:3px;">${h(o.no)} · VGM ${_alFm(o.vgm)} เกินพิกัด ${_alFm(o.max)} อยู่ ${_alFm(o.over)} kg</div>`).join('')}</div>`:'')
+  + (tight.length?`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:9px 12px;font-size:12px;color:#92400e;">
+      <strong>⚠️ ชิดพิกัด ${tight.length} ใบ (เหลือไม่ถึง 200 kg)</strong>
+      <div style="font-size:11px;margin-top:3px;">${tight.map(t=>`${h(t.no)} เหลือ ${_alFm(t.head)}`).join(' · ')}</div></div>`:'')
+  + (!over.length&&!tight.length?'<div style="font-size:11.5px;color:#4d7c0f;">✅ ทุกใบอยู่ในพิกัด</div>':'');
+}
+
+async function _vgmMake(){
+  const g=i=>document.getElementById(i).value.trim();
+  const bk=g('vgmBk'), cargo=parseFloat(g('vgmCargo'))||0;
+  if(!bk){ alert('ยังไม่ได้ใส่ BOOKING REFERENCE'); return; }
+  if(!cargo){ alert('ยังไม่ได้ใส่น้ำหนักสินค้าต่อตู้'); return; }
+  const noTare=_vgmRows.filter(r=>r.tare_kg==null).map(r=>r.container_no);
+  if(noTare.length){ alert(`ตู้ต่อไปนี้ไม่มี TARE ในระบบ ออกไฟล์ไม่ได้\n\n${noTare.join('\n')}\n\nแก้ที่ปุ่ม ✏️ ในตารางตู้ก่อน`); return; }
+  const over=_vgmRows.filter(r=>Number(r.tare_kg)+cargo>Number(r.max_gross_kg||1e9));
+  if(over.length && !confirm(`⛔ มี ${over.length} ใบที่ VGM เกินพิกัดตู้\n\n${over.map(r=>r.container_no).join(', ')}\n\nยังจะออกไฟล์ต่อไหม?`)) return;
+
+  await _lazyScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
+  const HEAD=['BOOKING REFERENCE*','CONTAINER NUMBER*','SOC  (Y if SOC)','TARE WEIGHT',
+              'VGM* (including tare)','UOM*','SIGNATURE*','WEIGHING METHOD (SM1 / SM2)',
+              'CERTIFICATE','CONTACT EMAIL*'];
+  /* วิธีชั่งในไฟล์ต้นฉบับเก็บเป็นตัวเลข ไม่ใช่ข้อความ — ส่งให้ตรงชนิดกัน */
+  const mRaw=g('vgmMethod');
+  const method = /^\d+$/.test(mRaw) ? Number(mRaw) : mRaw;
+  const aoa=[HEAD];
+  _vgmRows.forEach(r=>{
+    const t=Number(r.tare_kg);
+    aoa.push([bk, r.container_no, '', t, t+cargo, '', g('vgmSign'), method, '', g('vgmMail')]);
+  });
+
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[21,28.4,14.1,13.1,19.5,10.6,26.4,32.9,16.6,29.8].map(w=>({wch:w}));
+  const range=XLSX.utils.decode_range(ws['!ref']);
+  for(let R=range.s.r;R<=range.e.r;R++){
+    for(let C=range.s.c;C<=range.e.c;C++){
+      const cell=ws[XLSX.utils.encode_cell({r:R,c:C})];
+      if(!cell) continue;
+      cell.s={font:{name:'Tahoma',sz:13,bold:R===0},alignment:{vertical:'center'}};
+    }
+  }
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'VGM container list');
+  const name=`VGM ${String(_vgmInv).replace(/\//g,'_')} (แหลมฉบัง).xlsx`;
+  XLSX.writeFile(wb,name);
+  document.getElementById('vgmBg').style.display='none';
+}
+
 function openLcbReport(inv){
   window.open(`${LCB_REPORT_URL}&inv=${encodeURIComponent(inv)}`,'_blank','noopener');
 }
@@ -4220,6 +4360,9 @@ function showInvDetail(id,panelId){
   /* รูปตู้ — เฉพาะแหลมฉบัง (ปาดังไม่มีรูปในระบบ) */
   if(LCB_INV.has(String(d.inv).trim()))
     out+=` <button onclick="openLcbPhotos('${_invEsc}')" style="padding:6px 14px;background:#9d174d;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📷 รูปตู้</button>`;
+  /* ไฟล์ VGM — เฉพาะแหลมฉบัง เพราะต้องใช้ TARE ที่บอทอ่านจากรูปตู้ */
+  if(LCB_INV.has(String(d.inv).trim()))
+    out+=` <button onclick="openVgmModal('${_invEsc}')" style="padding:6px 14px;background:#4d7c0f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">⚖️ ไฟล์ VGM</button>`;
   /* ใบแจ้งเบอร์ตู้ — ทุกอินวอยซ์ หน้ารายงานสลับคอลัมน์ตามท่าเรือให้เอง */
   out+=` <button onclick="openLcbReport('${_invEsc}')" style="padding:6px 14px;background:#1a3a6b;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📄 ใบแจ้งเบอร์ตู้</button>`;
   if(_canSeeFees()&&(d.prefix==='INV'||d.prefix==='SHL'))out+=`<button onclick="openQuotationModal('${_invEsc}')" style="padding:6px 14px;background:#1e3a5f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🖨️ ใบเสนอราคา</button>`;
