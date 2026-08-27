@@ -3564,11 +3564,16 @@ function parsePaidAnts(wb){
   }
   return map;
 }
-/* ⚡ ปุ่ม SYNC เดี๋ยวนี้ — เรียก Edge Function trigger-sync → สั่ง GitHub Actions รัน sync ทันที (ไม่รอ 30 นาที) */
+/* ⚡ ปุ่ม SYNC เดี๋ยวนี้ — สั่ง GitHub รัน sync + poll จน sync เสร็จ แล้วรีเฟรชให้เอง (ไม่ต้องรอ/กดเอง) */
+let _syncPollTimer=null;
 async function triggerSyncNow(){
-  if(!confirm('สั่ง SYNC ข้อมูลเดี๋ยวนี้?\n(GitHub จะดึง Excel จาก Dropbox → เข้าฐานข้อมูล ~2-3 นาที)')) return;
-  const btn=document.getElementById('syncNowBtn'); const old=btn?btn.innerHTML:'';
+  if(_syncPollTimer){ alert('⏳ กำลัง sync อยู่ — รอสักครู่ครับ'); return; }
+  if(!confirm('สั่ง SYNC ข้อมูลเดี๋ยวนี้?\n(GitHub จะดึง Excel จาก Dropbox → เข้าฐานข้อมูล ~2-3 นาที · ระบบจะรีเฟรชให้เองตอนเสร็จ)')) return;
+  const btn=document.getElementById('syncNowBtn'); const old=btn?btn.innerHTML:'⚡ SYNC เดี๋ยวนี้';
   if(btn){ btn.disabled=true; btn.innerHTML='⏳ กำลังสั่ง...'; }
+  /* baseline = เวลา sync ล่าสุดก่อนกด (จาก bookings.created_at) */
+  let baseline=0;
+  try{ const b=await sbFetch('bookings','select=created_at&order=created_at.desc&limit=1'); if(b&&b[0]) baseline=new Date(b[0].created_at).getTime(); }catch(e){}
   try{
     const res=await fetch(SB_URL+'/functions/v1/trigger-sync',{
       method:'POST',
@@ -3577,12 +3582,34 @@ async function triggerSyncNow(){
     });
     let d={}; try{ d=await res.json(); }catch(e){}
     if(res.ok && d.ok){
-      try{ sessionStorage.removeItem(_DB_CACHE_KEY); }catch(e){}   /* ล้าง cache → รีเฟรชครั้งหน้าได้ข้อมูลสด */
-      alert('✅ สั่ง SYNC สำเร็จ!\n\nGitHub กำลังดึงข้อมูลจาก Excel (~2-3 นาที)\nล้าง cache ให้แล้ว → รอ 2-3 นาที แล้วกด 🔄 รีเฟรช จะเห็นข้อมูลใหม่');
+      try{ sessionStorage.removeItem(_DB_CACHE_KEY); }catch(e){}
+      if(btn){ btn.innerHTML='⏳ กำลัง sync...'; }
+      _startSyncPoll(baseline, Date.now(), btn, old);   /* poll จนเสร็จ → รีเฟรชเอง */
+    } else {
+      alert('⚠️ สั่ง SYNC ไม่สำเร็จ\n'+(d.error||('HTTP '+res.status)));
+      if(btn){ btn.disabled=false; btn.innerHTML=old; }
     }
-    else{ alert('⚠️ สั่ง SYNC ไม่สำเร็จ\n'+(d.error||('HTTP '+res.status))); }
-  }catch(e){ alert('⚠️ เชื่อมต่อไม่ได้: '+(e&&e.message||e)); }
-  finally{ if(btn){ btn.disabled=false; btn.innerHTML=old; } }
+  }catch(e){
+    alert('⚠️ เชื่อมต่อไม่ได้: '+(e&&e.message||e));
+    if(btn){ btn.disabled=false; btn.innerHTML=old; }
+  }
+}
+function _startSyncPoll(baseline, startedAt, btn, old){
+  const MAX=5*60*1000, STEP=20*1000;
+  const stop=()=>{ if(_syncPollTimer){ clearTimeout(_syncPollTimer); _syncPollTimer=null; } if(btn){ btn.disabled=false; btn.innerHTML=old; } };
+  async function check(){
+    if(Date.now()-startedAt > MAX){ stop(); alert('⚠️ sync ใช้เวลานานผิดปกติ (เกิน 5 นาที)\nลองกด 🔄 รีเฟรช เอง หรือดู GitHub Actions'); return; }
+    let latest=0;
+    try{ const b=await sbFetch('bookings','select=created_at&order=created_at.desc&limit=1'); if(b&&b[0]) latest=new Date(b[0].created_at).getTime(); }catch(e){}
+    if(latest>baseline){   /* มี sync ใหม่เขียนข้อมูลเสร็จแล้ว */
+      stop();
+      try{ const data=await loadData(true); showDashboard(data); }catch(e){}
+      alert('✅ ข้อมูลใหม่เข้าแล้ว! (sync เสร็จ)');
+      return;
+    }
+    _syncPollTimer=setTimeout(check, STEP);
+  }
+  _syncPollTimer=setTimeout(check, STEP);
 }
 /* 🔄 SYNC ล่าสุด — ดึงจาก bookings.created_at (เปลี่ยนก็ต่อเมื่อ sync เขียนข้อมูลจริงสำเร็จ ไม่ใช่แค่กดปุ่ม) */
 async function updateLastSyncLabel(){
