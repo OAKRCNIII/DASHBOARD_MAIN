@@ -1496,12 +1496,13 @@ async function openSiModal(inv){
   bg.innerHTML='<div style="background:#fff;border-radius:14px;padding:30px 34px;color:#64748b;">กำลังโหลด…</div>';
   bg.style.display='flex';
 
-  let ctrs, cons;
+  let ctrs, cons, consInv;
   try{
-    [ctrs,cons]=await Promise.all([
+    [ctrs,cons,consInv]=await Promise.all([
       sbFetch('lcb_containers',
         `select=container_no,seal_no,bundle_count,cargo_m3&invoice_no=eq.${encodeURIComponent(inv)}&order=id`),
       sbFetch('si_consignees','select=*'),
+      sbFetch('si_consignee_inv',`select=name,lines,tel&invoice_no=eq.${encodeURIComponent(inv)}`).catch(()=>[]),
     ]);
   }catch(e){
     bg.innerHTML=`<div style="background:#fff;border-radius:14px;padding:24px;color:#dc2626;font-weight:700;">โหลดข้อมูลไม่ได้ — ${h(e.message)}</div>`;
@@ -1516,6 +1517,16 @@ async function openSiModal(inv){
   _siData={inv, ctrs, vessel:(vr&&vr.vessel)||'', bkg:(vr&&vr.bkg!=='-'&&vr.bkg)||'',
            dest:(d.des||(vr&&vr.des)||'').toUpperCase(), email:(em&&em.email)||'',
            consignee:[], hs:'440729'};
+
+  /* ที่อยู่ผู้รับ — ดึงจากใบโรงงาน (PROFORMA) ที่ AI อ่าน+บันทึกไว้ต่ออินวอยซ์ (ถ้ามี) */
+  let _siCons='';
+  if(consInv && consInv[0]){
+    const c0=consInv[0], parts=[];
+    if(c0.name) parts.push(c0.name);
+    (c0.lines||[]).forEach(l=>{ if(l) parts.push(l); });
+    if(c0.tel) parts.push('TEL: '+c0.tel);
+    _siCons=parts.join('\n');
+  }
 
   const inp='width:100%;font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;';
   const lbl='font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:3px;';
@@ -1550,9 +1561,9 @@ async function openSiModal(inv){
           <input id="siHs" style="${inp}" value="440729"></div>
         <div style="grid-column:1/-1;"><label style="${lbl}">ผู้รับปลายทาง — บรรทัดต่อบรรทัด (วางจากใบ PDF โรงงาน)</label>
           <textarea id="siCons" rows="6" style="${inp}font-family:monospace;font-size:11.5px;line-height:1.6;"
-            placeholder="FOSHAN NEW JINXIANGMU BOARD CO., LTD&#10;NO. 89, RONGZHOU TIANBIAN INDUSTRIAL ZONE, NANZHUANG&#10;TOWN, CHANCHENG DISTRICT, FOSHAN CITY CHINA&#10;TEL: 13760972671"></textarea>
-          <div style="font-size:10px;color:#94a3b8;margin-top:3px;">
-            ชื่อและที่อยู่ต้องเอาจากใบ PDF ของงวดนี้ — ลูกค้าชื่อเดียวกันอาจคนละที่อยู่</div></div>
+            placeholder="FOSHAN NEW JINXIANGMU BOARD CO., LTD&#10;NO. 89, RONGZHOU TIANBIAN INDUSTRIAL ZONE, NANZHUANG&#10;TOWN, CHANCHENG DISTRICT, FOSHAN CITY CHINA&#10;TEL: 13760972671">${h(_siCons)}</textarea>
+          <div style="font-size:10px;color:${_siCons?'#166534':'#94a3b8'};margin-top:3px;">
+            ${_siCons?'✅ ดึงจากใบโรงงาน (PROFORMA) ของงวดนี้ให้แล้ว — ตรวจก่อนออกใบ':'ยังไม่มีที่อยู่ที่อ่านไว้ — กด 🏭 รับใบโรงงาน (อ่าน PDF) ก่อน แล้วเปิดใบ SI ใหม่ · หรือพิมพ์จากใบ PDF เอง'}</div></div>
         <div style="grid-column:1/-1;"><label style="${lbl}">บรรทัดอีเมล (ต่อท้ายที่อยู่)</label>
           <input id="siEmail" style="${inp}font-size:11.5px;" value="${h(_siData.email)}"></div>
       </div>
@@ -1880,8 +1891,17 @@ async function _facSave(){
     });
     const j=await r.json();
     if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+    /* เก็บ consignee (ชื่อ+ที่อยู่+โทร) ต่ออินวอยซ์ → ให้ใบ SI ดึงไปเติมอัตโนมัติ (ต่ออินวอยซ์ ไม่ปนลูกค้า) */
+    try{
+      const H=_facHead||{};
+      await fetch(`${SB_URL}/rest/v1/si_consignee_inv?on_conflict=invoice_no`,{
+        method:'POST',
+        headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_TOKEN,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},
+        body:JSON.stringify([{invoice_no:_facInv, name:H.consignee_name||'', lines:H.consignee_lines||[], tel:H.consignee_tel||''}])
+      });
+    }catch(e){ console.warn('เก็บ consignee ไม่ได้:', e); }
     document.getElementById('facBg').style.display='none';
-    alert(`บันทึกแล้ว ${j.saved} ตู้\n\nตอนนี้ออกใบ SI ได้แล้ว`);
+    alert(`บันทึกแล้ว ${j.saved} ตู้\n\nตอนนี้ออกใบ SI ได้แล้ว (ที่อยู่ผู้รับดึงจากใบนี้ให้อัตโนมัติ)`);
   }catch(e){ alert('บันทึกไม่สำเร็จ: '+e.message); }
 }
 
