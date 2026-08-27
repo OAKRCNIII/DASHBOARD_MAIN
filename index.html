@@ -1457,6 +1457,156 @@ function _lazyScript(src){
 /* ⚠️ v ต้องตรงกับ REPORT_V ใน edge function line-lcb — GitHub Pages แคช 10 นาที */
 const LCB_REPORT_URL='https://oakrcniii.github.io/DASHBOARD_MAIN/lcb_report.html?v=11';
 /* ══════════════════════════════════════════════════════════════
+   รับใบ PROFORMA INVOICE ของโรงงาน (PDF)
+
+   เอาแค่ 2 ช่องที่ระบบไม่มีทางรู้เอง — จำนวนมัด กับ ปริมาตร M³
+   บอทอ่านให้ แล้วต้องผ่านด่านตรวจ 5 ชั้นก่อนถึงจะบันทึกได้
+   ตัวเลขชุดนี้จะถูกส่งต่อไปสายเรือในใบ SI อ่านผิดแล้วผิดยาว
+   ══════════════════════════════════════════════════════════════ */
+let _facInv='', _facRows=[];
+
+function openFactoryModal(inv){
+  _facInv=inv; _facRows=[];
+  let bg=document.getElementById('facBg');
+  if(!bg){
+    bg=document.createElement('div');
+    bg.id='facBg';
+    bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9350;'
+                   +'align-items:center;justify-content:center;padding:14px;';
+    bg.addEventListener('mousedown',e=>{ bg._d=(e.target===bg); });
+    bg.addEventListener('click',e=>{ if(e.target===bg&&bg._d) bg.style.display='none'; bg._d=false; });
+    document.body.appendChild(bg);
+  }
+  bg.innerHTML=`<div style="background:#fff;border-radius:14px;width:min(820px,96vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+    <div style="padding:13px 18px;background:#7c2d12;color:#fff;border-radius:14px 14px 0 0;display:flex;align-items:center;">
+      <span style="font-size:14px;font-weight:800;">🏭 รับใบโรงงาน — ${h(inv)}</span>
+      <button onclick="document.getElementById('facBg').style.display='none'"
+        style="margin-left:auto;background:none;border:none;color:#fff;font-size:18px;cursor:pointer;">✕</button>
+    </div>
+    <div id="facBody" style="padding:18px;overflow:auto;">
+      <div style="border:2px dashed #d6bda8;border-radius:12px;padding:26px;text-align:center;background:#fffaf6;">
+        <div style="font-size:13px;font-weight:700;color:#7c2d12;margin-bottom:4px;">ลากไฟล์ PDF มาวาง หรือกดเลือกไฟล์</div>
+        <div style="font-size:11px;color:#a1887f;margin-bottom:14px;">ใบ PROFORMA INVOICE ที่โรงงานส่งมา</div>
+        <input type="file" id="facFile" accept="application/pdf" style="display:none;">
+        <button onclick="document.getElementById('facFile').click()"
+          style="font-family:inherit;font-size:13px;font-weight:700;padding:9px 22px;border-radius:8px;border:1px solid #7c2d12;background:#7c2d12;color:#fff;cursor:pointer;">เลือกไฟล์ PDF</button>
+      </div>
+      <div style="font-size:10.5px;color:#94a3b8;margin-top:12px;line-height:1.7;">
+        บอทจะอ่าน <strong>จำนวนมัด</strong> กับ <strong>ปริมาตร M³</strong> ของแต่ละตู้ แล้วตรวจ 5 ชั้นก่อนให้บันทึก<br>
+        ① Gross − Net = จำนวนมัด · ② ผลบวก = SUBTOTAL ในใบ · ③ หลักตรวจ ISO 6346 ·
+        ④ ไม่มีเบอร์ตู้ซ้ำ · ⑤ เบอร์ตู้ตรงกับที่บันทึกรูปไว้
+      </div>
+    </div>
+  </div>`;
+  bg.style.display='flex';
+  const fi=document.getElementById('facFile');
+  fi.addEventListener('change',()=>{ if(fi.files[0]) _facRead(fi.files[0]); });
+  const drop=bg.querySelector('div[style*="dashed"]');
+  drop.addEventListener('dragover',e=>{ e.preventDefault(); drop.style.background='#fdf0e6'; });
+  drop.addEventListener('dragleave',()=>{ drop.style.background='#fffaf6'; });
+  drop.addEventListener('drop',e=>{
+    e.preventDefault(); drop.style.background='#fffaf6';
+    const f=e.dataTransfer.files[0];
+    if(f&&f.type==='application/pdf') _facRead(f);
+    else alert('ต้องเป็นไฟล์ PDF เท่านั้น');
+  });
+}
+
+async function _facRead(file){
+  const body=document.getElementById('facBody');
+  body.innerHTML=`<div style="padding:36px;text-align:center;color:#7c2d12;">
+    <div style="font-size:14px;font-weight:700;">กำลังอ่านใบโรงงาน…</div>
+    <div style="font-size:11px;color:#a1887f;margin-top:5px;">${h(file.name)} · ประมาณ 20–40 วินาที</div></div>`;
+  try{
+    const b64=await new Promise((res,rej)=>{
+      const fr=new FileReader();
+      fr.onload=()=>res(String(fr.result).split(',')[1]);
+      fr.onerror=rej;
+      fr.readAsDataURL(file);
+    });
+    const r=await fetch(`${LCB_API}/factory-read`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_TOKEN}`},
+      body:JSON.stringify({invoice_no:_facInv, pdf:b64}),
+    });
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+    _facRows=j.rows||[];
+    _facShow(j);
+  }catch(e){
+    body.innerHTML=`<div style="padding:24px;color:#dc2626;font-weight:700;">อ่านไฟล์ไม่สำเร็จ — ${h(e.message)}</div>
+      <div style="padding:0 24px 20px;"><button onclick="openFactoryModal('${h(_facInv)}')"
+        style="font-family:inherit;font-size:13px;font-weight:700;padding:8px 18px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;cursor:pointer;">ลองใหม่</button></div>`;
+  }
+}
+
+function _facShow(j){
+  const body=document.getElementById('facBody');
+  const fm=n=>n==null?'—':Number(n).toLocaleString('th-TH',{maximumFractionDigits:2});
+  const sumB=_facRows.reduce((s,r)=>s+Number(r.bundles||0),0);
+  const sumM=Math.round(_facRows.reduce((s,r)=>s+Number(r.m3||0),0)*100)/100;
+
+  const rows=_facRows.map(r=>{
+    const bad=!r.in_system||r.bundles==null||r.m3==null;
+    return `<tr style="background:${bad?'#fef2f2':'transparent'};">
+      <td style="padding:4px 6px;font-family:monospace;font-weight:700;">${h(r.container_no||'—')}</td>
+      <td style="padding:4px 6px;text-align:center;">${r.in_system?'✅':'❌ ไม่มีในระบบ'}</td>
+      <td style="padding:4px 6px;text-align:right;font-weight:700;">${fm(r.bundles)}</td>
+      <td style="padding:4px 6px;text-align:right;">${fm(r.m3)}</td>
+      <td style="padding:4px 6px;text-align:right;color:#94a3b8;font-size:10px;">${fm(r.net_kg)}</td>
+      <td style="padding:4px 6px;text-align:right;color:#94a3b8;font-size:10px;">${fm(r.gross_kg)}</td>
+    </tr>`;}).join('');
+
+  body.innerHTML=`
+    ${j.issues.length?`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:11px 14px;margin-bottom:12px;">
+      <div style="font-size:12.5px;font-weight:800;color:#991b1b;">⛔ ตรวจไม่ผ่าน ${j.issues.length} ข้อ — บันทึกไม่ได้</div>
+      ${j.issues.map((s,i)=>`<div style="font-size:11px;color:#991b1b;margin-top:4px;white-space:pre-line;">${i+1}. ${h(s)}</div>`).join('')}
+    </div>`:`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;font-weight:800;color:#166534;">
+      ✅ ตรวจผ่านทั้ง 5 ชั้น — ${_facRows.length} ตู้</div>`}
+    ${j.notes.length?`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 13px;margin-bottom:12px;font-size:11px;color:#92400e;">
+      ${j.notes.map(s=>`<div>• ${h(s)}</div>`).join('')}</div>`:''}
+    <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:#475569;margin-bottom:8px;">
+      <span>เลขในไฟล์ <strong>${h(j.invoice_in_file||'—')}</strong></span>
+      <span>มัดรวม <strong>${fm(sumB)}</strong> / SUBTOTAL ในใบ <strong>${fm(j.total_bundles)}</strong></span>
+      <span>M³ รวม <strong>${fm(sumM)}</strong> / <strong>${fm(j.total_m3)}</strong></span>
+    </div>
+    <div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:9px;">
+      <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+        <thead><tr style="background:#fdf0e6;">
+          <th style="padding:6px;text-align:left;font-size:10px;">เบอร์ตู้</th>
+          <th style="padding:6px;text-align:center;font-size:10px;">ในระบบ</th>
+          <th style="padding:6px;text-align:right;font-size:10px;">จำนวนมัด</th>
+          <th style="padding:6px;text-align:right;font-size:10px;">M³</th>
+          <th style="padding:6px;text-align:right;font-size:10px;">NET</th>
+          <th style="padding:6px;text-align:right;font-size:10px;">GROSS</th>
+        </tr></thead><tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div style="font-size:10px;color:#94a3b8;margin-top:7px;">บันทึกเฉพาะ <strong>จำนวนมัด</strong> กับ <strong>M³</strong> · NET/GROSS โชว์ไว้ให้ตรวจทานเฉยๆ ไม่ได้เก็บ</div>
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button ${j.ok?'':'disabled'} onclick="_facSave()"
+        style="flex:1;font-family:inherit;font-size:13px;font-weight:700;padding:10px;border-radius:8px;border:1px solid ${j.ok?'#7c2d12':'#e2e8f0'};background:${j.ok?'#7c2d12':'#f1f5f9'};color:${j.ok?'#fff':'#94a3b8'};cursor:${j.ok?'pointer':'not-allowed'};">
+        ${j.ok?'💾 บันทึกเข้าระบบ':'⛔ แก้ให้ผ่านก่อนถึงจะบันทึกได้'}</button>
+      <button onclick="openFactoryModal('${h(_facInv)}')"
+        style="font-family:inherit;font-size:13px;font-weight:700;padding:10px 18px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;cursor:pointer;">เลือกไฟล์ใหม่</button>
+    </div>`;
+}
+
+async function _facSave(){
+  try{
+    const r=await fetch(`${LCB_API}/factory-save`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_TOKEN}`},
+      body:JSON.stringify({invoice_no:_facInv, rows:_facRows}),
+    });
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+    document.getElementById('facBg').style.display='none';
+    alert(`บันทึกแล้ว ${j.saved} ตู้\n\nตอนนี้ออกใบ SI ได้แล้ว`);
+  }catch(e){ alert('บันทึกไม่สำเร็จ: '+e.message); }
+}
+
+/* ══════════════════════════════════════════════════════════════
    ไฟล์ VGM — น้ำหนักตู้บรรจุที่ต้องแจ้งสายเรือก่อนขึ้นเรือ
 
    VGM = TARE + น้ำหนักสินค้า
@@ -4403,6 +4553,9 @@ function showInvDetail(id,panelId){
   /* รูปตู้ — เฉพาะแหลมฉบัง (ปาดังไม่มีรูปในระบบ) */
   if(LCB_INV.has(String(d.inv).trim()))
     out+=` <button onclick="openLcbPhotos('${_invEsc}')" style="padding:6px 14px;background:#9d174d;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📷 รูปตู้</button>`;
+  /* รับใบ PROFORMA ของโรงงาน — ต้นทางของจำนวนมัด/ปริมาตร ที่ใบ SI ต้องใช้ */
+  if(LCB_INV.has(String(d.inv).trim()))
+    out+=` <button onclick="openFactoryModal('${_invEsc}')" style="padding:6px 14px;background:#7c2d12;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🏭 รับใบโรงงาน</button>`;
   /* ไฟล์ VGM — เฉพาะแหลมฉบัง เพราะต้องใช้ TARE ที่บอทอ่านจากรูปตู้ */
   if(LCB_INV.has(String(d.inv).trim()))
     out+=` <button onclick="openVgmModal('${_invEsc}')" style="padding:6px 14px;background:#4d7c0f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">⚖️ ไฟล์ VGM</button>`;
