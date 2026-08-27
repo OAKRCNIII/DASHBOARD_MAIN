@@ -1559,26 +1559,25 @@ async function openVgmModal(inv){
   _vgmCheck();
 }
 
-/* เตือนตู้ที่ VGM จะเกินพิกัดบนป้าย — ต้องรู้ก่อนส่งไฟล์ ไม่ใช่ไปโดนที่ท่า */
+/* เตือนเฉพาะตู้ที่ VGM เกินพิกัดบนป้ายจริงๆ
+   เคยเตือน "ชิดพิกัด" ที่ 200 kg ด้วย แต่ตู้ 40 ฟุตพิกัด 32,500 พอ tare
+   3,800+ ก็เหลือไม่ถึง 200 โดยธรรมชาติ — ติดเตือน 17 จาก 25 ใบ
+   เตือนเกือบทุกใบ = ไม่ได้เตือนอะไรเลย และทำให้ชินกับสีเหลือง
+   จนวันที่เกินพิกัดจริงถูกมองข้าม เลยตัดออก เหลือแต่กรณีผิดจริง */
 function _vgmCheck(){
   const cargo=parseFloat(document.getElementById('vgmCargo').value)||0;
   const box=document.getElementById('vgmWarn');
-  const over=[], tight=[];
+  const over=[];
   _vgmRows.forEach(r=>{
     const t=Number(r.tare_kg||0), g=Number(r.max_gross_kg||0);
     if(!t||!g) return;
-    const head=g-(t+cargo);
-    if(head<0) over.push({no:r.container_no,vgm:t+cargo,max:g,over:-head});
-    else if(head<=200) tight.push({no:r.container_no,head});
+    if(t+cargo>g) over.push({no:r.container_no,vgm:t+cargo,max:g,over:t+cargo-g});
   });
-  box.innerHTML =
-    (over.length?`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:9px;padding:9px 12px;font-size:12px;color:#991b1b;margin-bottom:6px;">
-      <strong>⛔ เกินพิกัดตู้ ${over.length} ใบ — ห้ามส่งแบบนี้</strong>
-      ${over.map(o=>`<div style="font-size:11px;margin-top:3px;">${h(o.no)} · VGM ${_alFm(o.vgm)} เกินพิกัด ${_alFm(o.max)} อยู่ ${_alFm(o.over)} kg</div>`).join('')}</div>`:'')
-  + (tight.length?`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:9px 12px;font-size:12px;color:#92400e;">
-      <strong>⚠️ ชิดพิกัด ${tight.length} ใบ (เหลือไม่ถึง 200 kg)</strong>
-      <div style="font-size:11px;margin-top:3px;">${tight.map(t=>`${h(t.no)} เหลือ ${_alFm(t.head)}`).join(' · ')}</div></div>`:'')
-  + (!over.length&&!tight.length?'<div style="font-size:11.5px;color:#4d7c0f;">✅ ทุกใบอยู่ในพิกัด</div>':'');
+  box.innerHTML = over.length
+    ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:9px;padding:9px 12px;font-size:12px;color:#991b1b;">
+        <strong>⛔ เกินพิกัดตู้ ${over.length} ใบ — ห้ามส่งแบบนี้</strong>
+        ${over.map(o=>`<div style="font-size:11px;margin-top:3px;">${h(o.no)} · VGM ${_alFm(o.vgm)} เกินพิกัด ${_alFm(o.max)} อยู่ ${_alFm(o.over)} kg</div>`).join('')}</div>`
+    : '<div style="font-size:11.5px;color:#4d7c0f;">✅ ทุกใบอยู่ในพิกัด</div>';
 }
 
 async function _vgmMake(){
@@ -1604,14 +1603,33 @@ async function _vgmMake(){
     aoa.push([bk, r.container_no, '', t, t+cargo, '', g('vgmSign'), method, '', g('vgmMail')]);
   });
 
+  /* ── จัดหน้าให้ตรงกับไฟล์ต้นฉบับที่ส่งสายเรือทุกอย่าง ──
+     ตัวหนังสือหนาทั้งแผ่น · เส้นขอบบางทุกช่อง · แถวสูง 75
+     หัวตารางจัดกลางทั้งแนวตั้งแนวนอนและตัดคำ
+     คอลัมน์ H (วิธีชั่ง) จัดกลาง · คอลัมน์ J (อีเมล) ใช้ Arial 14 จัดกลาง
+     คอลัมน์ C (SOC) เป็นช่องเดียวที่ไม่หนา                            */
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols']=[21,28.4,14.1,13.1,19.5,10.6,26.4,32.9,16.6,29.8].map(w=>({wch:w}));
+  ws['!rows']=Array.from({length:aoa.length},()=>({hpt:75}));
+  const thin={style:'thin',color:{rgb:'FF000000'}};
+  const border={top:thin,bottom:thin,left:thin,right:thin};
   const range=XLSX.utils.decode_range(ws['!ref']);
   for(let R=range.s.r;R<=range.e.r;R++){
     for(let C=range.s.c;C<=range.e.c;C++){
-      const cell=ws[XLSX.utils.encode_cell({r:R,c:C})];
-      if(!cell) continue;
-      cell.s={font:{name:'Tahoma',sz:13,bold:R===0},alignment:{vertical:'center'}};
+      const ref=XLSX.utils.encode_cell({r:R,c:C});
+      if(!ws[ref]) ws[ref]={t:'s',v:''};        /* ช่องว่างก็ต้องมีเส้นขอบ */
+      const head=(R===0);
+      /* หัวตารางต้นฉบับใช้ Tahoma 13 ทั้งแถว — Arial 14 มีเฉพาะช่องอีเมลแถวข้อมูล */
+      const isMail=(C===9 && !head), isSoc=(C===2);
+      ws[ref].s={
+        font:{ name:isMail?'Arial':'Tahoma', sz:isMail?14:13, bold:head||!isSoc },
+        alignment:{
+          vertical:'center',
+          horizontal:(head||isMail||C===7)?'center':undefined,
+          wrapText:head||undefined,
+        },
+        border,
+      };
     }
   }
   const wb=XLSX.utils.book_new();
