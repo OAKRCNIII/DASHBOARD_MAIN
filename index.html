@@ -2151,6 +2151,10 @@ function editAlPay(id){
         <div><label style="${lbl}">วันโอน</label><input id="aeDate" type="date" style="${inp}" value="${h(p.paid_date||'')}"></div>
         <div><label style="${lbl}">ยอดในใบคำสั่ง</label><input id="aeSheet" style="${inp}" value="${p.sheet_total??''}"></div>
         <div><label style="${lbl}">ยอดโอนจริง (สลิป)</label><input id="aeSlip" style="${inp}" value="${p.slip_amount??''}"></div>
+        <div><label style="${lbl}">หักในใบ (บรรทัด "หัก ...")</label>
+          <input id="aeSDed" style="${inp}text-align:right;" value="${p.sheet_deduct??''}" placeholder="0"></div>
+        <div><label style="${lbl}">เหตุผลที่หักในใบ</label>
+          <input id="aeSDedN" style="${inp}" value="${h(p.sheet_deduct_note||'')}" placeholder="เช่น เบิกล่วงหน้าครั้งที่ 14"></div>
         <div style="grid-column:1/-1;"><label style="${lbl}">รหัสอ้างอิงสลิป</label><input id="aeRef" style="${inp}font-family:monospace;" value="${h(p.slip_ref||'')}"></div>
       </div>
       <div style="font-size:11px;font-weight:800;color:#78350f;margin-bottom:6px;">รายบรรทัด (${its.length})</div>
@@ -2208,7 +2212,8 @@ function _saveAlPay(id){
   const noWhy=items.find(i=>Number(i.deduct||0)>0 && !String(i.deduct_note||'').trim());
   if(noWhy){ alert(`AL#${noWhy.al_num} หักไว้ ${noWhy.deduct} แต่ยังไม่ได้เขียนเหตุผล\n\nต้องเขียนกำกับทุกครั้งครับ`); return; }
   const body={ id, paid_date:g('aeDate'), slip_ref:g('aeRef'),
-               sheet_total:g('aeSheet'), slip_amount:g('aeSlip'), items };
+               sheet_total:g('aeSheet'), slip_amount:g('aeSlip'),
+               sheet_deduct:g('aeSDed'), sheet_deduct_note:g('aeSDedN'), items };
   requirePin(async()=>{
     try{
       const r=await fetch(`${LCB_API}/payedit`,{
@@ -2374,16 +2379,28 @@ function renderAlPay(){
       sumDed  += ded;
       sumPaid += Number(it.amount||0);
 
+      /* ใบคำสั่งเขียนยอดหักได้ 2 แบบ ต้องรับได้ทั้งคู่
+           แบบ ก  บรรทัดเขียนยอดหลังหักแล้ว     it.amount = ระบบ − หัก
+           แบบ ข  บรรทัดเขียนยอดเต็ม ไปหักท้ายใบ  it.amount = ระบบ
+         ตรงกับแบบไหนก็ถือว่าผ่าน ผิดจริงคือไม่ตรงทั้งสองแบบ */
+      const gross = sys ? Number(sys['ยอด']) : null;
+      const okNet   = sys && it.amount!=null && Math.abs(expect-Number(it.amount))<0.01;
+      const okGross = sys && it.amount!=null && Math.abs(gross -Number(it.amount))<0.01;
+
       let mark,note='';
       if(!sys){ mark='⏳'; pend++; note='ยังไม่บันทึกใบวางบิล'; }
-      else if(it.amount!=null && Math.abs(expect-Number(it.amount))>=0.01){
+      else if(!okNet && !okGross){
         mark='❌'; wrong++;
-        note=`ระบบ ${_alFm(sys['ยอด'])}${ded?` − ${_alFm(ded)} = ${_alFm(expect)}`:''}`
+        note=`ระบบ ${_alFm(gross)}${ded?` − ${_alFm(ded)} = ${_alFm(expect)}`:''}`
            + ` (ต่าง ${_alFm(Math.abs(expect-Number(it.amount)))})`;
       }
-      else if(ded){
+      else if(ded && okNet){
         mark='✅';
-        note=`${_alFm(sys['ยอด'])} − ${_alFm(ded)} · ${h(dedWhy)}`;
+        note=`${_alFm(gross)} − ${_alFm(ded)} · ${h(dedWhy)}`;
+      }
+      else if(ded && okGross){
+        mark='✅';
+        note=`${sys['ตู้']} ตู้ · หัก ${_alFm(ded)} ท้ายใบ`;
       }
       else { mark='✅'; note=`${sys['ตู้']} ตู้`; }
 
@@ -2413,9 +2430,20 @@ function renderAlPay(){
       </tr>`;
     }).join('');
 
-    /* ยอดโอน vs ยอดในใบ — จับตอนโอนเกิน/ขาด */
-    const diff=(p.slip_amount!=null&&p.sheet_total!=null)
-      ? Number(p.slip_amount)-Number(p.sheet_total) : null;
+    /* ยอดโอน vs ยอดที่ต้องโอน — จับตอนโอนเกิน/ขาด
+       ใบคำสั่งบางใบมีบรรทัด "หัก ... / คงเหลือ" สลิปจะโอนตามคงเหลือ
+       ถ้าเทียบกับยอดรวมตรงๆ จะฟ้องว่าโอนขาดทุกใบที่มีการหัก
+
+       ⚠️ ห้ามถอยไปใช้ยอดตัดเบิกล่วงหน้าแทนเมื่อไม่มีค่านี้
+          เพราะใบสองแบบเขียนยอดหักคนละที่:
+            AL#326 บรรทัดเขียน 9,800 (หักมาแล้วในบรรทัด) ไม่มีบรรทัดหักท้ายใบ
+            AL#330 บรรทัดเขียน 5,400 (ยังไม่หัก) มีบรรทัดหักท้ายใบ
+          เอามาลบซ้ำในแบบแรกจะกลายเป็น "โอนเกิน" ทันที
+          ใบเก่าที่ยังไม่มีค่านี้ ให้ไปใส่ที่ปุ่ม ✏️ แก้ไข */
+    const sheetDed = Number(p.sheet_deduct||0);
+    const mustPay = p.sheet_total!=null ? Number(p.sheet_total)-sheetDed : null;
+    const diff=(p.slip_amount!=null&&mustPay!=null)
+      ? Number(p.slip_amount)-mustPay : null;
     const hasIssue = wrong>0 || alShift>0 || (diff!=null&&Math.abs(diff)>=0.01) || p.status==='MISMATCH';
     if(hasIssue) bad++;
 
@@ -2437,7 +2465,7 @@ function renderAlPay(){
         <div style="display:flex;justify-content:space-between;gap:8px;margin-top:4px;padding-top:4px;
                     border-top:1px solid #e9d5ff;color:${!sysComplete?'#6b21a8':(dedOk?'#166534':'#991b1b')};font-weight:800;">
           <span>${sysComplete?'ต้องโอน / โอนจริงตามสลิป':'โอนจริงตามสลิป'}</span>
-          <span>${sysComplete?`${_alFm(sumSys-sumDed)} / ${_alFm(sumPaid)} ${dedOk?'✅':'❌'}`:_alFm(sumPaid)}</span></div>
+          <span>${sysComplete?`${_alFm(sumSys-sumDed)} / ${_alFm(p.slip_amount)} ${dedOk?'✅':'❌'}`:_alFm(p.slip_amount)}</span></div>
         ${sysComplete?'':'<div style="font-size:9.5px;color:#a78bfa;margin-top:3px;">ยังเทียบไม่ได้ — รอใบวางบิลเข้าระบบก่อน แต่ยอดหักลงไว้แล้ว</div>'}
       </div>` : '';
 
@@ -2470,7 +2498,7 @@ function renderAlPay(){
         ${p.slip_ref?`<br><span class="mono" style="font-size:9px;">อ้างอิง ${h(p.slip_ref)}</span>`:''}
       </div>
       ${diff!=null&&Math.abs(diff)>=0.01?`<div style="margin-top:6px;font-size:11px;font-weight:800;color:#dc2626;">
-        ⛔ โอน${diff>0?'เกิน':'ขาด'} ${_alFm(Math.abs(diff))} — ใบสั่ง ${_alFm(p.sheet_total)} / สลิป ${_alFm(p.slip_amount)}</div>`:''}
+        ⛔ โอน${diff>0?'เกิน':'ขาด'} ${_alFm(Math.abs(diff))} — ต้องโอน ${_alFm(mustPay)}${sheetDed?` (รวม ${_alFm(p.sheet_total)} − หัก ${_alFm(sheetDed)})`:''} / สลิป ${_alFm(p.slip_amount)}</div>`:''}
       ${p.issues?`<div style="margin-top:6px;font-size:10px;color:#991b1b;white-space:pre-line;background:#fff;border-radius:6px;padding:6px 8px;border:1px solid #fecaca;">${h(p.issues)}</div>`:''}
       ${rows?`<table class="det-tbl" style="margin-top:8px;width:100%;"><tbody>${rows}</tbody></table>`:''}
       ${dedBox}
