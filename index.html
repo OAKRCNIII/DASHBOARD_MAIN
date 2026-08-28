@@ -2379,10 +2379,11 @@ function renderAlPay(){
       sumDed  += ded;
       sumPaid += Number(it.amount||0);
 
-      /* ใบคำสั่งเขียนยอดหักได้ 2 แบบ ต้องรับได้ทั้งคู่
-           แบบ ก  บรรทัดเขียนยอดหลังหักแล้ว     it.amount = ระบบ − หัก
-           แบบ ข  บรรทัดเขียนยอดเต็ม ไปหักท้ายใบ  it.amount = ระบบ
-         ตรงกับแบบไหนก็ถือว่าผ่าน ผิดจริงคือไม่ตรงทั้งสองแบบ */
+      /* รายบรรทัดโชว์ "ต้องโอนเท่าไร" = ใบวางบิล − หัก
+         ส่วนยอดที่เขียนในใบคำสั่ง (it.amount) เป็นแค่คำกล่าวอ้าง
+         เขียนได้ทั้งยอดเต็มและยอดหักแล้ว แล้วแต่คนพิมพ์ จึงไม่เอามาตัดสิน
+         ตัวตัดสินจริงคือผลรวมเทียบกับสลิป ซึ่งอยู่ในกล่องสรุปท้ายการ์ด
+         ตรงนี้แค่ปักธงถ้าเขียนมาไม่ตรงทั้งสองแบบ = พิมพ์ผิดหรืออ่านผิด */
       const gross = sys ? Number(sys['ยอด']) : null;
       const okNet   = sys && it.amount!=null && Math.abs(expect-Number(it.amount))<0.01;
       const okGross = sys && it.amount!=null && Math.abs(gross -Number(it.amount))<0.01;
@@ -2390,17 +2391,13 @@ function renderAlPay(){
       let mark,note='';
       if(!sys){ mark='⏳'; pend++; note='ยังไม่บันทึกใบวางบิล'; }
       else if(!okNet && !okGross){
-        mark='❌'; wrong++;
-        note=`ระบบ ${_alFm(gross)}${ded?` − ${_alFm(ded)} = ${_alFm(expect)}`:''}`
-           + ` (ต่าง ${_alFm(Math.abs(expect-Number(it.amount)))})`;
+        mark='⚠️'; wrong++;
+        note=`ยอดในใบคำสั่งไม่ตรงใบวางบิล ${_alFm(gross)}`
+           + (ded?` (หัก ${_alFm(ded)} → ต้องโอน ${_alFm(expect)})`:'');
       }
-      else if(ded && okNet){
+      else if(ded){
         mark='✅';
-        note=`${_alFm(gross)} − ${_alFm(ded)} · ${h(dedWhy)}`;
-      }
-      else if(ded && okGross){
-        mark='✅';
-        note=`${sys['ตู้']} ตู้ · หัก ${_alFm(ded)} ท้ายใบ`;
+        note=`${_alFm(gross)} − ${_alFm(ded)} = ต้องโอน ${_alFm(expect)} · ${h(dedWhy)}`;
       }
       else { mark='✅'; note=`${sys['ตู้']} ตู้`; }
 
@@ -2430,18 +2427,16 @@ function renderAlPay(){
       </tr>`;
     }).join('');
 
-    /* ยอดโอน vs ยอดที่ต้องโอน — จับตอนโอนเกิน/ขาด
-       ใบคำสั่งบางใบมีบรรทัด "หัก ... / คงเหลือ" สลิปจะโอนตามคงเหลือ
-       ถ้าเทียบกับยอดรวมตรงๆ จะฟ้องว่าโอนขาดทุกใบที่มีการหัก
+    /* ══ ตัวตรวจหลัก ══  โอนจริง = ใบวางบิล − หัก
+       (2) ใบวางบิล กับ (3) ยอดหัก คือความจริง
+       (1) ยอดในสลิป คือสิ่งที่ต้องพิสูจน์
+       ยอดที่เขียนในใบคำสั่งเป็นแค่คำกล่าวอ้าง ไม่เอามาเป็นตัวตัดสิน
+       เพราะเขียนได้ 2 แบบ (ยอดเต็ม / ยอดหักแล้ว) แล้วแต่คนพิมพ์
 
-       ⚠️ ห้ามถอยไปใช้ยอดตัดเบิกล่วงหน้าแทนเมื่อไม่มีค่านี้
-          เพราะใบสองแบบเขียนยอดหักคนละที่:
-            AL#326 บรรทัดเขียน 9,800 (หักมาแล้วในบรรทัด) ไม่มีบรรทัดหักท้ายใบ
-            AL#330 บรรทัดเขียน 5,400 (ยังไม่หัก) มีบรรทัดหักท้ายใบ
-          เอามาลบซ้ำในแบบแรกจะกลายเป็น "โอนเกิน" ทันที
-          ใบเก่าที่ยังไม่มีค่านี้ ให้ไปใส่ที่ปุ่ม ✏️ แก้ไข */
+       ใช้ได้เมื่อใบวางบิลเข้าระบบครบทุกใบในรายการนั้นแล้วเท่านั้น
+       ยังไม่ครบ = ยังตรวจไม่ได้ ไม่ใช่ผิด */
     const sheetDed = Number(p.sheet_deduct||0);
-    const mustPay = p.sheet_total!=null ? Number(p.sheet_total)-sheetDed : null;
+    const mustPay = sysComplete ? (sumSys - sumDed) : null;
     const diff=(p.slip_amount!=null&&mustPay!=null)
       ? Number(p.slip_amount)-mustPay : null;
     const hasIssue = wrong>0 || alShift>0 || (diff!=null&&Math.abs(diff)>=0.01) || p.status==='MISMATCH';
@@ -2454,17 +2449,20 @@ function renderAlPay(){
     /* ── สรุปวิธีคิดเมื่อมีการหัก ──────────────────────────────────
        ยอดโอนไม่เท่ากับใบวางบิลเป็นเรื่องปกติได้ ถ้ามีการตัดเบิกล่วงหน้า
        แต่ต้องกางเลขให้ครบ 3 ตัว ไม่งั้นคนอ่านจะไม่รู้ว่าส่วนต่างหายไปไหน */
-    const dedOk = sysComplete && Math.abs(sumSys-sumDed-sumPaid)<0.01;
+    /* ผ่านเมื่อ (ใบวางบิล − หัก) = ยอดในสลิปจริง
+       ไม่ใช่เทียบกับผลบวกยอดที่เขียนในใบคำสั่ง (sumPaid) เพราะนั่นคือคำกล่าวอ้าง */
+    const dedOk = sysComplete && p.slip_amount!=null
+                && Math.abs(sumSys-sumDed-Number(p.slip_amount))<0.01;
     const dedBox = sumDed>0 ? `
       <div style="margin-top:8px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:8px 11px;font-size:11px;">
         <div style="display:flex;justify-content:space-between;gap:8px;color:#6b21a8;">
-          <span>ยอดตามใบวางบิล (AL)</span>
+          <span>② ยอดตามใบวางบิล (AL)</span>
           <strong>${sysComplete?_alFm(sumSys):'รอใบวางบิล'}</strong></div>
         <div style="display:flex;justify-content:space-between;gap:8px;color:#7c3aed;">
-          <span>หักตัดยอดเบิกล่วงหน้า</span><strong>− ${_alFm(sumDed)}</strong></div>
+          <span>③ หักตัดยอดเบิกล่วงหน้า</span><strong>− ${_alFm(sumDed)}</strong></div>
         <div style="display:flex;justify-content:space-between;gap:8px;margin-top:4px;padding-top:4px;
                     border-top:1px solid #e9d5ff;color:${!sysComplete?'#6b21a8':(dedOk?'#166534':'#991b1b')};font-weight:800;">
-          <span>${sysComplete?'ต้องโอน / โอนจริงตามสลิป':'โอนจริงตามสลิป'}</span>
+          <span>${sysComplete?'ต้องโอน ② − ③  /  ① โอนจริงตามสลิป':'① โอนจริงตามสลิป'}</span>
           <span>${sysComplete?`${_alFm(sumSys-sumDed)} / ${_alFm(p.slip_amount)} ${dedOk?'✅':'❌'}`:_alFm(p.slip_amount)}</span></div>
         ${sysComplete?'':'<div style="font-size:9.5px;color:#a78bfa;margin-top:3px;">ยังเทียบไม่ได้ — รอใบวางบิลเข้าระบบก่อน แต่ยอดหักลงไว้แล้ว</div>'}
       </div>` : '';
@@ -2498,7 +2496,7 @@ function renderAlPay(){
         ${p.slip_ref?`<br><span class="mono" style="font-size:9px;">อ้างอิง ${h(p.slip_ref)}</span>`:''}
       </div>
       ${diff!=null&&Math.abs(diff)>=0.01?`<div style="margin-top:6px;font-size:11px;font-weight:800;color:#dc2626;">
-        ⛔ โอน${diff>0?'เกิน':'ขาด'} ${_alFm(Math.abs(diff))} — ต้องโอน ${_alFm(mustPay)}${sheetDed?` (รวม ${_alFm(p.sheet_total)} − หัก ${_alFm(sheetDed)})`:''} / สลิป ${_alFm(p.slip_amount)}</div>`:''}
+        ⛔ โอน${diff>0?'เกิน':'ขาด'} ${_alFm(Math.abs(diff))} — ต้องโอน ${_alFm(mustPay)}${sumDed?` (ใบวางบิล ${_alFm(sumSys)} − หัก ${_alFm(sumDed)})`:''} / สลิปโอน ${_alFm(p.slip_amount)}</div>`:''}
       ${p.issues?`<div style="margin-top:6px;font-size:10px;color:#991b1b;white-space:pre-line;background:#fff;border-radius:6px;padding:6px 8px;border:1px solid #fecaca;">${h(p.issues)}</div>`:''}
       ${rows?`<table class="det-tbl" style="margin-top:8px;width:100%;"><tbody>${rows}</tbody></table>`:''}
       ${dedBox}
