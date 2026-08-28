@@ -1704,7 +1704,7 @@ async function _siMake(){
   ['TOTAL QUANTITY :','TOTAL NET WEIGHT :','TOTAL GROSS WEIGHT :','TOTAL MEASUREMENT:']
     .forEach((lb,i)=>{
       put(R,0,lb);
-      put(R,3,[totB,totN,totG,totM][i], {nf: i===3?'#,##0.00':'#,##0'});
+      put(R,3,[totB,totN,totG,totM][i], {nf: i===0?'#,##0':'#,##0.00'});   /* QUANTITY เต็ม · NET/GROSS/M3 มี .00 */
       put(R,4,['BUNDLES','KGS.','KGS.','CUBIC METRES'][i]);
       hgt(R,18.8); R++; });
   R++;
@@ -1717,8 +1717,8 @@ async function _siMake(){
   rowsC.forEach(r=>{
     put(R,0,r.no); put(R,1,r.seal);
     put(R,2,r.bundles,{a:'center'}); put(R,3,'BUNDLES');
-    put(R,4,r.net,{a:'center',nf:'#,##0'});    put(R,5,'KGS.');
-    put(R,7,r.gross,{a:'center',nf:'#,##0'});  put(R,9,'KGS.');
+    put(R,4,r.net,{a:'center',nf:'#,##0.00'});    put(R,5,'KGS.');
+    put(R,7,r.gross,{a:'center',nf:'#,##0.00'});  put(R,9,'KGS.');
     put(R,10,r.m3,{a:'center'});    put(R,11,'M3');
     hgt(R,21); R++;
   });
