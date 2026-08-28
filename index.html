@@ -1617,11 +1617,12 @@ async function _siMake(){
     const num=(typeof v==='number');
     ws[ref]={t:num?'n':'s', v:(v==null?'':v)};
     ws[ref].s={
-      font:{name:o.f||'Cordia New', sz:o.z||14, bold:o.b!==false, underline:!!o.u},
+      font:{name:o.f||'Cordia New', sz:o.z||14, bold:o.b!==false, underline:!!o.u, color:o.blue?{rgb:'FF0000FF'}:undefined},
       alignment:{vertical:'center', horizontal:o.a||undefined, wrapText:false},
       border:{left:o.L?thin:undefined, right:o.R?thin:undefined,
               top:o.T?thin:undefined, bottom:o.B?thin:undefined},
     };
+    if(o.nf) ws[ref].z=o.nf;   /* number format เช่น '#,##0' ให้มีคอมม่า */
     if(r>maxR) maxR=r;
   };
   const hgt=(r,pt)=>{ rowsH[r]={hpt:pt}; };
@@ -1641,7 +1642,7 @@ async function _siMake(){
   put(R,0,'SHIPPING INSTRUCTIONS',{z:16,a:'center'});
   merges.push({s:{r:R,c:0},e:{r:R,c:11}}); hgt(R,24.8); R+=2;
 
-  put(R,0,`TO :      ${SI_AGENT}`,{z:16});
+  put(R,0,`TO :      ${SI_AGENT}`,{z:16,blue:true});
   put(R,7,`  DATED  ${g('siDated')}`,{z:14,a:'center'});
   merges.push({s:{r:R,c:0},e:{r:R,c:5}},{s:{r:R,c:7},e:{r:R,c:11}}); hgt(R,21.8); R++;
   put(R,0,'PLEASE SHIP THE UNDERMENTIONED RUBBER WOOD',{z:16});
@@ -1650,29 +1651,29 @@ async function _siMake(){
 
   const boxTop=R;
   put(R,0,'Shipper',{z:12}); boxLine(R,0,5,'top'); hgt(R,18); R++;
-  SI_SHIPPER.forEach((s,i)=>{ put(R,0,s); hgt(R,19.5);
+  SI_SHIPPER.forEach((s,i)=>{ put(R,0,s,{blue:(i===3||i===4)}); hgt(R,19.5);
     if(i===0) put(R,7,'SHIPPED ON BOARD :',{z:12});
     if(i===1) put(R,7,g('siBoard'));
-    if(i===3){ put(R,7,`BOOKING NO.: ${g('siBkg')}`); boxLine(R,7,11,'top'); boxLine(R,7,11,'bottom');
+    if(i===3){ put(R,7,`BOOKING NO.: ${g('siBkg')}`,{blue:true}); boxLine(R,7,11,'top'); boxLine(R,7,11,'bottom');
                merges.push({s:{r:R,c:7},e:{r:R,c:11}}); }
     R++; });
 
   put(R,0,"Consignee (If 'To Order' so indicate)",{z:12}); boxLine(R,0,5,'top'); hgt(R,19.5); R++;
   const consTop=R;
-  block.forEach((s,i)=>{ put(R,0,s); hgt(R,17.2);
-    if(i===2){ put(R,7,`HS CODE : ${g('siHs')}`); boxLine(R,7,10,'top'); boxLine(R,7,10,'bottom');
+  block.forEach((s,i)=>{ put(R,0,s,{blue:/^USCI/i.test(s)}); hgt(R,17.2);
+    if(i===2){ put(R,7,`HS CODE : ${g('siHs')}`,{blue:true}); boxLine(R,7,10,'top'); boxLine(R,7,10,'bottom');
                merges.push({s:{r:R,c:7},e:{r:R,c:10}}); }
     R++; });
   put(R,0,''); hgt(R,14.2); R++;
 
   put(R,0,'Notify Party (noclaim shall attach for failure to notify)',{z:12});
   boxLine(R,0,5,'top'); hgt(R,19.5); R++;
-  block.forEach(s=>{ put(R,0,s); hgt(R,17.2); R++; });
+  block.forEach(s=>{ put(R,0,s,{blue:/^USCI/i.test(s)}); hgt(R,17.2); R++; });
   put(R,0,''); hgt(R,12.8); boxLine(R,0,5,'bottom'); R++;
 
   put(R,0,'Local vessel',{z:12}); put(R,3,'Port of Loading',{z:12});
   boxLine(R,0,5,'top'); hgt(R,21); R++;
-  put(R,3,'LAEM CHABANG, THAILAND'); hgt(R,19.5); R++;
+  put(R,3,'LAEM CHABANG, THAILAND',{blue:true}); hgt(R,19.5); R++;
   put(R,0,'Ocean Vessel',{z:12}); put(R,3,'Port of Discharge',{z:12});
   boxLine(R,0,5,'top'); hgt(R,20.2); R++;
   put(R,0,g('siVessel')); put(R,3,g('siDest')); hgt(R,21); R++;
@@ -1682,16 +1683,17 @@ async function _siMake(){
   put(R,0,'MARK & NO.',{a:'center'}); put(R,1,'QUANTITY',{a:'center'});
   put(R,3,'DESCRIPTION',{a:'center'}); put(R,9,'WEIGHT',{a:'center'});
   boxLine(R,0,10,'top'); boxLine(R,0,10,'bottom'); hgt(R,20.2); R++;
-  put(R,0,'BSW',{a:'center'}); put(R,1,`${totB} BUNDLES`,{a:'center'});
+  put(R,0,'BSW',{a:'center',blue:true}); put(R,1,`${totB} BUNDLES`,{a:'center'});
   put(R,3,'RUBBER WOOD K.D. SAWN TIMBER'); put(R,9,'NET WEIGHT',{a:'center'});
+  merges.push({s:{r:R,c:9},e:{r:R,c:11}});
   hgt(R,21); R++;
-  put(R,9,`${totN.toLocaleString('en-US')}.00 KGS.`,{a:'center'}); hgt(R,17.2); R++;
+  put(R,9,`${totN.toLocaleString('en-US')}.00 KGS.`,{a:'center'}); merges.push({s:{r:R,c:9},e:{r:R,c:11}}); hgt(R,17.2); R++;
   put(R,3,'(PLS INDICATE THE SHIPPING AGENT AT PORT OF DISCHARGE'); hgt(R,17.2); R++;
   put(R,3,'FINAL DESTINATION.)'); hgt(R,17.2); R+=2;
-  put(R,3,`${ctrs.length}X40' HQ CONTAINERS`); put(R,9,'GROSS WEIGHT',{a:'center'}); hgt(R,21); R+=2;
-  put(R,3,'"FREIGHT PREPAID"'); put(R,9,`${totG.toLocaleString('en-US')}.00 KGS.`,{a:'center'});
+  put(R,3,`${ctrs.length}X40' HQ CONTAINERS`); put(R,9,'GROSS WEIGHT',{a:'center'}); merges.push({s:{r:R,c:9},e:{r:R,c:11}}); hgt(R,21); R+=2;
+  put(R,3,'"FREIGHT PREPAID"',{blue:true}); put(R,9,`${totG.toLocaleString('en-US')}.00 KGS.`,{a:'center'}); merges.push({s:{r:R,c:9},e:{r:R,c:11}});
   hgt(R,17.2); R+=2;
-  put(R,3,'" DO NOT SHOW M3 AND N.W. ON B/L"'); hgt(R,18); R++;
+  put(R,3,'" DO NOT SHOW M3 AND N.W. ON B/L"',{blue:true}); hgt(R,18); R++;
   /* เส้นกรอบตารางบน–ล่าง และเส้นตั้งคั่นช่อง */
   for(let r=tblTop;r<R;r++){ for(const c of [0,1,3,8,10]){
     const ref=XLSX.utils.encode_cell({r,c});
@@ -1702,7 +1704,7 @@ async function _siMake(){
   ['TOTAL QUANTITY :','TOTAL NET WEIGHT :','TOTAL GROSS WEIGHT :','TOTAL MEASUREMENT:']
     .forEach((lb,i)=>{
       put(R,0,lb);
-      put(R,3,[totB,totN,totG,totM][i]);
+      put(R,3,[totB,totN,totG,totM][i], {nf: i===3?'#,##0.00':'#,##0'});
       put(R,4,['BUNDLES','KGS.','KGS.','CUBIC METRES'][i]);
       hgt(R,18.8); R++; });
   R++;
@@ -1715,8 +1717,8 @@ async function _siMake(){
   rowsC.forEach(r=>{
     put(R,0,r.no); put(R,1,r.seal);
     put(R,2,r.bundles,{a:'center'}); put(R,3,'BUNDLES');
-    put(R,4,r.net,{a:'center'});    put(R,5,'KGS.');
-    put(R,7,r.gross,{a:'center'});  put(R,9,'KGS.');
+    put(R,4,r.net,{a:'center',nf:'#,##0'});    put(R,5,'KGS.');
+    put(R,7,r.gross,{a:'center',nf:'#,##0'});  put(R,9,'KGS.');
     put(R,10,r.m3,{a:'center'});    put(R,11,'M3');
     hgt(R,21); R++;
   });
