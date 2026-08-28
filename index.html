@@ -1497,13 +1497,12 @@ async function openSiModal(inv){
   bg.innerHTML='<div style="background:#fff;border-radius:14px;padding:30px 34px;color:#64748b;">กำลังโหลด…</div>';
   bg.style.display='flex';
 
-  let ctrs, cons, consInv;
+  let ctrs, consInv;
   try{
-    [ctrs,cons,consInv]=await Promise.all([
+    [ctrs,consInv]=await Promise.all([
       sbFetch('lcb_containers',
         `select=container_no,seal_no,bundle_count,cargo_m3&invoice_no=eq.${encodeURIComponent(inv)}&order=id`),
-      sbFetch('si_consignees','select=*'),
-      sbFetch('si_consignee_inv',`select=name,lines,tel&invoice_no=eq.${encodeURIComponent(inv)}`).catch(()=>[]),
+      sbFetch('si_consignee_inv',`select=name,lines,tel,email&invoice_no=eq.${encodeURIComponent(inv)}`).catch(()=>[]),
     ]);
   }catch(e){
     bg.innerHTML=`<div style="background:#fff;border-radius:14px;padding:24px;color:#dc2626;font-weight:700;">โหลดข้อมูลไม่ได้ — ${h(e.message)}</div>`;
@@ -1513,7 +1512,9 @@ async function openSiModal(inv){
   const miss=ctrs.filter(c=>c.bundle_count==null||c.cargo_m3==null);
   const vr=(typeof VESSEL!=='undefined'?VESSEL:[]).find(r=>normInv(r.inv)===normInv(inv));
   const d=(FLAT||[]).find(x=>normInv(x.inv)===normInv(inv))||{};
-  const em=(cons||[]).find(c=>c.customer_key===d.customer);
+  /* อีเมลผูกกับ "อินวอยซ์" ไม่ใช่ "ชื่อลูกค้า"
+     ลูกค้าชื่อเดียวกันอาจคนละบริษัท ผูกกับชื่อแล้วอีเมลจะไปผิดเจ้า */
+  const em=(consInv||[])[0];
 
   _siData={inv, ctrs, vessel:(vr&&vr.vessel)||'', bkg:(vr&&vr.bkg!=='-'&&vr.bkg)||'',
            dest:(d.des||(vr&&vr.des)||'').toUpperCase(), email:(em&&em.email)||'',
@@ -1898,7 +1899,8 @@ async function _facSave(){
       await fetch(`${SB_URL}/rest/v1/si_consignee_inv?on_conflict=invoice_no`,{
         method:'POST',
         headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_TOKEN,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},
-        body:JSON.stringify([{invoice_no:_facInv, name:H.consignee_name||'', lines:H.consignee_lines||[], tel:H.consignee_tel||''}])
+        body:JSON.stringify([{invoice_no:_facInv, name:H.consignee_name||'', lines:H.consignee_lines||[], tel:H.consignee_tel||'',
+          email:H.consignee_email||null, usci:H.consignee_usci||null}])
       });
     }catch(e){ console.warn('เก็บ consignee ไม่ได้:', e); }
     document.getElementById('facBg').style.display='none';
