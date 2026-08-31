@@ -6456,12 +6456,45 @@ function closeFacPrintModal(){
   document.getElementById('facPrintModal').style.display='none';
 }
 
-function doFacPrint(dates){
-  /* dates = array of DATE_PICKUP strings */
+async function doFacPrint(dates){
+  /* dates = array of DATE_PICKUP strings — หน้า 1..N ภาพรวม(landscape) + ต่อด้วยใบแจ้งเบอร์ตู้ต่ออินวอยซ์(portrait) */
   const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  /* สร้าง 1 หน้าต่อวัน, page-break-after ระหว่างหน้า */
+  /* เปิดหน้าต่างทันทีในจังหวะคลิก กัน popup ถูกบล็อกหลัง await */
+  const win=window.open('','_blank');
+  if(win){win.document.write('<!DOCTYPE html><meta charset="utf-8"><body style="font-family:Tahoma,sans-serif;padding:48px;text-align:center;color:#334155;font-size:15px;">⏳ กำลังเตรียมรายงาน + ใบแจ้งเบอร์ตู้…</body>');}
+  const _DOW=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+  const _MON=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const thaiDate=iso=>{if(!iso)return'';const d=new Date(iso+'T00:00:00');if(isNaN(d))return'';return _DOW[d.getDay()]+' '+d.getDate()+' '+_MON[d.getMonth()];};
+  const todayText=()=>{const d=new Date();return d.getDate()+' '+_MON[d.getMonth()]+' '+(d.getFullYear()+543);};
+  const _CTR_API='https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-lcb';
+  const _ctrData=async inv=>{try{const r=await fetch(`${_CTR_API}/report?inv=${encodeURIComponent(inv)}`);const j=await r.json();return(r.ok&&j&&j.invoice)?j:null;}catch(_){return null;}};
+  /* ไฮไลท์สีตามวันเข้าโรงงาน (วันแรก=ฟ้าอ่อน, วันถัดไป=ส้มอ่อน, เขียว, ม่วง... ไล่ต่ออัตโนมัติ) */
+  const _HL=['#dbeafe','#ffedd5','#dcfce7','#f3e8ff','#fce7f3','#fef9c3','#e0e7ff','#ccfbf1'];
+  const _ctrSheet=j=>{
+    const inv=j.invoice,list=j.containers||[],kind=j.kind||'PADANG';
+    const total=Math.max(inv.container_count||0,list.length);
+    const dts=[...new Set(list.map(c=>c.factory_date).filter(Boolean))].sort();
+    const colorOf=d=>{const i=dts.indexOf(d);return i>=0?_HL[i%_HL.length]:'';};
+    const COLS=kind==='LCB'
+      ?[['ลำดับ','7%'],['ทะเบียนรถ','19%'],['เบอร์ตู้','21%'],['SEAL NO.','16%'],['วันที่เข้าโรงงาน','21%'],['น้ำหนัก (กก.)','16%']]
+      :[['ลำดับ','7%'],['ทะเบียนรถ','19%'],['เบอร์ตู้','21%'],['วันที่เข้าโรงงาน','21%'],['โรงงาน','18%'],['น้ำหนัก (กก.)','14%']];
+    const cellsOf=c=>kind==='LCB'
+      ?[esc(c.truck_plate??''),esc(c.container_no??''),esc(c.seal_no??''),esc(thaiDate(c.factory_date)),c.weight?Number(c.weight).toLocaleString():'']
+      :[esc(c.truck_plate??''),esc(c.container_no??''),esc(thaiDate(c.factory_date)),esc(c.factory??''),c.weight?Number(c.weight).toLocaleString():''];
+    let rows='';
+    list.forEach((c,i)=>{const bg=colorOf(c.factory_date);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr><td class="seq"${st}>${i+1}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
+    const blanks=COLS.slice(1).map(()=>'<td></td>').join('');
+    for(let i=list.length;i<total;i++)rows+=`<tr><td class="seq">${i+1}</td>${blanks}</tr>`;
+    const line2=[total?`${total} ตู้`:'',inv.destination?`ไป ${esc(inv.destination)}`:'',inv.customer?`ของ ${esc(inv.customer)}`:''].filter(Boolean).join(' ');
+    const legend=dts.length?`<div class="ctrlgd"><span style="font-weight:400;border:none;color:#64748b;">วันเข้าโรงงาน:</span>${dts.map(d=>`<span style="background:${colorOf(d)};-webkit-print-color-adjust:exact;print-color-adjust:exact;">${esc(thaiDate(d))}</span>`).join('')}</div>`:'';
+    const thead=COLS.map(cw=>`<th style="width:${cw[1]}">${esc(cw[0])}</th>`).join('');
+    return `<div class="ctrsheet"><div class="ctrbox"><h1>${kind==='LCB'?'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง':'ใบแจ้งเบอร์ตู้'}</h1></div>`
+      +`<p class="ctrl1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p><p class="ctrl2">${line2}</p>${legend}`
+      +`<table class="ctrtbl"><thead><tr>${thead}</tr></thead><tbody>${rows}</tbody></table>`
+      +`<div class="ctrfoot"><span>กรอกแล้ว ${list.length} / ${total} ตู้</span><span>พิมพ์เมื่อ ${todayText()}</span></div></div>`;
+  };
   let pages='';
-  dates.forEach((dt,pi)=>{
+  for(const dt of dates){
     const im={};
     FLAT.forEach(d=>{(d.details||[]).forEach(row=>{
       const _src=row._src||'PADANG';
@@ -6499,21 +6532,36 @@ function doFacPrint(dates){
 <p>${ttl} ตู้ · ${ins.length} อินวอยซ์ &nbsp;|&nbsp; วันเข้าโรงงาน: ${facCols.map(fd=>esc(fd)).join(' · ')}</p></div>
 <table><thead><tr><th style="background:#1e3a5f;color:#fff;padding:7px 14px;font-size:12pt;text-align:left;white-space:nowrap;">อินวอยซ์</th>${thCols}</tr></thead><tbody>${tbRows}</tbody></table>
 <div class="ft">พิมพ์เมื่อ ${new Date().toLocaleString('th-TH')}</div></div></div>`;
-  });
+    /* หน้าถัดไป = ใบแจ้งเบอร์ตู้ ของแต่ละอินวอยซ์ในวันนี้ (ดึงจาก Edge Function แบบเดียวกับหน้า lcb_report เป๊ะ) */
+    for(const inv of ins){ const j=await _ctrData(inv); if(j) pages+=_ctrSheet(j); }
+  }
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
-<title>สรุปตู้เข้าโรงงาน</title>
+<title>สรุปตู้เข้าโรงงาน + ใบแจ้งเบอร์ตู้</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>*{box-sizing:border-box;margin:0;padding:0;}
 @page{size:A4 landscape;margin:10mm;}
-body{font-family:'Segoe UI',Tahoma,'Noto Sans Thai',sans-serif;font-size:12pt;color:#0f172a;background:#fff;width:277mm;}
+@page ctr{size:A4 portrait;margin:12mm;}
+body{font-family:'Segoe UI',Tahoma,'Sarabun','Noto Sans Thai',sans-serif;font-size:12pt;color:#0f172a;background:#fff;}
 .hd{margin-bottom:5mm;padding-bottom:3mm;border-bottom:2px solid #0f2a52;}
 .hd h1{font-size:18pt;font-weight:700;color:#0f2a52;}
 .hd p{font-size:11pt;color:#64748b;margin-top:3px;}
 table{width:100%;border-collapse:collapse;}
 .ft{margin-top:4mm;font-size:9pt;color:#94a3b8;text-align:right;}
-.sheet{width:277mm;height:188mm;overflow:hidden;}
-.sheet:not(:last-child){page-break-after:always;}
+.sheet{width:277mm;height:188mm;overflow:hidden;page-break-before:always;}
 .fit{width:277mm;transform-origin:top left;}
-@page{@bottom-right{content:"หน้า " counter(page);font-family:'Sarabun',sans-serif;font-size:9pt;color:#94a3b8;}}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
+.ctrsheet{page:ctr;page-break-before:always;font-family:'Sarabun','Noto Sans Thai',Tahoma,sans-serif;color:#000;}
+.ctrbox{border:2.5px solid #000;padding:8px 12px;text-align:center;margin-bottom:13px;}
+.ctrbox h1{font-size:24px;font-weight:800;}
+.ctrl1{font-size:17px;margin-bottom:5px;}.ctrl1 b{font-size:22px;font-weight:800;}
+.ctrl2{font-size:15px;font-weight:600;margin-bottom:9px;}
+.ctrlgd{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:9px;font-size:11.5px;}
+.ctrlgd span{padding:2px 11px;border:1px solid #94a3b8;border-radius:11px;font-weight:600;}
+.ctrtbl{width:100%;border-collapse:collapse;table-layout:fixed;}
+.ctrtbl th,.ctrtbl td{border:1.3px solid #000;padding:0 5px;text-align:center;height:8.4mm;font-size:14px;vertical-align:middle;overflow:hidden;}
+.ctrtbl thead th{background:#f2f4f7;font-size:13px;font-weight:700;height:auto;padding:5px 4px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.ctrtbl td.seq{font-weight:600;}
+.ctrfoot{margin-top:8px;display:flex;justify-content:space-between;font-size:11px;color:#555;}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
 </style></head><body>${pages}
 <script>window.onload=function(){
   document.querySelectorAll('.sheet').forEach(function(sh){
@@ -6524,7 +6572,8 @@ table{width:100%;border-collapse:collapse;}
   window.print();
 };<\/script>
 </body></html>`;
-  const win=window.open('','_blank');win.document.write(html);win.document.close();
+  if(win){ win.document.open(); win.document.write(html); win.document.close(); }
+  else { alert('เบราว์เซอร์บล็อกหน้าต่างพิมพ์ — อนุญาต popup ให้เว็บนี้แล้วลองใหม่'); }
 }
 
 /* =====================================================
