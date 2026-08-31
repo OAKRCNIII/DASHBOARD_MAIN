@@ -6488,8 +6488,8 @@ async function doFacPrint(dates){
     const line2=[total?`${total} ตู้`:'',inv.destination?`ไป ${esc(inv.destination)}`:'',inv.customer?`ของ ${esc(inv.customer)}`:''].filter(Boolean).join(' ');
     const legend=dts.length?`<div class="ctrlgd"><span style="font-weight:400;border:none;color:#64748b;">วันเข้าโรงงาน:</span>${dts.map(d=>`<span style="background:${colorOf(d)};-webkit-print-color-adjust:exact;print-color-adjust:exact;">${esc(thaiDate(d))}</span>`).join('')}</div>`:'';
     const thead=COLS.map(cw=>`<th style="width:${cw[1]}">${esc(cw[0])}</th>`).join('');
-    return `<div class="ctrsheet"><div class="ctrbox"><h1>${kind==='LCB'?'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง':'ใบแจ้งเบอร์ตู้'}</h1></div>`
-      +`<div class="ctrhd"><div><p class="ctrl1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p><p class="ctrl2">${line2}</p></div>${seq?`<div class="ctrseq"><small>ลำดับ</small>${seq}</div>`:''}</div>${legend}`
+    return `<div class="ctrsheet"><div class="ctrbox"><h1>${kind==='LCB'?'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง':'ใบแจ้งเบอร์ตู้'}</h1>${seq?`<div class="ctrseq"><small>ลำดับ</small>${seq}</div>`:''}</div>`
+      +`<p class="ctrl1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p><p class="ctrl2">${line2}</p>${legend}`
       +`<table class="ctrtbl"><thead><tr>${thead}</tr></thead><tbody>${rows}</tbody></table>`
       +`<div class="ctrfoot"><span>กรอกแล้ว ${list.length} / ${total} ตู้</span><span>พิมพ์เมื่อ ${todayText()}</span></div></div>`;
   };
@@ -6550,13 +6550,12 @@ table{width:100%;border-collapse:collapse;}
 .sheet{width:277mm;height:188mm;overflow:hidden;page-break-before:always;}
 .fit{width:277mm;transform-origin:top left;}
 .ctrsheet{page:ctr;page-break-before:always;font-family:'Sarabun','Noto Sans Thai',Tahoma,sans-serif;color:#000;}
-.ctrbox{border:2.5px solid #000;padding:8px 12px;text-align:center;margin-bottom:13px;}
+.ctrbox{border:2.5px solid #000;padding:8px 12px;text-align:center;margin-bottom:13px;position:relative;}
 .ctrbox h1{font-size:24px;font-weight:800;}
 .ctrl1{font-size:17px;margin-bottom:5px;}.ctrl1 b{font-size:22px;font-weight:800;}
 .ctrl2{font-size:15px;font-weight:600;margin-bottom:9px;}
-.ctrhd{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;}
-.ctrseq{flex-shrink:0;min-width:46px;padding:6px 11px;border:2.5px solid #1e3a5f;border-radius:11px;color:#1e3a5f;font-size:27px;font-weight:800;line-height:1;display:flex;flex-direction:column;align-items:center;justify-content:center;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-.ctrseq small{font-size:9px;font-weight:600;opacity:.7;margin-bottom:3px;}
+.ctrseq{position:absolute;right:10px;top:50%;transform:translateY(-50%);min-width:40px;padding:3px 10px;border:2px solid #1e3a5f;border-radius:9px;color:#1e3a5f;font-size:20px;font-weight:800;line-height:1;display:flex;flex-direction:column;align-items:center;justify-content:center;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.ctrseq small{font-size:8px;font-weight:600;opacity:.7;margin-bottom:1px;}
 .ctrlgd{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:9px;font-size:11.5px;}
 .ctrlgd span{padding:2px 11px;border:1px solid #94a3b8;border-radius:11px;font-weight:600;}
 .ctrtbl{width:100%;border-collapse:collapse;table-layout:fixed;}
