@@ -6470,11 +6470,14 @@ async function doFacPrint(dates){
   const _ctrData=async inv=>{try{const r=await fetch(`${_CTR_API}/report?inv=${encodeURIComponent(inv)}`);const j=await r.json();return(r.ok&&j&&j.invoice)?j:null;}catch(_){return null;}};
   /* ไฮไลท์สีตามวันเข้าโรงงาน (วันแรก=ฟ้าอ่อน, วันถัดไป=ส้มอ่อน, เขียว, ม่วง... ไล่ต่ออัตโนมัติ) */
   const _HL=['#dbeafe','#ffedd5','#dcfce7','#f3e8ff','#fce7f3','#fef9c3','#e0e7ff','#ccfbf1'];
-  const _ctrSheet=(j,seq)=>{
+  const _dkey=v=>{if(!v)return'';let m=String(v).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return +m[1]+'-'+(+m[2])+'-'+(+m[3]);m=String(v).match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);if(m){let y=+m[3];if(y>2400)y-=543;if(y<100)y+=2000;return y+'-'+(+m[2])+'-'+(+m[1]);}return String(v);};
+  const _thaiKey=k=>{const p=String(k).split('-').map(Number);if(p.length<3||isNaN(p[0]))return k;const d=new Date(p[0],p[1]-1,p[2]);return _DOW[d.getDay()]+' '+p[2]+' '+_MON[p[1]-1];};
+  const _ctrSheet=(j,seq,hlCols)=>{
     const inv=j.invoice,list=j.containers||[],kind=j.kind||'PADANG';
     const total=Math.max(inv.container_count||0,list.length);
-    const dts=[...new Set(list.map(c=>c.factory_date).filter(Boolean))].sort();
-    const colorOf=d=>{const i=dts.indexOf(d);return i>=0?_HL[i%_HL.length]:'';};
+    /* ไฮไลท์เฉพาะวันเข้าโรงงานที่โชว์ในหน้าภาพรวม (hlCols) — วันอื่นขาวดำปกติ */
+    const hlKeys=(hlCols||[]).map(_dkey);
+    const colorOf=d=>{const i=hlKeys.indexOf(_dkey(d));return i>=0?_HL[i%_HL.length]:'';};
     const COLS=kind==='LCB'
       ?[['ลำดับ','7%'],['ทะเบียนรถ','19%'],['เบอร์ตู้','21%'],['SEAL NO.','16%'],['วันที่เข้าโรงงาน','21%'],['น้ำหนัก (กก.)','16%']]
       :[['ลำดับ','7%'],['ทะเบียนรถ','19%'],['เบอร์ตู้','21%'],['วันที่เข้าโรงงาน','21%'],['โรงงาน','18%'],['น้ำหนัก (กก.)','14%']];
@@ -6486,7 +6489,7 @@ async function doFacPrint(dates){
     const blanks=COLS.slice(1).map(()=>'<td></td>').join('');
     for(let i=list.length;i<total;i++)rows+=`<tr><td class="seq">${i+1}</td>${blanks}</tr>`;
     const line2=[total?`${total} ตู้`:'',inv.destination?`ไป ${esc(inv.destination)}`:'',inv.customer?`ของ ${esc(inv.customer)}`:''].filter(Boolean).join(' ');
-    const legend=dts.length?`<div class="ctrlgd"><span style="font-weight:400;border:none;color:#64748b;">วันเข้าโรงงาน:</span>${dts.map(d=>`<span style="background:${colorOf(d)};-webkit-print-color-adjust:exact;print-color-adjust:exact;">${esc(thaiDate(d))}</span>`).join('')}</div>`:'';
+    const legend=hlKeys.length?`<div class="ctrlgd"><span style="font-weight:400;border:none;color:#64748b;">ไฮไลท์วันเข้าโรงงาน:</span>${hlKeys.map((k,i)=>`<span style="background:${_HL[i%_HL.length]};-webkit-print-color-adjust:exact;print-color-adjust:exact;">${esc(_thaiKey(k))}</span>`).join('')}</div>`:'';
     const thead=COLS.map(cw=>`<th style="width:${cw[1]}">${esc(cw[0])}</th>`).join('');
     return `<div class="ctrsheet"><div class="ctrbox"><h1>${kind==='LCB'?'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง':'ใบแจ้งเบอร์ตู้'}</h1>${seq?`<div class="ctrseq"><small>ลำดับ</small>${seq}</div>`:''}</div>`
       +`<p class="ctrl1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p><p class="ctrl2">${line2}</p>${legend}`
@@ -6533,7 +6536,7 @@ async function doFacPrint(dates){
 <table><thead><tr><th style="background:#1e3a5f;color:#fff;padding:7px 8px;font-size:12pt;text-align:center;white-space:nowrap;">#</th><th style="background:#1e3a5f;color:#fff;padding:7px 14px;font-size:12pt;text-align:left;white-space:nowrap;">อินวอยซ์</th>${thCols}</tr></thead><tbody>${tbRows}</tbody></table>
 <div class="ft">พิมพ์เมื่อ ${new Date().toLocaleString('th-TH')}</div></div></div>`;
     /* หน้าถัดไป = ใบแจ้งเบอร์ตู้ ของแต่ละอินวอยซ์ในวันนี้ (ดึงจาก Edge Function แบบเดียวกับหน้า lcb_report เป๊ะ) */
-    for(let _k=0;_k<ins.length;_k++){ const j=await _ctrData(ins[_k]); if(j) pages+=_ctrSheet(j,_k+1); }
+    for(let _k=0;_k<ins.length;_k++){ const j=await _ctrData(ins[_k]); if(j) pages+=_ctrSheet(j,_k+1,facCols); }
   }
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>สรุปตู้เข้าโรงงาน + ใบแจ้งเบอร์ตู้</title>
