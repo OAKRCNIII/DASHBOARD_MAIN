@@ -32,6 +32,7 @@ thead th{font-size:14px;font-weight:700;line-height:1.2;padding:5px 4px;height:a
 .c-no   {width:7%}
 .c-truck{width:20%;font-size:14px;font-weight:500}
 .c-ctr  {width:22%;font-size:17px;font-weight:800;letter-spacing:.4px}
+.lockmode td.c-ctr{color:#6d28d9;-webkit-print-color-adjust:exact;print-color-adjust:exact}  /* ตู้ล็อค → เบอร์ตู้สีม่วง */
 .c-seal {width:17%;font-weight:700;letter-spacing:.2px}
 .c-date {width:19%;font-weight:500}
 .c-wt   {width:15%;font-weight:600}
@@ -173,7 +174,7 @@ function render(inv, list, kind, locked){
   ].filter(Boolean).join(' ');
 
   document.getElementById('out').innerHTML = `
-  <div class="sheet" id="sheet">
+  <div class="sheet${isLocked ? ' lockmode' : ''}" id="sheet">
     <div class="tbox"><h1>${KIND === 'LCB' ? 'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง' : 'ใบแจ้งเบอร์ตู้'}</h1></div>
     <p class="l1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p>
     <p class="l2">${esc(line2)}</p>
