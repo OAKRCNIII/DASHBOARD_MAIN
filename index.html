@@ -6470,7 +6470,7 @@ async function doFacPrint(dates){
   const _ctrData=async inv=>{try{const r=await fetch(`${_CTR_API}/report?inv=${encodeURIComponent(inv)}`);const j=await r.json();return(r.ok&&j&&j.invoice)?j:null;}catch(_){return null;}};
   /* ไฮไลท์สีตามวันเข้าโรงงาน (วันแรก=ฟ้าอ่อน, วันถัดไป=ส้มอ่อน, เขียว, ม่วง... ไล่ต่ออัตโนมัติ) */
   const _HL=['#dbeafe','#ffedd5','#dcfce7','#f3e8ff','#fce7f3','#fef9c3','#e0e7ff','#ccfbf1'];
-  const _ctrSheet=j=>{
+  const _ctrSheet=(j,seq)=>{
     const inv=j.invoice,list=j.containers||[],kind=j.kind||'PADANG';
     const total=Math.max(inv.container_count||0,list.length);
     const dts=[...new Set(list.map(c=>c.factory_date).filter(Boolean))].sort();
@@ -6489,7 +6489,7 @@ async function doFacPrint(dates){
     const legend=dts.length?`<div class="ctrlgd"><span style="font-weight:400;border:none;color:#64748b;">วันเข้าโรงงาน:</span>${dts.map(d=>`<span style="background:${colorOf(d)};-webkit-print-color-adjust:exact;print-color-adjust:exact;">${esc(thaiDate(d))}</span>`).join('')}</div>`:'';
     const thead=COLS.map(cw=>`<th style="width:${cw[1]}">${esc(cw[0])}</th>`).join('');
     return `<div class="ctrsheet"><div class="ctrbox"><h1>${kind==='LCB'?'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง':'ใบแจ้งเบอร์ตู้'}</h1></div>`
-      +`<p class="ctrl1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p><p class="ctrl2">${line2}</p>${legend}`
+      +`<div class="ctrhd"><div><p class="ctrl1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p><p class="ctrl2">${line2}</p></div>${seq?`<div class="ctrseq"><small>ลำดับ</small>${seq}</div>`:''}</div>${legend}`
       +`<table class="ctrtbl"><thead><tr>${thead}</tr></thead><tbody>${rows}</tbody></table>`
       +`<div class="ctrfoot"><span>กรอกแล้ว ${list.length} / ${total} ตู้</span><span>พิมพ์เมื่อ ${todayText()}</span></div></div>`;
   };
@@ -6519,7 +6519,7 @@ async function doFacPrint(dates){
       if(_vp){ _vn=_vp.vessel||''; _bk=_vp.bkg||''; }
       else { const _vr=VESSEL.find(v=>normInv(v.inv)===normInv(inv)); if(_vr){ _vn=_vr.vessel||''; _bk=_vr.bkg||''; } }
       const _vslLine=(_vn||(_bk&&_bk!=='-'))?`<div style="font-size:9.5pt;color:#475569;margin-top:3px;">${_vn?`🚢 ${esc(_vn)}`:''}${_bk&&_bk!=='-'?`${_vn?' · ':''}BKG ${esc(_bk)}`:''}</div>`:'';
-      tbRows+=`<tr style="${bg}"><td style="border:1px solid #cbd5e1;padding:7px 12px;white-space:nowrap;vertical-align:top;${bg}"><span style="font-size:9.5pt;font-weight:700;padding:2px 7px;border-radius:4px;margin-right:6px;background:${s.bg};color:${s.tx};border:1px solid ${s.bd};">${esc(pfx)}</span>${esc(inv)}${_vslLine}</td>`;
+      tbRows+=`<tr style="${bg}"><td style="border:1px solid #cbd5e1;padding:7px 8px;text-align:center;font-weight:800;font-size:12pt;color:#1e3a5f;vertical-align:top;${bg}">${ii+1}</td><td style="border:1px solid #cbd5e1;padding:7px 12px;white-space:nowrap;vertical-align:top;${bg}"><span style="font-size:9.5pt;font-weight:700;padding:2px 7px;border-radius:4px;margin-right:6px;background:${s.bg};color:${s.tx};border:1px solid ${s.bd};">${esc(pfx)}</span>${esc(inv)}${_vslLine}</td>`;
       facCols.forEach(fd=>{
         const trucks=im[inv][fd]||[];
         tbRows+=trucks.length?`<td style="border:1px solid #cbd5e1;padding:7px 12px;text-align:center;white-space:nowrap;vertical-align:top;${bg}">${trucks.map(t=>`${esc(t.truck)}${t.ctr?`<br><span style="font-family:monospace;font-size:9pt;color:#64748b;">${esc(t.ctr)}</span>`:''}`).join('<br>')}</td>`:`<td style="border:1px solid #cbd5e1;padding:7px 12px;text-align:center;color:#cbd5e1;vertical-align:top;${bg}">—</td>`;
@@ -6530,10 +6530,10 @@ async function doFacPrint(dates){
     pages+=`<div class="sheet"><div class="fit">
 <div class="hd"><h1>🏭 สรุปตู้เข้าโรงงาน &nbsp;·&nbsp; วันรับตู้ ${esc(dt)}</h1>
 <p>${ttl} ตู้ · ${ins.length} อินวอยซ์ &nbsp;|&nbsp; วันเข้าโรงงาน: ${facCols.map(fd=>esc(fd)).join(' · ')}</p></div>
-<table><thead><tr><th style="background:#1e3a5f;color:#fff;padding:7px 14px;font-size:12pt;text-align:left;white-space:nowrap;">อินวอยซ์</th>${thCols}</tr></thead><tbody>${tbRows}</tbody></table>
+<table><thead><tr><th style="background:#1e3a5f;color:#fff;padding:7px 8px;font-size:12pt;text-align:center;white-space:nowrap;">#</th><th style="background:#1e3a5f;color:#fff;padding:7px 14px;font-size:12pt;text-align:left;white-space:nowrap;">อินวอยซ์</th>${thCols}</tr></thead><tbody>${tbRows}</tbody></table>
 <div class="ft">พิมพ์เมื่อ ${new Date().toLocaleString('th-TH')}</div></div></div>`;
     /* หน้าถัดไป = ใบแจ้งเบอร์ตู้ ของแต่ละอินวอยซ์ในวันนี้ (ดึงจาก Edge Function แบบเดียวกับหน้า lcb_report เป๊ะ) */
-    for(const inv of ins){ const j=await _ctrData(inv); if(j) pages+=_ctrSheet(j); }
+    for(let _k=0;_k<ins.length;_k++){ const j=await _ctrData(ins[_k]); if(j) pages+=_ctrSheet(j,_k+1); }
   }
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>สรุปตู้เข้าโรงงาน + ใบแจ้งเบอร์ตู้</title>
@@ -6554,6 +6554,9 @@ table{width:100%;border-collapse:collapse;}
 .ctrbox h1{font-size:24px;font-weight:800;}
 .ctrl1{font-size:17px;margin-bottom:5px;}.ctrl1 b{font-size:22px;font-weight:800;}
 .ctrl2{font-size:15px;font-weight:600;margin-bottom:9px;}
+.ctrhd{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;}
+.ctrseq{flex-shrink:0;min-width:46px;padding:6px 11px;border:2.5px solid #1e3a5f;border-radius:11px;color:#1e3a5f;font-size:27px;font-weight:800;line-height:1;display:flex;flex-direction:column;align-items:center;justify-content:center;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.ctrseq small{font-size:9px;font-weight:600;opacity:.7;margin-bottom:3px;}
 .ctrlgd{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:9px;font-size:11.5px;}
 .ctrlgd span{padding:2px 11px;border:1px solid #94a3b8;border-radius:11px;font-weight:600;}
 .ctrtbl{width:100%;border-collapse:collapse;table-layout:fixed;}
