@@ -6491,14 +6491,14 @@ async function doFacPrint(dates){
     const line2=[total?`${total} ตู้`:'',inv.destination?`ไป ${esc(inv.destination)}`:'',inv.customer?`ของ ${esc(inv.customer)}`:''].filter(Boolean).join(' ');
     const legend=hlKeys.length?`<div class="ctrlgd"><span style="font-weight:400;border:none;color:#64748b;">ไฮไลท์วันเข้าโรงงาน:</span>${hlKeys.map((k,i)=>`<span style="background:${_HL[i%_HL.length]};-webkit-print-color-adjust:exact;print-color-adjust:exact;">${esc(_thaiKey(k))}</span>`).join('')}</div>`:'';
     const thead=COLS.map(cw=>`<th style="width:${cw[1]}">${esc(cw[0])}</th>`).join('');
-    return `<div class="ctrsheet"><div class="ctrbox"><h1>${kind==='LCB'?'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง':'ใบแจ้งเบอร์ตู้'}</h1>${seq?`<div class="ctrseq"><small>ลำดับ</small>${seq}</div>`:''}</div>`
+    return `<div class="ctrsheet"><div class="ctrbox">${inv.shipping_line&&inv.shipping_line!=='-'?`<div class="ctrline"><small>สายเรือ</small>${esc(inv.shipping_line)}</div>`:''}<h1>${kind==='LCB'?'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง':'ใบแจ้งเบอร์ตู้'}</h1>${seq?`<div class="ctrseq"><small>ลำดับ</small>${seq}</div>`:''}</div>`
       +`<p class="ctrl1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p><p class="ctrl2">${line2}</p>${legend}`
       +`<table class="ctrtbl"><thead><tr>${thead}</tr></thead><tbody>${rows}</tbody></table>`
       +`<div class="ctrfoot"><span>กรอกแล้ว ${list.length} / ${total} ตู้</span><span>พิมพ์เมื่อ ${todayText()}</span></div></div>`;
   };
   let pages='';
   for(const dt of dates){
-    const im={};
+    const im={};const linerByInv={};
     FLAT.forEach(d=>{(d.details||[]).forEach(row=>{
       const _src=row._src||'PADANG';
       if(FAC_SRC_FILTER==='PADANG'&&_src==='LCB')return;
@@ -6506,6 +6506,7 @@ async function doFacPrint(dates){
       const fd=row['เข้าโรงงาน']||'-';
       const rowDt=(row.DATE_PICKUP&&row.DATE_PICKUP!=='-')?row.DATE_PICKUP:'-';
       if(rowDt!==dt)return;
+      if(row['สายเรือ']&&row['สายเรือ']!=='-'&&!linerByInv[d.inv])linerByInv[d.inv]=row['สายเรือ'];
       if(!im[d.inv])im[d.inv]={};
       if(!im[d.inv][fd])im[d.inv][fd]=[];
       im[d.inv][fd].push({truck:row['ทะเบียนรถ']||'-', ctr:row['เบอร์ตู้']||''});
@@ -6521,7 +6522,12 @@ async function doFacPrint(dates){
       const _vp=VESSEL_PLAN[inv.toUpperCase()]; let _vn='',_bk='';
       if(_vp){ _vn=_vp.vessel||''; _bk=_vp.bkg||''; }
       else { const _vr=VESSEL.find(v=>normInv(v.inv)===normInv(inv)); if(_vr){ _vn=_vr.vessel||''; _bk=_vr.bkg||''; } }
-      const _vslLine=(_vn||(_bk&&_bk!=='-'))?`<div style="font-size:9.5pt;color:#475569;margin-top:3px;">${_vn?`🚢 ${esc(_vn)}`:''}${_bk&&_bk!=='-'?`${_vn?' · ':''}BKG ${esc(_bk)}`:''}</div>`:'';
+      const _liner=linerByInv[inv]||'';
+      const _lp=[];
+      if(_liner)_lp.push(`<b>${esc(_liner)}</b>`);
+      if(_vn)_lp.push(esc(_vn));
+      if(_bk&&_bk!=='-')_lp.push(`BKG ${esc(_bk)}`);
+      const _vslLine=_lp.length?`<div style="font-size:9.5pt;color:#475569;margin-top:3px;">🚢 ${_lp.join(' · ')}</div>`:'';
       tbRows+=`<tr style="${bg}"><td style="border:1px solid #cbd5e1;padding:7px 8px;text-align:center;font-weight:800;font-size:12pt;color:#1e3a5f;vertical-align:top;${bg}">${ii+1}</td><td style="border:1px solid #cbd5e1;padding:7px 12px;white-space:nowrap;vertical-align:top;${bg}"><span style="font-size:9.5pt;font-weight:700;padding:2px 7px;border-radius:4px;margin-right:6px;background:${s.bg};color:${s.tx};border:1px solid ${s.bd};">${esc(pfx)}</span>${esc(inv)}${_vslLine}</td>`;
       facCols.forEach(fd=>{
         const trucks=im[inv][fd]||[];
@@ -6554,11 +6560,13 @@ table{width:100%;border-collapse:collapse;}
 .fit{width:277mm;transform-origin:top left;}
 .ctrsheet{page:ctr;page-break-before:always;font-family:'Sarabun','Noto Sans Thai',Tahoma,sans-serif;color:#000;}
 .ctrbox{border:2.5px solid #000;padding:8px 12px;text-align:center;margin-bottom:13px;position:relative;}
-.ctrbox h1{font-size:24px;font-weight:800;}
+.ctrbox h1{font-size:24px;font-weight:800;padding:0 96px;}
 .ctrl1{font-size:17px;margin-bottom:5px;}.ctrl1 b{font-size:22px;font-weight:800;}
 .ctrl2{font-size:15px;font-weight:600;margin-bottom:9px;}
 .ctrseq{position:absolute;right:10px;top:50%;transform:translateY(-50%);min-width:40px;padding:3px 10px;border:2px solid #1e3a5f;border-radius:9px;color:#1e3a5f;font-size:20px;font-weight:800;line-height:1;display:flex;flex-direction:column;align-items:center;justify-content:center;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .ctrseq small{font-size:8px;font-weight:600;opacity:.7;margin-bottom:1px;}
+.ctrline{position:absolute;left:10px;top:50%;transform:translateY(-50%);min-width:40px;padding:4px 12px;border:2px solid #1e3a5f;border-radius:9px;color:#1e3a5f;font-size:17px;font-weight:800;line-height:1;display:flex;flex-direction:column;align-items:center;justify-content:center;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.ctrline small{font-size:8px;font-weight:600;opacity:.7;margin-bottom:2px;}
 .ctrlgd{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:9px;font-size:11.5px;}
 .ctrlgd span{padding:2px 11px;border:1px solid #94a3b8;border-radius:11px;font-weight:600;}
 .ctrtbl{width:100%;border-collapse:collapse;table-layout:fixed;}
