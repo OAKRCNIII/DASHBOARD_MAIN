@@ -6487,19 +6487,34 @@ async function doFacPrint(dates){
     const cellsOf=c=>kind==='LCB'
       ?[esc(c.truck_plate??''),esc(c.container_no??''),esc(c.seal_no??''),esc(thaiDate(c.factory_date)),c.weight?Number(c.weight).toLocaleString():'']
       :[esc(c.truck_plate??''),esc(c.container_no??''),esc(thaiDate(c.factory_date)),esc(c.factory??''),c.weight?Number(c.weight).toLocaleString():''];
-    let rows='';
-    list.forEach((c,i)=>{const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr><td class="seq"${st}>${i+1}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
-    const blanks=COLS.slice(1).map(()=>'<td></td>').join('');
-    for(let i=list.length;i<total;i++)rows+=`<tr><td class="seq">${i+1}</td>${blanks}</tr>`;
-    const line2=[total?`${total} ตู้`:'',inv.destination?`ไป ${esc(inv.destination)}`:'',inv.customer?`ของ ${esc(inv.customer)}`:''].filter(Boolean).join(' ');
+    /* โหมดล็อคตู้: ถ้า Edge คืน locked → โชว์ตู้ล็อคครบตามลำดับ (id) + เติมเฉพาะตู้ที่เข้าแล้ว */
+    const _lk=(j.locked&&j.locked.containers&&j.locked.containers.length)?j.locked.containers:null;
+    let rows='', total2, filled;
+    if(_lk){
+      const entMap={}; list.forEach(c=>{if(c.container_no)entMap[_cn(c.container_no)]=c;});
+      total2=_lk.length; filled=0;
+      _lk.forEach((b,i)=>{
+        const e=entMap[_cn(b.container_no)]; if(e)filled++;
+        const c=e||{container_no:b.container_no};   // ยังไม่เข้า → มีแค่เบอร์ตู้
+        const bg=e?colorOfCtr(c):'';
+        const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';
+        rows+=`<tr><td class="seq"${st}>${i+1}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;
+      });
+    } else {
+      total2=total; filled=list.length;
+      list.forEach((c,i)=>{const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr><td class="seq"${st}>${i+1}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
+      const blanks=COLS.slice(1).map(()=>'<td></td>').join('');
+      for(let i=list.length;i<total;i++)rows+=`<tr><td class="seq">${i+1}</td>${blanks}</tr>`;
+    }
+    const line2=[total2?`${total2} ตู้`:'',inv.destination?`ไป ${esc(inv.destination)}`:'',inv.customer?`ของ ${esc(inv.customer)}`:''].filter(Boolean).join(' ');
     const usedKeys=[...new Set(Object.values(ctrMap).map(_dkey))];
     const legKeys=allKeys.filter(k=>usedKeys.includes(k));
     const legend=legKeys.length?`<div class="ctrlgd"><span style="font-weight:400;border:none;color:#64748b;">ไฮไลท์ (ตู้ที่ยกวันนี้) เข้าโรงงาน:</span>${legKeys.map(k=>`<span style="background:${_HL[allKeys.indexOf(k)%_HL.length]};-webkit-print-color-adjust:exact;print-color-adjust:exact;">${esc(_thaiKey(k))}</span>`).join('')}</div>`:'';
     const thead=COLS.map(cw=>`<th style="width:${cw[1]}">${esc(cw[0])}</th>`).join('');
-    return `<div class="ctrsheet"><div class="ctrbox">${inv.shipping_line&&inv.shipping_line!=='-'?`<div class="ctrline"><small>สายเรือ</small>${esc(inv.shipping_line)}</div>`:''}<h1>${kind==='LCB'?'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง':'ใบแจ้งเบอร์ตู้'}</h1>${seq?`<div class="ctrseq"><small>ลำดับ</small>${seq}</div>`:''}</div>`
+    return `<div class="ctrsheet${_lk?' lockmode':''}"><div class="ctrbox">${inv.shipping_line&&inv.shipping_line!=='-'?`<div class="ctrline"><small>สายเรือ</small>${esc(inv.shipping_line)}</div>`:''}<h1>${kind==='LCB'?'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง':'ใบแจ้งเบอร์ตู้'}</h1>${seq?`<div class="ctrseq"><small>ลำดับ</small>${seq}</div>`:''}</div>`
       +`<p class="ctrl1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p><p class="ctrl2">${line2}</p>${legend}`
       +`<table class="ctrtbl"><thead><tr>${thead}</tr></thead><tbody>${rows}</tbody></table>`
-      +`<div class="ctrfoot"><span>กรอกแล้ว ${list.length} / ${total} ตู้</span><span>พิมพ์เมื่อ ${todayText()}</span></div></div>`;
+      +`<div class="ctrfoot"><span>${_lk?'🔒 ล็อคตู้ · เข้าแล้ว':'กรอกแล้ว'} ${filled} / ${total2} ตู้</span><span>พิมพ์เมื่อ ${todayText()}</span></div></div>`;
   };
   let pages='';
   for(const dt of dates){
@@ -6582,6 +6597,7 @@ table{width:100%;border-collapse:collapse;}
 .ctrtbl thead th{background:#f2f4f7;font-size:13px;font-weight:700;height:auto;padding:5px 4px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .ctrtbl td.seq{font-weight:600;}
 .ctrtbl tbody td:last-child{color:#d00000;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.lockmode .ctrtbl tbody td:nth-child(3){color:#6d28d9;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .ctrfoot{margin-top:8px;display:flex;justify-content:space-between;font-size:11px;color:#555;}
 @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
 </style></head><body>${pages}
