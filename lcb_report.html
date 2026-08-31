@@ -120,9 +120,9 @@ function todayText(){
   return `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear() + 543}`;
 }
 
-function render(inv, list, kind){
+function render(inv, list, kind, locked){
   CUR = inv; ROWS = list; KIND = kind || 'LCB';
-  const total = Math.max(inv.container_count || 0, list.length);
+  const isLocked = !!(locked && locked.containers && locked.containers.length);
   const rows = [];
 
   /* คอลัมน์ต่างกันตามท่าเรือ — ปาดังไม่มีซีล แต่มีโรงงาน */
@@ -139,15 +139,31 @@ function render(inv, list, kind){
        esc(thaiDate(c.factory_date)), esc(c.factory ?? ''),
        c.weight ? Number(c.weight).toLocaleString() : ''];
 
-  list.forEach((c, i) => {
-    const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
-    rows.push(`<tr><td class="seq">${i+1}</td>${tds}</tr>`);
-  });
-
-  // แถวที่ยังไม่มีตู้ — ใส่เลขลำดับไว้ ช่องอื่นเว้นว่าง
-  const blanks = COLS.slice(1).map(() => '<td></td>').join('');
-  for(let i = list.length; i < total; i++){
-    rows.push(`<tr><td class="seq">${i+1}</td>${blanks}</tr>`);
+  let total, filled;
+  if(isLocked){
+    /* โหมดล็อคตู้: โชว์ตู้ล็อคครบตามลำดับที่ล็อคไว้ (id) + เติมรายละเอียดเฉพาะตู้ที่เข้าแล้ว */
+    const _cn = v => String(v ?? '').trim().toUpperCase();
+    const entMap = {};
+    list.forEach(c => { if(c.container_no) entMap[_cn(c.container_no)] = c; });
+    total = locked.containers.length; filled = 0;
+    locked.containers.forEach((b, i) => {
+      const e = entMap[_cn(b.container_no)];
+      if(e) filled++;
+      const c = e || { container_no: b.container_no };   // ยังไม่เข้า → มีแค่เบอร์ตู้
+      const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
+      rows.push(`<tr${e ? '' : ' class="wait"'}><td class="seq">${i+1}</td>${tds}</tr>`);
+    });
+  } else {
+    /* โหมดปกติ: เติมทีละตู้ตอนเข้าโรงงาน + แถวว่างรอ */
+    total = Math.max(inv.container_count || 0, list.length); filled = list.length;
+    list.forEach((c, i) => {
+      const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
+      rows.push(`<tr><td class="seq">${i+1}</td>${tds}</tr>`);
+    });
+    const blanks = COLS.slice(1).map(() => '<td></td>').join('');
+    for(let i = list.length; i < total; i++){
+      rows.push(`<tr><td class="seq">${i+1}</td>${blanks}</tr>`);
+    }
   }
 
   const line2 = [
@@ -166,12 +182,12 @@ function render(inv, list, kind){
       <tbody>${rows.join('')}</tbody>
     </table>
     <div class="foot">
-      <span>กรอกแล้ว ${list.length} / ${total} ตู้</span>
+      <span>${isLocked ? '🔒 ล็อคตู้ · เข้าแล้ว' : 'กรอกแล้ว'} ${filled} / ${total} ตู้</span>
       <span>พิมพ์เมื่อ ${todayText()}</span>
     </div>
   </div>`;
 
-  document.getElementById('meta').textContent = `กรอกแล้ว ${list.length} / ${total} ตู้`;
+  document.getElementById('meta').textContent = `${isLocked ? '🔒 ' : ''}${isLocked ? 'เข้าแล้ว' : 'กรอกแล้ว'} ${filled} / ${total} ตู้`;
   document.title = `เบอร์ตู้ ${inv.invoice_no}`;
 }
 
@@ -453,7 +469,7 @@ async function load(inv){
     const r = await fetch(`${API}/report?inv=${encodeURIComponent(inv)}`);
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
-    render(j.invoice, j.containers || [], j.kind);
+    render(j.invoice, j.containers || [], j.kind, j.locked);
     history.replaceState(null, '', '?inv=' + encodeURIComponent(inv));
     return j.kind;                    /* ตัวเรียกใช้ดูว่าจะโชว์ dropdown ไหม */
   }catch(e){
