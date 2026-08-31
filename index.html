@@ -6472,12 +6472,15 @@ async function doFacPrint(dates){
   const _HL=['#dbeafe','#ffedd5','#dcfce7','#f3e8ff','#fce7f3','#fef9c3','#e0e7ff','#ccfbf1'];
   const _dkey=v=>{if(!v)return'';let m=String(v).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return +m[1]+'-'+(+m[2])+'-'+(+m[3]);m=String(v).match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);if(m){let y=+m[3];if(y>2400)y-=543;if(y<100)y+=2000;return y+'-'+(+m[2])+'-'+(+m[1]);}return String(v);};
   const _thaiKey=k=>{const p=String(k).split('-').map(Number);if(p.length<3||isNaN(p[0]))return k;const d=new Date(p[0],p[1]-1,p[2]);return _DOW[d.getDay()]+' '+p[2]+' '+_MON[p[1]-1];};
-  const _ctrSheet=(j,seq,hlCols)=>{
+  const _ctrSheet=(j,seq,allCols,ctrMap)=>{
     const inv=j.invoice,list=j.containers||[],kind=j.kind||'PADANG';
     const total=Math.max(inv.container_count||0,list.length);
-    /* ไฮไลท์เฉพาะวันเข้าโรงงานที่โชว์ในหน้าภาพรวม (hlCols) — วันอื่นขาวดำปกติ */
-    const hlKeys=(hlCols||[]).map(_dkey);
-    const colorOf=d=>{const i=hlKeys.indexOf(_dkey(d));return i>=0?_HL[i%_HL.length]:'';};
+    /* ไฮไลท์เฉพาะ "ตู้ที่ยกในวันนี้ + โชว์ในภาพรวมของใบนี้" (ctrMap: เบอร์ตู้→วันเข้าโรงงาน) — ตู้อื่นขาว
+       สีอิงลำดับวันใน allCols (facCols รวม) → วันเดียวกันสีเดียวกันทุกใบ (เข้า29=ฟ้า, เข้า31=ส้ม) */
+    const allKeys=(allCols||[]).map(_dkey);
+    ctrMap=ctrMap||{};
+    const _cn=v=>String(v||'').trim().toUpperCase();
+    const colorOfCtr=c=>{const fd=ctrMap[_cn(c.container_no)];if(!fd)return'';const i=allKeys.indexOf(_dkey(fd));return i>=0?_HL[i%_HL.length]:'';};
     const COLS=kind==='LCB'
       ?[['ลำดับ','7%'],['ทะเบียนรถ','19%'],['เบอร์ตู้','21%'],['SEAL NO.','16%'],['วันที่เข้าโรงงาน','21%'],['น้ำหนัก (กก.)','16%']]
       :[['ลำดับ','7%'],['ทะเบียนรถ','19%'],['เบอร์ตู้','21%'],['วันที่เข้าโรงงาน','21%'],['โรงงาน','18%'],['น้ำหนัก (กก.)','14%']];
@@ -6485,11 +6488,13 @@ async function doFacPrint(dates){
       ?[esc(c.truck_plate??''),esc(c.container_no??''),esc(c.seal_no??''),esc(thaiDate(c.factory_date)),c.weight?Number(c.weight).toLocaleString():'']
       :[esc(c.truck_plate??''),esc(c.container_no??''),esc(thaiDate(c.factory_date)),esc(c.factory??''),c.weight?Number(c.weight).toLocaleString():''];
     let rows='';
-    list.forEach((c,i)=>{const bg=colorOf(c.factory_date);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr><td class="seq"${st}>${i+1}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
+    list.forEach((c,i)=>{const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr><td class="seq"${st}>${i+1}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
     const blanks=COLS.slice(1).map(()=>'<td></td>').join('');
     for(let i=list.length;i<total;i++)rows+=`<tr><td class="seq">${i+1}</td>${blanks}</tr>`;
     const line2=[total?`${total} ตู้`:'',inv.destination?`ไป ${esc(inv.destination)}`:'',inv.customer?`ของ ${esc(inv.customer)}`:''].filter(Boolean).join(' ');
-    const legend=hlKeys.length?`<div class="ctrlgd"><span style="font-weight:400;border:none;color:#64748b;">ไฮไลท์วันเข้าโรงงาน:</span>${hlKeys.map((k,i)=>`<span style="background:${_HL[i%_HL.length]};-webkit-print-color-adjust:exact;print-color-adjust:exact;">${esc(_thaiKey(k))}</span>`).join('')}</div>`:'';
+    const usedKeys=[...new Set(Object.values(ctrMap).map(_dkey))];
+    const legKeys=allKeys.filter(k=>usedKeys.includes(k));
+    const legend=legKeys.length?`<div class="ctrlgd"><span style="font-weight:400;border:none;color:#64748b;">ไฮไลท์ (ตู้ที่ยกวันนี้) เข้าโรงงาน:</span>${legKeys.map(k=>`<span style="background:${_HL[allKeys.indexOf(k)%_HL.length]};-webkit-print-color-adjust:exact;print-color-adjust:exact;">${esc(_thaiKey(k))}</span>`).join('')}</div>`:'';
     const thead=COLS.map(cw=>`<th style="width:${cw[1]}">${esc(cw[0])}</th>`).join('');
     return `<div class="ctrsheet"><div class="ctrbox">${inv.shipping_line&&inv.shipping_line!=='-'?`<div class="ctrline"><small>สายเรือ</small>${esc(inv.shipping_line)}</div>`:''}<h1>${kind==='LCB'?'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง':'ใบแจ้งเบอร์ตู้'}</h1>${seq?`<div class="ctrseq"><small>ลำดับ</small>${seq}</div>`:''}</div>`
       +`<p class="ctrl1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p><p class="ctrl2">${line2}</p>${legend}`
@@ -6515,6 +6520,9 @@ async function doFacPrint(dates){
     const facDateSet=new Set();
     ins.forEach(inv=>Object.keys(im[inv]).forEach(fd=>facDateSet.add(fd)));
     const facCols=Array.from(facDateSet).sort((a,b)=>parseFacDate(a)-parseFacDate(b)||a.localeCompare(b));
+    /* map เบอร์ตู้→วันเข้าโรงงาน เฉพาะตู้ที่โชว์ในภาพรวมของแต่ละใบ (ใช้ไฮไลท์ใบแจ้งให้ตรงภาพรวม) */
+    const ctrDateByInv={};
+    ins.forEach(inv=>{const mp={};Object.keys(im[inv]).forEach(fd=>{(im[inv][fd]||[]).forEach(t=>{const k=String(t.ctr||'').trim().toUpperCase();if(k)mp[k]=fd;});});ctrDateByInv[inv]=mp;});
     let ttl=0;ins.forEach(inv=>facCols.forEach(fd=>ttl+=(im[inv][fd]||[]).length));
     let tbRows='';
     ins.forEach((inv,ii)=>{
@@ -6542,7 +6550,7 @@ async function doFacPrint(dates){
 <table><thead><tr><th style="background:#1e3a5f;color:#fff;padding:7px 8px;font-size:12pt;text-align:center;white-space:nowrap;">#</th><th style="background:#1e3a5f;color:#fff;padding:7px 14px;font-size:12pt;text-align:left;white-space:nowrap;">อินวอยซ์</th>${thCols}</tr></thead><tbody>${tbRows}</tbody></table>
 <div class="ft">พิมพ์เมื่อ ${new Date().toLocaleString('th-TH')}</div></div></div>`;
     /* หน้าถัดไป = ใบแจ้งเบอร์ตู้ ของแต่ละอินวอยซ์ในวันนี้ (ดึงจาก Edge Function แบบเดียวกับหน้า lcb_report เป๊ะ) */
-    for(let _k=0;_k<ins.length;_k++){ const j=await _ctrData(ins[_k]); if(j) pages+=_ctrSheet(j,_k+1,facCols); }
+    for(let _k=0;_k<ins.length;_k++){ const j=await _ctrData(ins[_k]); if(j) pages+=_ctrSheet(j,_k+1,facCols,ctrDateByInv[ins[_k]]); }
   }
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>สรุปตู้เข้าโรงงาน + ใบแจ้งเบอร์ตู้</title>
