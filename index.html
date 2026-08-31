@@ -7144,6 +7144,15 @@ function statusBadgeTr(status){
 /* แก๊ง "ไม่หัก ณ ที่จ่าย" — เพิ่ม prefix ใหม่ที่นี่ที่เดียว */
 const TR_NOWHT=['OGM','KNT','HFI','KTW'];
 const TR_EXCL=['OGM','KNT','PTN','HFI','KTW'];   /* ตัดออกจากแท็บ "ยกเว้น" (เรียงลำดับสำหรับแสดงผล) */
+/* ── ข้อยกเว้นรายอินวอยซ์: prefix อยู่แก๊งไม่หัก แต่ใบนี้ต้อง "หัก ณ ที่จ่าย" ──
+   เพิ่มเลขอินวอยซ์ในลิสต์นี้ = ใบนั้นย้ายจากแก๊งไม่หัก → กลุ่มหัก + ติดดาว ⭐
+   จับคู่แบบไม่สนเว้นวรรค (KNT(JANG2) = KNT (JANG2)) */
+const TR_WHT_INV=['KNT(JANG2)017/2026'];
+const _normWhtInv=s=>String(s||'').toUpperCase().replace(/\s+/g,'');
+const _WHT_SET=new Set(TR_WHT_INV.map(_normWhtInv));
+const isWhtExc=inv=>_WHT_SET.has(_normWhtInv(inv));               /* ใบข้อยกเว้น (ต้องหัก + ⭐) */
+const isNoWht=(pfx,inv)=>TR_NOWHT.includes(pfx)&&!isWhtExc(inv);  /* แก๊งไม่หัก (ตัดใบข้อยกเว้นออก) */
+const inWhtGang=(pfx,inv)=>!TR_EXCL.includes(pfx)||isWhtExc(inv); /* อยู่แถบ "ยกเว้น = หัก" */
 /* ===== RENDER PREFIX BAR ===== */
 function renderTrPrefixBar(){
   const pfxMap={};
@@ -7155,10 +7164,10 @@ function renderTrPrefixBar(){
   });
   const pfxs=Object.keys(pfxMap).sort();
   /* ยกเว้นแก๊งไม่หัก + PTN */
-  const noOgmList=TR_DATA.filter(d=>!TR_EXCL.includes(d.prefix));
+  const noOgmList=TR_DATA.filter(d=>inWhtGang(d.prefix,d.inv));
   const noOgmDot=noOgmList.some(d=>d.status==='none');
   /* แก๊งไม่หัก ณ ที่จ่าย (OGM & KNT & HFI & KTW) */
-  const ogmKntList=TR_DATA.filter(d=>TR_NOWHT.includes(d.prefix));
+  const ogmKntList=TR_DATA.filter(d=>isNoWht(d.prefix,d.inv));
   const ogmKntDot=ogmKntList.some(d=>d.status==='none');
   let html='<button class="pfx-tab pfx-tab-all'+(TR_PREFIX==='all'?' active':'')+'" data-pfx="all">🏭 ทุกโรงงาน ('+TR_DATA.length+')</button>';
   if(TR_EXCL.some(p=>pfxMap[p])){
@@ -7187,8 +7196,8 @@ function renderTrPrefixBar(){
 
 function matchTrPrefix(d){
   if(TR_PREFIX==='all')return true;
-  if(TR_PREFIX==='no-ogm')return !TR_EXCL.includes(d.prefix);
-  if(TR_PREFIX==='ogm-knt')return TR_NOWHT.includes(d.prefix);
+  if(TR_PREFIX==='no-ogm')return inWhtGang(d.prefix,d.inv);
+  if(TR_PREFIX==='ogm-knt')return isNoWht(d.prefix,d.inv);
   return d.prefix===TR_PREFIX;
 }
 
@@ -7222,7 +7231,7 @@ function renderTrTable(){
     const isOpen=TR_OPEN.has(d.inv);
     html+='<tr class="inv-row'+(isOpen?' open':'')+'" data-inv="'+h(d.inv)+'">';
     html+='<td style="color:#94a3b8;font-size:11px;">'+(idx+1)+'</td>';
-    html+='<td><span class="pfx-badge" style="background:'+s.bg+';color:'+s.tx+';border:1px solid '+s.bd+'">'+h(d.prefix)+'</span><span style="font-weight:700;">'+h(d.inv)+'</span></td>';
+    html+='<td><span class="pfx-badge" style="background:'+s.bg+';color:'+s.tx+';border:1px solid '+s.bd+'">'+h(d.prefix)+'</span><span style="font-weight:700;">'+h(d.inv)+'</span>'+(isWhtExc(d.inv)?' <span title="ยกเว้น: KNT ใบนี้หัก ณ ที่จ่าย" style="background:#fef3c7;color:#b45309;border:1px solid #fcd34d;border-radius:6px;padding:0 5px;font-size:10px;font-weight:800;white-space:nowrap;">⭐ หัก</span>':'')+'</td>';
     html+='<td style="color:#64748b;">'+mLabel(d.month)+'</td>';
     html+='<td style="color:#64748b;font-size:11px;">'+h(d.customer==='-'||d.customer==='- '?'':d.customer||'')+'</td>';
     html+='<td style="text-align:center;white-space:nowrap;">'+ctrTxt+progHtml+'</td>';
@@ -7643,7 +7652,7 @@ function trPrintByFactoryReport(){
   const pfxFacTruckByInv={};
   src.forEach(d=>{
     const _pfx=(d.prefix||'').trim().toUpperCase();
-    const grp=TR_NOWHT.includes(_pfx)?groups.ogm:groups.other;
+    const grp=isNoWht(_pfx,d.inv)?groups.ogm:groups.other;
     d.details.forEach(row=>{
       if(row.trMatch&&row.trMatch._factoryTruck&&grp===groups.other){
         if(!pfxFacTruckByInv[d.inv])pfxFacTruckByInv[d.inv]=0;
@@ -7811,7 +7820,7 @@ function trPrintAlMonthXref(){
   TR_DATA.forEach(d=>{
     if(!matchTrPrefix(d))return;
     const _p2=(d.prefix||'').trim().toUpperCase();
-    const fk2=TR_NOWHT.includes(_p2)?'ogm':'other';
+    const fk2=isNoWht(_p2,d.inv)?'ogm':'other';
     d.details.forEach(row=>{
       if(!row.trMatch||row.trMatch._prePaid)return;
       const al=(row.trMatch.al||row.trMatch.seq||'').trim();
@@ -7828,7 +7837,7 @@ function trPrintAlMonthXref(){
     if(d.month!==printMonth)return;
     if(!matchTrPrefix(d))return;
     const _p3=(d.prefix||'').trim().toUpperCase();
-    const fk=TR_NOWHT.includes(_p3)?'ogm':'other';
+    const fk=isNoWht(_p3,d.inv)?'ogm':'other';
     const grp=fmap[fk];
     const mo=d.month;
     d.details.forEach(row=>{
@@ -9202,8 +9211,8 @@ let THIRA_FAC_FILTER='all'; /* 'all' | 'no-ogm-ptn-knt' | 'ogm-knt' | 'no-ogm-pt
 const thiraFacOk=e=>{
   if(THIRA_FAC_FILTER==='all')return true;
   const pfx=(e.prefix||'').toUpperCase();
-  if(THIRA_FAC_FILTER==='no-ogm-ptn-knt')return !TR_EXCL.includes(pfx);
-  if(THIRA_FAC_FILTER==='ogm-knt')return TR_NOWHT.includes(pfx);
+  if(THIRA_FAC_FILTER==='no-ogm-ptn-knt')return inWhtGang(pfx,e.inv);
+  if(THIRA_FAC_FILTER==='ogm-knt')return isNoWht(pfx,e.inv);
   if(THIRA_FAC_FILTER==='no-ogm-ptn')return pfx!=='OGM'&&pfx!=='PTN';
   return(e.prefix||'')===THIRA_FAC_FILTER;
 };
@@ -9244,10 +9253,10 @@ function renderTrThira(){
   const thAllUnpaid=THIRA_TRUCKS.reduce((s,t)=>s+byTruck[t].unpaid.length,0);
   const thNoOgmPtnAll=THIRA_TRUCKS.reduce((s,t)=>s+[...byTruck[t].paid,...byTruck[t].unpaid].filter(e=>(e.prefix||'').toUpperCase()!=='OGM'&&(e.prefix||'').toUpperCase()!=='PTN').length,0);
   const thNoOgmPtnUnpaid=THIRA_TRUCKS.reduce((s,t)=>s+byTruck[t].unpaid.filter(e=>(e.prefix||'').toUpperCase()!=='OGM'&&(e.prefix||'').toUpperCase()!=='PTN').length,0);
-  const thNoOgmPtnKntAll=THIRA_TRUCKS.reduce((s,t)=>s+[...byTruck[t].paid,...byTruck[t].unpaid].filter(e=>!TR_EXCL.includes((e.prefix||'').toUpperCase())).length,0);
-  const thNoOgmPtnKntUnpaid=THIRA_TRUCKS.reduce((s,t)=>s+byTruck[t].unpaid.filter(e=>!TR_EXCL.includes((e.prefix||'').toUpperCase())).length,0);
-  const thOgmKntAll=THIRA_TRUCKS.reduce((s,t)=>s+[...byTruck[t].paid,...byTruck[t].unpaid].filter(e=>TR_NOWHT.includes((e.prefix||'').toUpperCase())).length,0);
-  const thOgmKntUnpaid=THIRA_TRUCKS.reduce((s,t)=>s+byTruck[t].unpaid.filter(e=>TR_NOWHT.includes((e.prefix||'').toUpperCase())).length,0);
+  const thNoOgmPtnKntAll=THIRA_TRUCKS.reduce((s,t)=>s+[...byTruck[t].paid,...byTruck[t].unpaid].filter(e=>inWhtGang((e.prefix||'').toUpperCase(),e.inv)).length,0);
+  const thNoOgmPtnKntUnpaid=THIRA_TRUCKS.reduce((s,t)=>s+byTruck[t].unpaid.filter(e=>inWhtGang((e.prefix||'').toUpperCase(),e.inv)).length,0);
+  const thOgmKntAll=THIRA_TRUCKS.reduce((s,t)=>s+[...byTruck[t].paid,...byTruck[t].unpaid].filter(e=>isNoWht((e.prefix||'').toUpperCase(),e.inv)).length,0);
+  const thOgmKntUnpaid=THIRA_TRUCKS.reduce((s,t)=>s+byTruck[t].unpaid.filter(e=>isNoWht((e.prefix||'').toUpperCase(),e.inv)).length,0);
   const hasOgmOrPtn=Object.keys(thPfxMap).some(p=>p==='OGM'||p==='PTN');
   const hasOgmOrKnt=Object.keys(thPfxMap).some(p=>TR_NOWHT.includes(p));
   /* กรองตาม THIRA_FAC_FILTER */
