@@ -2460,7 +2460,14 @@ function renderAlPay(){
     const mustPay = sysComplete ? (sumSys - sumDed) : null;
     const diff=(p.slip_amount!=null&&mustPay!=null)
       ? Number(p.slip_amount)-mustPay : null;
-    const hasIssue = wrong>0 || alShift>0 || (diff!=null&&Math.abs(diff)>=0.01) || p.status==='MISMATCH';
+    /* ผลตรวจที่เก็บไว้ตอนรับเข้า (p.status / p.issues) คิดจากใบคำสั่ง+สลิป
+       เท่านั้น เพราะตอนนั้นยังไม่มีใบวางบิล พอใบวางบิลเข้าครบแล้ว
+       ตัวตรวจสด (② − ③ = ①) เชื่อถือได้กว่า จึงให้อันสดตัดสินแทน
+       ไม่งั้นการ์ดจะค้างแดงตลอดกาลทั้งที่เงินถูกต้อง */
+    const liveOK = sysComplete && diff!=null && Math.abs(diff)<0.01;
+    const hasIssue = wrong>0 || alShift>0
+      || (diff!=null&&Math.abs(diff)>=0.01)
+      || (p.status==='MISMATCH' && !liveOK);
     if(hasIssue) bad++;
 
     const tone = hasIssue ? {bg:'#fef2f2',bd:'#fecaca',fg:'#991b1b'}
@@ -2518,7 +2525,9 @@ function renderAlPay(){
       </div>
       ${diff!=null&&Math.abs(diff)>=0.01?`<div style="margin-top:6px;font-size:11px;font-weight:800;color:#dc2626;">
         ⛔ โอน${diff>0?'เกิน':'ขาด'} ${_alFm(Math.abs(diff))} — ต้องโอน ${_alFm(mustPay)}${sumDed?` (ใบวางบิล ${_alFm(sumSys)} − หัก ${_alFm(sumDed)})`:''} / สลิปโอน ${_alFm(p.slip_amount)}</div>`:''}
-      ${p.issues?`<div style="margin-top:6px;font-size:10px;color:#991b1b;white-space:pre-line;background:#fff;border-radius:6px;padding:6px 8px;border:1px solid #fecaca;">${h(p.issues)}</div>`:''}
+      ${p.issues?`<div style="margin-top:6px;font-size:10px;white-space:pre-line;background:#fff;border-radius:6px;padding:6px 8px;
+        color:${liveOK?'#94a3b8':'#991b1b'};border:1px solid ${liveOK?'#e2e8f0':'#fecaca'};">
+        ${liveOK?'<span style="font-weight:700;">บันทึกไว้ตอนรับเข้า (ตรวจสดผ่านแล้ว)</span><br>':''}${h(p.issues)}</div>`:''}
       ${rows?`<table class="det-tbl" style="margin-top:8px;width:100%;"><tbody>${rows}</tbody></table>`:''}
       ${dedBox}
       ${photos||delBtn?`<div style="margin-top:8px;display:flex;gap:6px;align-items:center;">${photos}${delBtn}</div>`:''}
