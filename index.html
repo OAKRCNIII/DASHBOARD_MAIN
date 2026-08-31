@@ -1457,7 +1457,7 @@ function _lazyScript(src){
 }
 
 /* ⚠️ v ต้องตรงกับ REPORT_V ใน edge function line-lcb — GitHub Pages แคช 10 นาที */
-const LCB_REPORT_URL='https://oakrcniii.github.io/DASHBOARD_MAIN/lcb_report.html?v=15';
+const LCB_REPORT_URL='https://oakrcniii.github.io/DASHBOARD_MAIN/lcb_report.html?v=16';
 /* ══════════════════════════════════════════════════════════════
    ออกใบ SHIPPING INSTRUCTIONS (SI)
 
@@ -6495,8 +6495,8 @@ async function doFacPrint(dates){
       const entMap={}; list.forEach(c=>{if(c.container_no)entMap[_cn(c.container_no)]=c;});
       const topEntered=list.filter(c=>c.container_no&&!lockedSet.has(_cn(c.container_no)));  // เข้าแล้วแต่ไม่ล็อค → บน
       total2=topEntered.length+_lk.length; filled=0; let n=0;
-      topEntered.forEach(c=>{filled++;n++;const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr><td class="seq"${st}>${n}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
-      _lk.forEach(b=>{n++;const e=entMap[_cn(b.container_no)]; if(e)filled++;const c=e||{container_no:b.container_no};const bg=e?colorOfCtr(c):'';const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr><td class="seq"${st}>${n}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
+      topEntered.forEach(c=>{filled++;n++;const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr class="freerow"><td class="seq"${st}>${n}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
+      _lk.forEach(b=>{n++;const e=entMap[_cn(b.container_no)]; if(e)filled++;const c=e||{container_no:b.container_no};const bg=e?colorOfCtr(c):'';const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr class="lockrow"><td class="seq"${st}>${n}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
     } else {
       total2=total; filled=list.length;
       list.forEach((c,i)=>{const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr><td class="seq"${st}>${i+1}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
@@ -6594,7 +6594,7 @@ table{width:100%;border-collapse:collapse;}
 .ctrtbl thead th{background:#f2f4f7;font-size:13px;font-weight:700;height:auto;padding:5px 4px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .ctrtbl td.seq{font-weight:600;}
 .ctrtbl tbody td:last-child{color:#d00000;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-.lockmode .ctrtbl tbody td:nth-child(3){color:#6d28d9;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.lockmode .ctrtbl tbody tr.lockrow td:nth-child(3){color:#6d28d9;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .ctrfoot{margin-top:8px;display:flex;justify-content:space-between;font-size:11px;color:#555;}
 @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
 </style></head><body>${pages}

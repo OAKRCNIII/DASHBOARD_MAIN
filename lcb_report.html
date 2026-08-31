@@ -32,7 +32,7 @@ thead th{font-size:14px;font-weight:700;line-height:1.2;padding:5px 4px;height:a
 .c-no   {width:7%}
 .c-truck{width:20%;font-size:14px;font-weight:500}
 .c-ctr  {width:22%;font-size:17px;font-weight:800;letter-spacing:.4px}
-.lockmode td.c-ctr{color:#6d28d9;-webkit-print-color-adjust:exact;print-color-adjust:exact}  /* ตู้ล็อค → เบอร์ตู้สีม่วง */
+.lockmode tr.lockrow td.c-ctr{color:#6d28d9;-webkit-print-color-adjust:exact;print-color-adjust:exact}  /* เฉพาะแถวตู้ล็อค → เบอร์ตู้สีม่วง (แถวไม่ล็อค=ดำ) */
 .c-seal {width:17%;font-weight:700;letter-spacing:.2px}
 .c-date {width:19%;font-weight:500}
 .c-wt   {width:15%;font-weight:600}
@@ -155,7 +155,7 @@ function render(inv, list, kind, locked){
     topEntered.forEach(c => {
       filled++; n++;
       const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
-      rows.push(`<tr><td class="seq">${n}</td>${tds}</tr>`);
+      rows.push(`<tr class="freerow"><td class="seq">${n}</td>${tds}</tr>`);   // ตู้ไม่ล็อค = ดำ
     });
     locked.containers.forEach(b => {
       n++;
@@ -163,7 +163,7 @@ function render(inv, list, kind, locked){
       if(e) filled++;
       const c = e || { container_no: b.container_no };   // ยังไม่เข้า → มีแค่เบอร์ตู้ (ฟันหลอ)
       const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
-      rows.push(`<tr${e ? '' : ' class="wait"'}><td class="seq">${n}</td>${tds}</tr>`);
+      rows.push(`<tr class="lockrow${e ? '' : ' wait'}"><td class="seq">${n}</td>${tds}</tr>`);   // ตู้ล็อค = ม่วง
     });
   } else {
     /* โหมดปกติ: เติมทีละตู้ตอนเข้าโรงงาน + แถวว่างรอ */
