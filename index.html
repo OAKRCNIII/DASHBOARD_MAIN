@@ -2097,6 +2097,22 @@ async function _vgmMake(){
 function openLcbReport(inv){
   window.open(`${LCB_REPORT_URL}&inv=${encodeURIComponent(inv)}`,'_blank','noopener');
 }
+/* badge 🔒 LOCK CONTAINERS — เช็คด้วย Edge (แหล่งเดียวกับใบแจ้ง) ให้ตรงกัน */
+async function _checkLockBadge(inv){
+  const slot=document.getElementById('lockBadgeSlot');
+  if(!slot||slot.dataset.inv!==inv)return;   /* กันเปิดใบอื่นแล้ว badge เก่ามาเติมผิด */
+  try{
+    const r=await fetch(`${SB_URL}/functions/v1/line-lcb/report?inv=${encodeURIComponent(inv)}`);
+    const j=await r.json();
+    const s=document.getElementById('lockBadgeSlot');
+    if(!s||s.dataset.inv!==inv)return;
+    if(j&&j.locked&&j.locked.containers&&j.locked.containers.length){
+      const tot=j.locked.containers.length;
+      const used=j.locked.containers.filter(c=>c.status==='USED').length;
+      s.innerHTML=` <span title="ใบนี้ล็อคตู้ไว้ล่วงหน้าใน BKG (${h(j.locked.tag)})" style="padding:6px 12px;background:#ede9fe;border:1.5px solid #c4b5fd;border-radius:7px;color:#6d28d9;font-size:12px;font-weight:800;letter-spacing:.02em;white-space:nowrap;">🔒 LOCK CONTAINERS · ${used}/${tot}</span>`;
+    }
+  }catch(_e){}
+}
 
 let _lcbFiles=[], _lcbInvNo='';
 /* ══════════════════════════════════════════════════════════════
@@ -4952,6 +4968,7 @@ function showInvDetail(id,panelId){
     out+=` <button onclick="openVgmModal('${_invEsc}')" style="padding:6px 14px;background:#4d7c0f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">⚖️ ไฟล์ VGM</button>`;
   /* ใบแจ้งเบอร์ตู้ — ทุกอินวอยซ์ หน้ารายงานสลับคอลัมน์ตามท่าเรือให้เอง */
   out+=` <button onclick="openLcbReport('${_invEsc}')" style="padding:6px 14px;background:#1a3a6b;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📄 ใบแจ้งเบอร์ตู้</button>`;
+  out+=` <span id="lockBadgeSlot" data-inv="${h(d.inv)}"></span>`;   /* badge 🔒 LOCK เติม async หลังเช็ค Edge */
   /* ── ฝั่งรับข้อมูลเข้า วางไว้ขวาสุดแยกจากปุ่มออกเอกสาร ──
      ปุ่มอื่นคือ "ออก" เอกสาร ปุ่มนี้คือ "รับ" เข้า คนละทิศทางกัน
      ต้องกดปุ่มนี้ก่อน ปุ่มใบ SI ถึงจะใช้ได้ */
@@ -5066,6 +5083,7 @@ function showInvDetail(id,panelId){
   }
   else if(!invPendCtrs.length){out+='<div style="color:#94a3b8;font-size:12px;">ยังไม่มีข้อมูลตู้</div>';}
   document.getElementById(panelId).innerHTML=out;
+  _checkLockBadge(d.inv);
   initAISStream();
   if(_curMmsi){
     setTimeout(()=>_updateVslStatusEl(_curMmsi),0);
