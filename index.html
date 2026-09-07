@@ -2934,8 +2934,10 @@ function editLcbCtr(uid){
           <input id="lcbEdSeal" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:15px;font-family:inherit;"></div>
         <div style="margin-bottom:11px"><label style="font-size:11px;font-weight:800;color:#475569;display:block;margin-bottom:4px;">ทะเบียนรถ (หัว, หาง)</label>
           <input id="lcbEdTruck" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:15px;font-family:inherit;"></div>
-        <div><label style="font-size:11px;font-weight:800;color:#475569;display:block;margin-bottom:4px;">น้ำหนัก (kg)</label>
+        <div style="margin-bottom:11px"><label style="font-size:11px;font-weight:800;color:#475569;display:block;margin-bottom:4px;">น้ำหนัก (kg)</label>
           <input id="lcbEdWt" type="number" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:15px;font-family:inherit;"></div>
+        <div><label style="font-size:11px;font-weight:800;color:#475569;display:block;margin-bottom:4px;">วันเข้าโรงงาน</label>
+          <input id="lcbEdDate" type="date" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:15px;font-family:inherit;"></div>
         <div id="lcbEdErr" style="color:#b91c1c;font-size:11.5px;font-weight:700;margin-top:9px;min-height:15px;"></div>
         <div style="display:flex;gap:8px;margin-top:6px;">
           <button onclick="document.getElementById('lcbEditBg').style.display='none'" style="flex:1;padding:10px;border-radius:9px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">ยกเลิก</button>
@@ -2949,6 +2951,7 @@ function editLcbCtr(uid){
   document.getElementById('lcbEdSeal').value=row._seal||'';
   document.getElementById('lcbEdTruck').value=row.ทะเบียนรถ||'';
   document.getElementById('lcbEdWt').value=row._wt||'';
+  document.getElementById('lcbEdDate').value=row._fdISO||'';
   document.getElementById('lcbEdErr').textContent='';
   document.getElementById('lcbEdSave').onclick=()=>
     requirePin(()=>_doEditLcbCtr(uid), `ยืนยันแก้ข้อมูลตู้ ${row.เบอร์ตู้}`);
@@ -2968,6 +2971,7 @@ async function _doEditLcbCtr(uid){
         seal_no:      document.getElementById('lcbEdSeal').value,
         truck_plate:  document.getElementById('lcbEdTruck').value,
         weight:       document.getElementById('lcbEdWt').value,
+        factory_date: document.getElementById('lcbEdDate').value,
       }}),
     });
     const j=await r.json();
@@ -3730,6 +3734,7 @@ async function loadData(forceRefresh=false){
       เบอร์ตู้:c.container_no||'',
       โรงงาน:c.factory||'-',
       เข้าโรงงาน:c.factory_date?fmtDateFromISO(c.factory_date):'-',
+      _fdISO:c.factory_date||'',
       สายเรือ:c.shipping_line||'-',
       CADO:c.cado_no||'',
       DATE_PICKUP:c.pickup_date?fmtDateFromISO(c.pickup_date):'-',
