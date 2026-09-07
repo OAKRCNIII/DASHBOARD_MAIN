@@ -3910,7 +3910,8 @@ async function loadData(forceRefresh=false){
     const co=r.company||seq;
     trMap[k].push({truck:r.truck_plate||'',container:r.container_no||'',
       price:parseFloat(r.price)||0,date:r.bill_date?fmtDateFromISO(r.bill_date):'-',
-      factory:r.factory||'',billNo:r.bill_no||'',al:seq,co:co||seq});
+      factory:r.factory||'',billNo:r.bill_no||'',al:seq,co:co||seq,
+      source:r.source||''});   /* 'OGM' | 'ALL' — ใช้ตัดสิน tag ในโมดัลจ่ายซ้ำ */
     if(seq&&seq!=='-'){
       const alN=s=>parseInt((s||'').replace(/[^0-9]/g,''))||0;
       if(r.source==='OGM'&&alN(seq)>=alN(latestOgmAl))latestOgmAl=seq;
@@ -9218,7 +9219,10 @@ function openTrDupeModal(){
       +(ov?'<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 6px;font-size:9px;">⚠️ ส่วนเกิน ~'+fmtP(ov)+'</span>':'')
       +'</div>';
     d.records.forEach((r,i)=>{
-      const srcLabel=r.billNo&&r.billNo.toUpperCase().startsWith('AL')?'ALL':'OGM';
+      /* ใช้ field source จาก DB (OGM|ALL) — เดิมเดาจาก billNo.startsWith('AL')
+         ซึ่งผิด เพราะใบ ALL ส่วนใหญ่ขึ้นต้น NR/SM/VND/PTC/TR/TJ/ST/SP */
+      const srcLabel=(r.source==='OGM'||r.source==='ALL')?r.source
+                     :(r.billNo&&r.billNo.toUpperCase().startsWith('AL')?'ALL':'OGM');
       const srcCls=srcLabel==='ALL'?'all':'ogm';
       html+='<div class="dupe-entry" style="'+(i>0?'background:#fff5f5;border-left:3px solid #fca5a5;':'')+'">'
         +'<span class="de-ctr">'+(i===0?'①':'⚠️ '+(i+1))+'  '+h(r.container)+'</span>'
