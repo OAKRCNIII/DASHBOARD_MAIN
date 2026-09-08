@@ -142,29 +142,29 @@ function render(inv, list, kind, locked){
 
   let total, filled;
   if(isLocked){
-    /* โหมดล็อคตู้ (merge):
-         ① ตู้ที่เข้าแล้วแต่ "ไม่อยู่ในกลุ่มล็อค" → บนสุด (มีข้อมูลครบ)
-         ② กลุ่มล็อค (ตามลำดับ id) → ล่าง · ฟันหลอ: เข้าแล้วเติม / ยังไม่เข้าเว้นว่าง */
+    /* โหมดล็อคตู้ (master + จับชน BKG):
+         · แต่ละตำแหน่ง = ลำดับจากใบ master (lock_plan)
+         · freed (ปลดล็อคใน BKG / ไม่ล็อคใบนี้) → ช่องว่าง
+         · ตู้ที่เข้า SJ แต่ไม่ใช่ตู้ล็อคเดิม (extras) → เติมช่องว่างตามลำดับ */
     const _cn = v => String(v ?? '').trim().toUpperCase();
-    const lockedSet = new Set(locked.containers.map(b => _cn(b.container_no)));
     const entMap = {};
     list.forEach(c => { if(c.container_no) entMap[_cn(c.container_no)] = c; });
-    const topEntered = list.filter(c => c.container_no && !lockedSet.has(_cn(c.container_no)));
-    /* VOL จริง (container_count) อาจ > ล็อค+เข้าไม่ล็อค → มีตู้ไม่ล็อคที่ยังไม่เข้า เหลือเป็นแถวว่าง */
-    const lockShown = topEntered.length + locked.containers.length;
-    total = Math.max(inv.container_count || 0, lockShown); filled = 0;
-    let n = 0;
-    topEntered.forEach(c => {
-      filled++; n++;
-      const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
-      rows.push(`<tr class="freerow"><td class="seq">${n}</td>${tds}</tr>`);   // ตู้ไม่ล็อค = ดำ
-    });
+    const planCnSet = new Set(locked.containers.filter(b => b.container_no).map(b => _cn(b.container_no)));
+    const extras = list.filter(c => c.container_no && !planCnSet.has(_cn(c.container_no)));   // ตู้เข้ามาแทน (ไม่ใช่ตู้ล็อคเดิม)
+    let ei = 0;
     const blanksGap = COLS.slice(1).map(() => '<td></td>').join('');
+    filled = 0; let n = 0;
     locked.containers.forEach(b => {
       n++;
       const cn = b.container_no;
-      if(b.freed || !cn){   // ปลดล็อค / ช่องว่าง → แถวว่าง (ฟันหลอตำแหน่งที่ปลด)
-        rows.push(`<tr class="pend"><td class="seq">${n}</td>${blanksGap}</tr>`);
+      if(b.freed || !cn){   // ช่องว่าง (ปลดล็อค) → เติมด้วยตู้เข้ามาแทนตามลำดับ ถ้ามี
+        if(ei < extras.length){
+          const c = extras[ei++]; filled++;
+          const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
+          rows.push(`<tr class="freerow"><td class="seq">${n}</td>${tds}</tr>`);   // ตู้เติม = ดำ
+        } else {
+          rows.push(`<tr class="pend"><td class="seq">${n}</td>${blanksGap}</tr>`);
+        }
         return;
       }
       const e = entMap[_cn(cn)];
@@ -173,12 +173,13 @@ function render(inv, list, kind, locked){
       const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
       rows.push(`<tr class="lockrow${e ? '' : ' wait'}"><td class="seq">${n}</td>${tds}</tr>`);   // ตู้ล็อค = ม่วง
     });
-    /* ตู้ไม่ล็อคที่ยังไม่เข้า (VOL > ล็อค+เข้าไม่ล็อค) → แถวว่างท้ายตาราง รอเข้า */
-    const blanksLk = COLS.slice(1).map(() => '<td></td>').join('');
-    for(let i = lockShown; i < total; i++){
-      n++;
-      rows.push(`<tr class="pend"><td class="seq">${n}</td>${blanksLk}</tr>`);
+    while(ei < extras.length){   // ตู้เติมที่เกินจำนวนช่องว่าง → ต่อท้าย
+      n++; const c = extras[ei++]; filled++;
+      const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
+      rows.push(`<tr class="freerow"><td class="seq">${n}</td>${tds}</tr>`);
     }
+    total = Math.max(inv.container_count || 0, n);
+    for(; n < total; ){ n++; rows.push(`<tr class="pend"><td class="seq">${n}</td>${blanksGap}</tr>`); }
   } else {
     /* โหมดปกติ: เติมทีละตู้ตอนเข้าโรงงาน + แถวว่างรอ */
     total = Math.max(inv.container_count || 0, list.length); filled = list.length;

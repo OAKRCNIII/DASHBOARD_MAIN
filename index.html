@@ -6524,17 +6524,20 @@ async function doFacPrint(dates){
     const _lk=(j.locked&&j.locked.containers&&j.locked.containers.length)?j.locked.containers:null;
     let rows='', total2, filled;
     if(_lk){
-      const lockedSet=new Set(_lk.map(b=>_cn(b.container_no)));
       const entMap={}; list.forEach(c=>{if(c.container_no)entMap[_cn(c.container_no)]=c;});
-      const topEntered=list.filter(c=>c.container_no&&!lockedSet.has(_cn(c.container_no)));  // เข้าแล้วแต่ไม่ล็อค → บน
-      const lockShown=topEntered.length+_lk.length;
-      total2=Math.max(total,lockShown); filled=0; let n=0;   // VOL จริง (cap) อาจ > ล็อค+เข้าไม่ล็อค → ตู้ไม่ล็อคที่ยังไม่เข้าเหลือเป็นแถวว่าง
-      topEntered.forEach(c=>{filled++;n++;const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr class="freerow"><td class="seq"${st}>${n}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
-      const blanksLk=COLS.slice(1).map(()=>'<td></td>').join('');
+      const planCnSet=new Set(_lk.filter(b=>b.container_no).map(b=>_cn(b.container_no)));
+      const extras=list.filter(c=>c.container_no&&!planCnSet.has(_cn(c.container_no)));   // ตู้เข้ามาแทน (ไม่ใช่ตู้ล็อคเดิม)
+      let ei=0; const blanksLk=COLS.slice(1).map(()=>'<td></td>').join('');
+      filled=0; let n=0;
       _lk.forEach(b=>{n++;const cn=b.container_no;
-        if(b.freed||!cn){rows+=`<tr class="pend"><td class="seq">${n}</td>${blanksLk}</tr>`;return;}   // ปลดล็อค → แถวว่าง
+        if(b.freed||!cn){   // ช่องว่าง (ปลดล็อค) → เติมด้วยตู้เข้ามาแทนตามลำดับ ถ้ามี
+          if(ei<extras.length){const c=extras[ei++];filled++;const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr class="freerow"><td class="seq"${st}>${n}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;}
+          else{rows+=`<tr class="pend"><td class="seq">${n}</td>${blanksLk}</tr>`;}
+          return;}
         const e=entMap[_cn(cn)]; if(e)filled++;const c=e||{container_no:cn};const bg=e?colorOfCtr(c):'';const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr class="lockrow"><td class="seq"${st}>${n}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
-      for(let i=lockShown;i<total2;i++){n++;rows+=`<tr class="pend"><td class="seq">${n}</td>${blanksLk}</tr>`;}   // ตู้ไม่ล็อคที่ยังไม่เข้า → แถวว่างท้ายตาราง
+      while(ei<extras.length){n++;const c=extras[ei++];filled++;const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr class="freerow"><td class="seq"${st}>${n}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;}   // ตู้เติมเกินช่องว่าง → ต่อท้าย
+      total2=Math.max(total,n);
+      for(;n<total2;){n++;rows+=`<tr class="pend"><td class="seq">${n}</td>${blanksLk}</tr>`;}
     } else {
       total2=total; filled=list.length;
       list.forEach((c,i)=>{const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr><td class="seq"${st}>${i+1}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
