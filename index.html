@@ -2107,11 +2107,93 @@ async function _checkLockBadge(inv){
     const s=document.getElementById('lockBadgeSlot');
     if(!s||s.dataset.inv!==inv)return;
     if(j&&j.locked&&j.locked.containers&&j.locked.containers.length){
+      const ents=new Set((j.containers||[]).map(c=>String(c.container_no||'').toUpperCase()));
       const tot=j.locked.containers.length;
-      const used=j.locked.containers.filter(c=>c.status==='USED').length;
+      const used=j.locked.containers.filter(c=>c.container_no&&ents.has(String(c.container_no).toUpperCase())).length;
       s.innerHTML=` <span title="ใบนี้ล็อคตู้ไว้ล่วงหน้าใน BKG (${h(j.locked.tag)})" style="padding:6px 12px;background:#ede9fe;border:1.5px solid #c4b5fd;border-radius:7px;color:#6d28d9;font-size:12px;font-weight:800;letter-spacing:.02em;white-space:nowrap;">🔒 LOCK CONTAINERS · ${used}/${tot}</span>`;
     }
   }catch(_e){}
+}
+
+/* ══ อัปโหลดใบล็อคตู้ (master) → Claude vision อ่านลำดับ → lock_plan (OAK/admin) ══ */
+let _lockUpInv='', _lockUpB64='', _lockUpMedia='image/jpeg';
+function openLockUpload(inv){
+  _lockUpInv=inv; _lockUpB64=''; _lockUpMedia='image/jpeg';
+  let m=document.getElementById('lockUpModal');
+  if(!m){
+    m=document.createElement('div'); m.id='lockUpModal';
+    m.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:99999;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;';
+    m.innerHTML=`<div style="background:#fff;border-radius:14px;max-width:560px;width:100%;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h3 style="margin:0;font-size:16px;color:#1e293b;">📋 อัปโหลดใบล็อคตู้ <span id="lockUpInv" style="color:#6d28d9;"></span></h3>
+        <button onclick="document.getElementById('lockUpModal').remove()" style="border:none;background:#f1f5f9;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;">✕</button>
+      </div>
+      <p style="font-size:12px;color:#64748b;margin:0 0 12px;">อัปรูปใบแจ้งเบอร์ตู้ (master) → บอทอ่านลำดับ+เบอร์ตู้ → ตรวจ ISO → บันทึกเป็นแผนล็อค (ทับของเดิม)</p>
+      <input type="file" id="lockUpFile" accept="image/*" style="font-size:13px;margin-bottom:10px;display:block;">
+      <button id="lockUpReadBtn" onclick="lockReadImg()" style="padding:8px 16px;background:#1a3a6b;border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;font-size:13px;">🔍 อ่านใบ</button>
+      <div id="lockUpStatus" style="font-size:12px;color:#64748b;margin-top:10px;"></div>
+      <div id="lockUpPreview" style="margin-top:12px;"></div>
+    </div>`;
+    document.body.appendChild(m);
+    m.querySelector('#lockUpFile').addEventListener('change',_lockUpPickFile);
+  } else { m.style.display='flex'; }
+  document.getElementById('lockUpInv').textContent=inv;
+  document.getElementById('lockUpStatus').textContent='';
+  document.getElementById('lockUpPreview').innerHTML='';
+  const f=document.getElementById('lockUpFile'); if(f)f.value='';
+}
+function _lockUpPickFile(e){
+  const file=e.target.files[0]; if(!file)return;
+  _lockUpMedia=file.type||'image/jpeg';
+  const rd=new FileReader();
+  rd.onload=()=>{ _lockUpB64=rd.result; };
+  rd.readAsDataURL(file);
+}
+async function lockReadImg(){
+  if(!_lockUpB64){ document.getElementById('lockUpStatus').textContent='⚠️ เลือกรูปก่อน'; return; }
+  const st=document.getElementById('lockUpStatus'); st.textContent='⏳ กำลังอ่าน...';
+  try{
+    const r=await fetch(`${SB_URL}/functions/v1/line-lcb/lock-read`,{
+      method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'},
+      body:JSON.stringify({image:_lockUpB64, mediaType:_lockUpMedia}),
+    });
+    const j=await r.json();
+    if(j.error){ st.textContent='❌ '+j.error; return; }
+    _renderLockPreview(j.containers||[]);
+    st.textContent=`อ่านได้ ${(j.containers||[]).length} ตู้ — ตรวจ/แก้แล้วกดบันทึก (⚠️=ISO ไม่ผ่าน)`;
+  }catch(e){ st.textContent='❌ '+e.message; }
+}
+function _renderLockPreview(rows){
+  let t='<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#f1f5f9;"><th style="padding:5px;border:1px solid #e2e8f0;">ลำดับ</th><th style="padding:5px;border:1px solid #e2e8f0;">เบอร์ตู้ (ว่าง=ช่องว่าง)</th><th style="padding:5px;border:1px solid #e2e8f0;">ISO</th></tr></thead><tbody>';
+  rows.forEach((r,i)=>{
+    const iso=r.container_no?(r.iso_ok?'✅':'⚠️'):'—';
+    t+=`<tr><td style="padding:3px;border:1px solid #e2e8f0;text-align:center;"><input value="${r.position||i+1}" data-k="pos" style="width:44px;text-align:center;border:1px solid #cbd5e1;border-radius:4px;"></td>`
+     +`<td style="padding:3px;border:1px solid #e2e8f0;"><input value="${h(r.container_no||'')}" data-k="cn" oninput="this.value=this.value.toUpperCase()" style="width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:4px;font-family:monospace;"></td>`
+     +`<td style="padding:3px;border:1px solid #e2e8f0;text-align:center;">${iso}</td></tr>`;
+  });
+  t+='</tbody></table><button onclick="lockSavePlan()" style="margin-top:12px;padding:9px 20px;background:#16a34a;border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;font-size:13px;">💾 บันทึกแผนล็อค</button>';
+  document.getElementById('lockUpPreview').innerHTML=t;
+}
+async function lockSavePlan(){
+  const trs=document.querySelectorAll('#lockUpPreview tbody tr');
+  const containers=[];
+  trs.forEach(tr=>{
+    const pos=parseInt(tr.querySelector('[data-k="pos"]').value)||0;
+    const cn=(tr.querySelector('[data-k="cn"]').value||'').trim().toUpperCase();
+    if(pos>0) containers.push({position:pos, container_no:cn||null, freed:!cn});
+  });
+  if(!containers.length){ alert('ไม่มีข้อมูล'); return; }
+  const st=document.getElementById('lockUpStatus'); st.textContent='⏳ กำลังบันทึก...';
+  try{
+    const r=await fetch(`${SB_URL}/functions/v1/line-lcb/lock-save`,{
+      method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'},
+      body:JSON.stringify({inv:_lockUpInv, containers}),
+    });
+    const j=await r.json();
+    if(j.error){ st.textContent='❌ '+j.error; return; }
+    st.textContent=`✅ บันทึกแล้ว ${j.saved} ตู้ — เปิดใบแจ้งเช็คได้เลย`;
+    setTimeout(()=>{ const mm=document.getElementById('lockUpModal'); if(mm)mm.remove(); _checkLockBadge(_lockUpInv); },1100);
+  }catch(e){ st.textContent='❌ '+e.message; }
 }
 
 let _lcbFiles=[], _lcbInvNo='';
@@ -4984,6 +5066,7 @@ function showInvDetail(id,panelId){
   /* ใบแจ้งเบอร์ตู้ — ทุกอินวอยซ์ หน้ารายงานสลับคอลัมน์ตามท่าเรือให้เอง */
   out+=` <button onclick="openLcbReport('${_invEsc}')" style="padding:6px 14px;background:#1a3a6b;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📄 ใบแจ้งเบอร์ตู้</button>`;
   out+=` <span id="lockBadgeSlot" data-inv="${h(d.inv)}"></span>`;   /* badge 🔒 LOCK เติม async หลังเช็ค Edge */
+  if(_canSeeFees()) out+=` <button onclick="openLockUpload('${_invEsc}')" title="อัปโหลดใบล็อคตู้ (master) ให้บอทอ่านลำดับ" style="padding:6px 14px;background:#6d28d9;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📋 อัปโหลดใบล็อค</button>`;
   /* ── ฝั่งรับข้อมูลเข้า วางไว้ขวาสุดแยกจากปุ่มออกเอกสาร ──
      ปุ่มอื่นคือ "ออก" เอกสาร ปุ่มนี้คือ "รับ" เข้า คนละทิศทางกัน
      ต้องกดปุ่มนี้ก่อน ปุ่มใบ SI ถึงจะใช้ได้ */
