@@ -6527,9 +6527,12 @@ async function doFacPrint(dates){
       const lockedSet=new Set(_lk.map(b=>_cn(b.container_no)));
       const entMap={}; list.forEach(c=>{if(c.container_no)entMap[_cn(c.container_no)]=c;});
       const topEntered=list.filter(c=>c.container_no&&!lockedSet.has(_cn(c.container_no)));  // เข้าแล้วแต่ไม่ล็อค → บน
-      total2=topEntered.length+_lk.length; filled=0; let n=0;
+      const lockShown=topEntered.length+_lk.length;
+      total2=Math.max(total,lockShown); filled=0; let n=0;   // VOL จริง (cap) อาจ > ล็อค+เข้าไม่ล็อค → ตู้ไม่ล็อคที่ยังไม่เข้าเหลือเป็นแถวว่าง
       topEntered.forEach(c=>{filled++;n++;const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr class="freerow"><td class="seq"${st}>${n}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
       _lk.forEach(b=>{n++;const e=entMap[_cn(b.container_no)]; if(e)filled++;const c=e||{container_no:b.container_no};const bg=e?colorOfCtr(c):'';const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr class="lockrow"><td class="seq"${st}>${n}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
+      const blanksLk=COLS.slice(1).map(()=>'<td></td>').join('');   // ตู้ไม่ล็อคที่ยังไม่เข้า → แถวว่างท้ายตาราง รอเข้า
+      for(let i=lockShown;i<total2;i++){n++;rows+=`<tr class="pend"><td class="seq">${n}</td>${blanksLk}</tr>`;}
     } else {
       total2=total; filled=list.length;
       list.forEach((c,i)=>{const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr><td class="seq"${st}>${i+1}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});

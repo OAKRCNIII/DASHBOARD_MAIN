@@ -150,7 +150,9 @@ function render(inv, list, kind, locked){
     const entMap = {};
     list.forEach(c => { if(c.container_no) entMap[_cn(c.container_no)] = c; });
     const topEntered = list.filter(c => c.container_no && !lockedSet.has(_cn(c.container_no)));
-    total = topEntered.length + locked.containers.length; filled = 0;
+    /* VOL จริง (container_count) อาจ > ล็อค+เข้าไม่ล็อค → มีตู้ไม่ล็อคที่ยังไม่เข้า เหลือเป็นแถวว่าง */
+    const lockShown = topEntered.length + locked.containers.length;
+    total = Math.max(inv.container_count || 0, lockShown); filled = 0;
     let n = 0;
     topEntered.forEach(c => {
       filled++; n++;
@@ -165,6 +167,12 @@ function render(inv, list, kind, locked){
       const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
       rows.push(`<tr class="lockrow${e ? '' : ' wait'}"><td class="seq">${n}</td>${tds}</tr>`);   // ตู้ล็อค = ม่วง
     });
+    /* ตู้ไม่ล็อคที่ยังไม่เข้า (VOL > ล็อค+เข้าไม่ล็อค) → แถวว่างท้ายตาราง รอเข้า */
+    const blanksLk = COLS.slice(1).map(() => '<td></td>').join('');
+    for(let i = lockShown; i < total; i++){
+      n++;
+      rows.push(`<tr class="pend"><td class="seq">${n}</td>${blanksLk}</tr>`);
+    }
   } else {
     /* โหมดปกติ: เติมทีละตู้ตอนเข้าโรงงาน + แถวว่างรอ */
     total = Math.max(inv.container_count || 0, list.length); filled = list.length;
