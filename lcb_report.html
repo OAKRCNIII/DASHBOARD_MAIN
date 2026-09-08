@@ -159,11 +159,17 @@ function render(inv, list, kind, locked){
       const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
       rows.push(`<tr class="freerow"><td class="seq">${n}</td>${tds}</tr>`);   // ตู้ไม่ล็อค = ดำ
     });
+    const blanksGap = COLS.slice(1).map(() => '<td></td>').join('');
     locked.containers.forEach(b => {
       n++;
-      const e = entMap[_cn(b.container_no)];
+      const cn = b.container_no;
+      if(b.freed || !cn){   // ปลดล็อค / ช่องว่าง → แถวว่าง (ฟันหลอตำแหน่งที่ปลด)
+        rows.push(`<tr class="pend"><td class="seq">${n}</td>${blanksGap}</tr>`);
+        return;
+      }
+      const e = entMap[_cn(cn)];
       if(e) filled++;
-      const c = e || { container_no: b.container_no };   // ยังไม่เข้า → มีแค่เบอร์ตู้ (ฟันหลอ)
+      const c = e || { container_no: cn };   // ยังไม่เข้า → มีแค่เบอร์ตู้ (ฟันหลอ)
       const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
       rows.push(`<tr class="lockrow${e ? '' : ' wait'}"><td class="seq">${n}</td>${tds}</tr>`);   // ตู้ล็อค = ม่วง
     });
