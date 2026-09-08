@@ -105,7 +105,7 @@ html.shooting body{width:210mm}
 const API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-lcb';
 const DOW = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
 const MON = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-let CUR = null, ROWS = [], KIND = 'LCB';
+let CUR = null, ROWS = [], KIND = 'LCB', EXPORT = null;
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -141,6 +141,7 @@ function render(inv, list, kind, locked){
        c.weight ? Number(c.weight).toLocaleString() : ''];
 
   let total, filled;
+  const ord = [];   // ลำดับข้อมูลจริงตามที่โชว์ (ใช้ตอน export Excel/PDF ให้ตรงพรีวิว) — null = ช่องว่าง
   if(isLocked){
     /* โหมดล็อคตู้ (master + จับชน BKG):
          · แต่ละตำแหน่ง = ลำดับจากใบ master (lock_plan)
@@ -162,8 +163,10 @@ function render(inv, list, kind, locked){
           const c = extras[ei++]; filled++;
           const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
           rows.push(`<tr class="freerow"><td class="seq">${n}</td>${tds}</tr>`);   // ตู้เติม = ดำ
+          ord.push(c);
         } else {
           rows.push(`<tr class="pend"><td class="seq">${n}</td>${blanksGap}</tr>`);
+          ord.push(null);
         }
         return;
       }
@@ -172,26 +175,31 @@ function render(inv, list, kind, locked){
       const c = e || { container_no: cn };   // ยังไม่เข้า → มีแค่เบอร์ตู้ (ฟันหลอ)
       const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
       rows.push(`<tr class="lockrow${e ? '' : ' wait'}"><td class="seq">${n}</td>${tds}</tr>`);   // ตู้ล็อค = ม่วง
+      ord.push(c);
     });
     while(ei < extras.length){   // ตู้เติมที่เกินจำนวนช่องว่าง → ต่อท้าย
       n++; const c = extras[ei++]; filled++;
       const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
       rows.push(`<tr class="freerow"><td class="seq">${n}</td>${tds}</tr>`);
+      ord.push(c);
     }
     total = Math.max(inv.container_count || 0, n);
-    for(; n < total; ){ n++; rows.push(`<tr class="pend"><td class="seq">${n}</td>${blanksGap}</tr>`); }
+    for(; n < total; ){ n++; rows.push(`<tr class="pend"><td class="seq">${n}</td>${blanksGap}</tr>`); ord.push(null); }
   } else {
     /* โหมดปกติ: เติมทีละตู้ตอนเข้าโรงงาน + แถวว่างรอ */
     total = Math.max(inv.container_count || 0, list.length); filled = list.length;
     list.forEach((c, i) => {
       const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
       rows.push(`<tr><td class="seq">${i+1}</td>${tds}</tr>`);
+      ord.push(c);
     });
     const blanks = COLS.slice(1).map(() => '<td></td>').join('');
     for(let i = list.length; i < total; i++){
       rows.push(`<tr><td class="seq">${i+1}</td>${blanks}</tr>`);
+      ord.push(null);
     }
   }
+  EXPORT = { rows: ord, total, filled, isLocked };
 
   const line2 = [
     total ? `${total} ตู้` : '',
@@ -398,7 +406,10 @@ async function saveXlsx(){
     /* xlsx-js-style = SheetJS ที่รองรับสไตล์ (ตัวปกติใส่เส้นขอบ/สีไม่ได้) */
     await lazyScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
 
-    const total = Math.max(CUR.container_count || 0, ROWS.length);
+    /* ใช้ลำดับเดียวกับพรีวิว (EXPORT จาก render — โหมดล็อคเรียงตาม master + ช่องว่าง);
+       fallback เป็น ROWS ดิบเผื่อยังไม่ได้ render */
+    const EX = EXPORT || { rows: ROWS.slice(), total: Math.max(CUR.container_count || 0, ROWS.length), filled: ROWS.length, isLocked: false };
+    const total = EX.total;
     const line2 = [
       total ? `${total} ตู้` : '',
       CUR.destination ? `ไป ${CUR.destination}` : '',
@@ -416,14 +427,17 @@ async function saveXlsx(){
       [],
       HEAD,
     ];
-    ROWS.forEach((c,i)=>aoa.push(KIND === 'LCB'
-      ? [i+1, c.truck_plate ?? '', c.container_no ?? '', c.seal_no ?? '',
-         thaiDate(c.factory_date), c.weight ? Number(c.weight) : '']
-      : [i+1, c.truck_plate ?? '', c.container_no ?? '',
-         thaiDate(c.factory_date), c.factory ?? '', c.weight ? Number(c.weight) : '']));
-    for(let i=ROWS.length;i<total;i++) aoa.push([i+1,'','','','','']);
+    EX.rows.forEach((c,i)=>{
+      if(!c){ aoa.push([i+1,'','','','','']); return; }   // ช่องว่าง (ฟันหลอ/รอตู้)
+      aoa.push(KIND === 'LCB'
+        ? [i+1, c.truck_plate ?? '', c.container_no ?? '', c.seal_no ?? '',
+           thaiDate(c.factory_date), c.weight ? Number(c.weight) : '']
+        : [i+1, c.truck_plate ?? '', c.container_no ?? '',
+           thaiDate(c.factory_date), c.factory ?? '', c.weight ? Number(c.weight) : '']);
+    });
+    for(let i=EX.rows.length;i<total;i++) aoa.push([i+1,'','','','','']);
     const R_FOOT = aoa.length + 1;
-    aoa.push([], [`กรอกแล้ว ${ROWS.length} / ${total} ตู้`, '', '', '', '', `พิมพ์เมื่อ ${todayText()}`]);
+    aoa.push([], [`${EX.isLocked ? '🔒 ล็อคตู้ · เข้าแล้ว' : 'กรอกแล้ว'} ${EX.filled} / ${total} ตู้`, '', '', '', '', `พิมพ์เมื่อ ${todayText()}`]);
 
     const XLSX = window.XLSX;
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -480,7 +494,7 @@ async function saveXlsx(){
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'เบอร์ตู้');
     XLSX.writeFile(wb, fileName('.xlsx'));
-    say(`ออก Excel แล้ว ${ROWS.length} ตู้`);
+    say(`ออก Excel แล้ว ${EX.filled} / ${total} ตู้`);
   }catch(e){
     say('⚠️ ' + (e && e.message ? e.message : e));
   }
