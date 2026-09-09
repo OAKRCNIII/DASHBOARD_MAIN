@@ -528,10 +528,10 @@ async function saveXlsxSmall(){
       HEAD,
     ];
     EX.rows.forEach((c,i)=>{
-      if(!c){ aoa.push([i+1,'','','','']); return; }
-      aoa.push([i+1, c.truck_plate ?? '', c.container_no ?? '', '', '']);   /* UNDER + SEAL = เว้นว่าง */
+      if(!c){ aoa.push(['#'+(i+1),'','','','']); return; }
+      aoa.push(['#'+(i+1), c.truck_plate ?? '', c.container_no ?? '', '', '']);   /* UNDER + SEAL = เว้นว่าง */
     });
-    for(let i=EX.rows.length;i<total;i++) aoa.push([i+1,'','','','']);
+    for(let i=EX.rows.length;i<total;i++) aoa.push(['#'+(i+1),'','','','']);
 
     const XLSX = window.XLSX;
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -541,8 +541,7 @@ async function saveXlsxSmall(){
     for(let c=0;c<NC;c++) put(0,c,{ font:{name:XF,sz:18,bold:true}, alignment:mid, border:boxThick });
     put(2,0,{ font:{name:XF,sz:14,bold:true} });
     put(3,0,{ font:{name:XF,sz:12} });
-    for(let c=0;c<NC;c++) put(R_HEAD,c,{ font:{name:XF,sz:11,bold:true}, alignment:mid, border:boxAll,
-      fill:{ patternType:'solid', fgColor:{rgb:'E8EDF5'} } });
+    for(let c=0;c<NC;c++) put(R_HEAD,c,{ font:{name:XF,sz:11,bold:true}, alignment:mid, border:boxAll });
     for(let r=R_FIRST;r<=R_LAST;r++){
       const zebra = (r-R_FIRST)%2===1 ? { fill:{ patternType:'solid', fgColor:{rgb:'FAFBFC'} } } : {};
       for(let c=0;c<NC;c++) put(r,c,{ font:{name:XF,sz:c===2?12:11,bold:c===2}, alignment:mid, border:boxAll, ...zebra });
