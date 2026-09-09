@@ -95,7 +95,7 @@ html.shooting body{width:210mm}
   <button class="alt" onclick="window.print()">🖨 พิมพ์</button>
   <button class="alt" id="xls">📊 Excel</button>
   <button class="alt" id="xls2">📋 Excel ใบเล็ก</button>
-  <button class="alt" id="vgm">📦 VGM</button>
+  <button class="alt" id="vgm" style="display:none;">📦 VGM (OOCL)</button>
   <span class="sp" id="meta"></span>
 </div>
 
@@ -125,6 +125,7 @@ function todayText(){
 
 function render(inv, list, kind, locked){
   CUR = inv; ROWS = list; KIND = kind || 'LCB';
+  { const vb = document.getElementById('vgm'); if(vb) vb.style.display = (KIND === 'PADANG') ? '' : 'none'; }   /* VGM OOCL = เฉพาะปาดัง */
   const isLocked = !!(locked && locked.containers && locked.containers.length);
   const rows = [];
 
@@ -568,33 +569,38 @@ async function saveVgm(){
   btn.disabled = true; btn.textContent = 'กำลังสร้าง…';
   try{
     say('กำลังเตรียม…');
-    await lazyScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
-    const XLSX = window.XLSX;
-    /* โหลดเทมเพลต OOCL จริงเป็นฐาน — คงรูปแบบทุกอย่าง */
+    /* ZIP-inject: แก้แค่เซลล์ข้อมูลใน XML — คงเทมเพลต OOCL ทุก byte (โลโก้/สี/หัวตาราง/validation) */
+    await lazyScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
     const buf = await fetch('vgm_template.xlsx?v=' + Date.now()).then(r=>{ if(!r.ok) throw new Error('โหลดเทมเพลต VGM ไม่ได้'); return r.arrayBuffer(); });
-    const wb = XLSX.read(new Uint8Array(buf), { type:'array', cellStyles:true });
-    const ws = wb.Sheets['VGM Template'];
+    const zip = await JSZip.loadAsync(buf);
+    const path = 'xl/worksheets/sheet1.xml';
+    let xml = await zip.file(path).async('string');
+    const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const setStr = (col,row,val)=>{ xml = xml.replace(new RegExp('<c r="'+col+row+'"( s="[^"]*")?\\s*/>'),
+      (m,s)=>'<c r="'+col+row+'"'+(s||'')+' t="inlineStr"><is><t>'+esc(val)+'</t></is></c>'); };
+    const setNum = (col,row,val)=>{ xml = xml.replace(new RegExp('<c r="'+col+row+'"( s="[^"]*")?\\s*/>'),
+      (m,s)=>'<c r="'+col+row+'"'+(s||'')+'><v>'+val+'</v></c>'); };
     const EX = EXPORT || { rows: ROWS.slice() };
-    const setCell = (r,c,val)=>{ const a = XLSX.utils.encode_cell({r,c}); const prev = ws[a] || {};
-      ws[a] = { ...prev, t: (typeof val==='number'?'n':'s'), v: val }; };
-    let r = 8, n = 0;   /* แถว 9 (0-indexed = 8) เป็นต้นไป */
+    let row = 9, n = 0;
     EX.rows.forEach((c)=>{
       if(!c || !c.container_no) return;   /* ข้ามช่องว่าง/ฟันหลอ */
-      setCell(r,0, bkg);              /* A Booking Number */
-      setCell(r,1, c.container_no);   /* B Container Number */
-      setCell(r,2, 32300);            /* C Verified Gross Mass */
-      setCell(r,3, 'KGS');            /* D VGM Unit */
-      setCell(r,4, 'Method 2');       /* E VGM Method */
-      /* F Authorized Person, G VGM Reference = เว้นว่าง */
-      r++; n++;
+      setStr('A',row,bkg);              /* Booking Number */
+      setStr('B',row,c.container_no);   /* Container Number */
+      setNum('C',row,32300);            /* Verified Gross Mass */
+      setStr('D',row,'KGS');            /* VGM Unit */
+      setStr('E',row,'Method 2');       /* VGM Method (F Authorized, G Reference = ว่าง) */
+      row++; n++;
     });
-    /* ขยาย range ให้ครอบแถวที่เขียน (กันตัด) */
-    if(ws['!ref']){ const rg = XLSX.utils.decode_range(ws['!ref']); if(r-1 > rg.e.r){ rg.e.r = r-1; ws['!ref'] = XLSX.utils.encode_range(rg); } }
-    const fn = `VGM ${(CUR.invoice_no || '').replace(/[\\/:*?"<>|]/g,'-').trim()}.xlsx`;
-    XLSX.writeFile(wb, fn);
+    zip.file(path, xml);
+    const blob = await zip.generateAsync({ type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
+    a.download = 'VGM ' + (CUR.invoice_no || '').replace(/[\\/:*?"<>|]/g,'-').trim() + '.xlsx';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
     say(`ออก VGM แล้ว ${n} ตู้` + (bkg ? ` (BKG ${bkg})` : ' ⚠️ ไม่มี Booking'));
   }catch(e){ say('⚠️ ' + (e && e.message ? e.message : e)); }
-  btn.disabled = false; btn.textContent = '📦 VGM';
+  btn.disabled = false; btn.textContent = '📦 VGM (OOCL)';
 }
 
 async function load(inv){
