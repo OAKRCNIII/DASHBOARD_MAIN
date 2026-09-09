@@ -94,6 +94,7 @@ html.shooting body{width:210mm}
   <button class="alt" id="pdf">📄 PDF</button>
   <button class="alt" onclick="window.print()">🖨 พิมพ์</button>
   <button class="alt" id="xls">📊 Excel</button>
+  <button class="alt" id="xls2">📋 Excel ใบเล็ก</button>
   <span class="sp" id="meta"></span>
 </div>
 
@@ -501,6 +502,66 @@ async function saveXlsx(){
   btn.disabled = false; btn.textContent = '📊 Excel';
 }
 
+/* ── Excel "ใบเล็ก" — แบบฟอร์มมือ: NO · CAR NO · CONT NO · UNDER · SEAL NO
+   (UNDER + SEAL เว้นว่าง มีแค่หัวตาราง ไว้กรอกมือ) ── */
+async function saveXlsxSmall(){
+  const btn = document.getElementById('xls2');
+  if(!CUR){ say('ยังไม่ได้เลือกอินวอยซ์'); return; }
+  btn.disabled = true; btn.textContent = 'กำลังสร้าง…';
+  try{
+    say('กำลังเตรียม…');
+    await lazyScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
+    const EX = EXPORT || { rows: ROWS.slice(), total: Math.max(CUR.container_count || 0, ROWS.length), filled: ROWS.length, isLocked: false };
+    const total = EX.total;
+    const line2 = [
+      total ? `${total} ตู้` : '',
+      CUR.destination ? `ไป ${CUR.destination}` : '',
+      CUR.customer ? `ของ ${CUR.customer}` : '',
+    ].filter(Boolean).join(' ');
+    const HEAD = ['NO','CAR NO','CONT NO','UNDER','SEAL NO'];
+    const aoa = [
+      ['ใบแจ้งเบอร์ตู้'],
+      [],
+      [`ขอแจ้งเบอร์ตู้ ของ  INV. NO.: ${CUR.invoice_no}`],
+      [line2],
+      [],
+      HEAD,
+    ];
+    EX.rows.forEach((c,i)=>{
+      if(!c){ aoa.push([i+1,'','','','']); return; }
+      aoa.push([i+1, c.truck_plate ?? '', c.container_no ?? '', '', '']);   /* UNDER + SEAL = เว้นว่าง */
+    });
+    for(let i=EX.rows.length;i<total;i++) aoa.push([i+1,'','','','']);
+
+    const XLSX = window.XLSX;
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const NC = 5, R_HEAD = 5, R_FIRST = 6, R_LAST = 5 + total;
+    const put = (r,c,st)=>{ const a = XLSX.utils.encode_cell({r,c}); if(!ws[a]) ws[a]={t:'s',v:''}; ws[a].s=st; };
+
+    for(let c=0;c<NC;c++) put(0,c,{ font:{name:XF,sz:18,bold:true}, alignment:mid, border:boxThick });
+    put(2,0,{ font:{name:XF,sz:14,bold:true} });
+    put(3,0,{ font:{name:XF,sz:12} });
+    for(let c=0;c<NC;c++) put(R_HEAD,c,{ font:{name:XF,sz:11,bold:true}, alignment:mid, border:boxAll,
+      fill:{ patternType:'solid', fgColor:{rgb:'E8EDF5'} } });
+    for(let r=R_FIRST;r<=R_LAST;r++){
+      const zebra = (r-R_FIRST)%2===1 ? { fill:{ patternType:'solid', fgColor:{rgb:'FAFBFC'} } } : {};
+      for(let c=0;c<NC;c++) put(r,c,{ font:{name:XF,sz:c===2?12:11,bold:c===2}, alignment:mid, border:boxAll, ...zebra });
+    }
+    ws['!cols'] = [{wch:7},{wch:14},{wch:18},{wch:12},{wch:20}];
+    ws['!rows'] = [{hpt:30},{hpt:6},{hpt:22},{hpt:19},{hpt:6},{hpt:24}];
+    for(let r=R_FIRST;r<=R_LAST;r++) ws['!rows'][r] = {hpt:24};
+    ws['!merges'] = [ {s:{r:0,c:0},e:{r:0,c:NC-1}}, {s:{r:2,c:0},e:{r:2,c:NC-1}}, {s:{r:3,c:0},e:{r:3,c:NC-1}} ];
+    ws['!pageSetup'] = { orientation:'portrait', paperSize:9, fitToWidth:1, fitToHeight:0 };
+    ws['!printHeader'] = [R_HEAD+1, R_HEAD+1];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'เบอร์ตู้');
+    XLSX.writeFile(wb, fileName('-เล็ก.xlsx'));
+    say('ออก Excel ใบเล็กแล้ว');
+  }catch(e){ say('⚠️ ' + (e && e.message ? e.message : e)); }
+  btn.disabled = false; btn.textContent = '📋 Excel ใบเล็ก';
+}
+
 async function load(inv){
   // ลบลิงก์ PDF ของอินวอยซ์ก่อนหน้า กันกดแล้วได้ไฟล์ผิดใบ
   const old = document.getElementById('openpdf');
@@ -524,6 +585,7 @@ async function load(inv){
   document.getElementById('pdf').onclick = savePdf;
   document.getElementById('png').onclick = savePng;
   document.getElementById('xls').onclick = saveXlsx;
+  document.getElementById('xls2').onclick = saveXlsxSmall;
   const cur = new URLSearchParams(location.search).get('inv');
   const sel = document.getElementById('pick');
 
