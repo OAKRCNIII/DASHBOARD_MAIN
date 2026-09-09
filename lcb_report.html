@@ -580,6 +580,13 @@ async function saveVgm(){
       (m,s)=>'<c r="'+col+row+'"'+(s||'')+' t="inlineStr"><is><t>'+esc(val)+'</t></is></c>'); };
     const setNum = (col,row,val)=>{ xml = xml.replace(new RegExp('<c r="'+col+row+'"( s="[^"]*")?\\s*/>'),
       (m,s)=>'<c r="'+col+row+'"'+(s||'')+'><v>'+val+'</v></c>'); };
+    /* Authorized Person แยกตาม prefix โรงงาน (prefix ที่ไม่มีในลิสต์ = เว้นว่าง) */
+    const AUTH_PERSON = { KNT:'MS. KEDKANOK TANAENGCHUAN', OGM:'MS. KHRUEAWAN ANTHONG',
+      ID:'MR. AEKGARAT PANDAMRONG', BSW:'MS. MEEPAT', TWI:'MR. PONGSATORN NUKIJRANGSON',
+      INV:'MR. MANOTE LUENGVORAPHAN', AD:'MR. LUO BANGYU', SHL:'MR. SURAPONG PETHPUTONG',
+      SJ:'MR. ORAPHAN SEE-KHOW' };
+    const _pfx = ((CUR.invoice_no || '').match(/^[A-Z]+/) || [''])[0];
+    const auth = AUTH_PERSON[_pfx] || '';
     const EX = EXPORT || { rows: ROWS.slice() };
     let row = 9, n = 0;
     EX.rows.forEach((c)=>{
@@ -588,7 +595,8 @@ async function saveVgm(){
       setStr('B',row,c.container_no);   /* Container Number */
       setNum('C',row,32300);            /* Verified Gross Mass */
       setStr('D',row,'KGS');            /* VGM Unit */
-      setStr('E',row,'Method 2');       /* VGM Method (F Authorized, G Reference = ว่าง) */
+      setStr('E',row,'Method 2');       /* VGM Method */
+      if(auth) setStr('F',row,auth);    /* Authorized Person (ตาม prefix) · G Reference = ว่าง */
       row++; n++;
     });
     zip.file(path, xml);
