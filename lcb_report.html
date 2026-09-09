@@ -520,8 +520,6 @@ async function saveXlsxSmall(){
     ].filter(Boolean).join(' ');
     const HEAD = ['NO','CAR NO','CONT NO','UNDER','SEAL NO'];
     const aoa = [
-      ['ใบแจ้งเบอร์ตู้'],
-      [],
       [`ขอแจ้งเบอร์ตู้ ของ  INV. NO.: ${CUR.invoice_no}`],
       [line2],
       [],
@@ -535,21 +533,19 @@ async function saveXlsxSmall(){
 
     const XLSX = window.XLSX;
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    const NC = 5, R_HEAD = 5, R_FIRST = 6, R_LAST = 5 + total;
+    const NC = 5, R_HEAD = 3, R_FIRST = 4, R_LAST = 3 + total;
     const put = (r,c,st)=>{ const a = XLSX.utils.encode_cell({r,c}); if(!ws[a]) ws[a]={t:'s',v:''}; ws[a].s=st; };
 
-    for(let c=0;c<NC;c++) put(0,c,{ font:{name:XF,sz:18,bold:true}, alignment:mid, border:boxThick });
-    put(2,0,{ font:{name:XF,sz:14,bold:true} });
-    put(3,0,{ font:{name:XF,sz:12} });
+    put(0,0,{ font:{name:XF,sz:14,bold:true} });   /* ขอแจ้งเบอร์ตู้ ของ INV */
+    put(1,0,{ font:{name:XF,sz:12} });             /* line2 */
     for(let c=0;c<NC;c++) put(R_HEAD,c,{ font:{name:XF,sz:11,bold:true}, alignment:mid, border:boxAll });
     for(let r=R_FIRST;r<=R_LAST;r++){
-      const zebra = (r-R_FIRST)%2===1 ? { fill:{ patternType:'solid', fgColor:{rgb:'FAFBFC'} } } : {};
-      for(let c=0;c<NC;c++) put(r,c,{ font:{name:XF,sz:c===2?12:11,bold:c===2}, alignment:mid, border:boxAll, ...zebra });
+      for(let c=0;c<NC;c++) put(r,c,{ font:{name:XF,sz:c===2?12:11,bold:c===2}, alignment:mid, border:boxAll });
     }
     ws['!cols'] = [{wch:7},{wch:14},{wch:18},{wch:12},{wch:20}];
-    ws['!rows'] = [{hpt:30},{hpt:6},{hpt:22},{hpt:19},{hpt:6},{hpt:24}];
+    ws['!rows'] = [{hpt:22},{hpt:19},{hpt:6},{hpt:24}];
     for(let r=R_FIRST;r<=R_LAST;r++) ws['!rows'][r] = {hpt:24};
-    ws['!merges'] = [ {s:{r:0,c:0},e:{r:0,c:NC-1}}, {s:{r:2,c:0},e:{r:2,c:NC-1}}, {s:{r:3,c:0},e:{r:3,c:NC-1}} ];
+    ws['!merges'] = [ {s:{r:0,c:0},e:{r:0,c:NC-1}}, {s:{r:1,c:0},e:{r:1,c:NC-1}} ];
     ws['!pageSetup'] = { orientation:'portrait', paperSize:9, fitToWidth:1, fitToHeight:0 };
     ws['!printHeader'] = [R_HEAD+1, R_HEAD+1];
 
