@@ -4077,19 +4077,9 @@ let BILL_ANTS_META={week:0,year:0}; /* WEEK ล่าสุดที่วาง
 /* =====================================================
    AUTH / ROLE
 ===================================================== */
-const _CREDS=[
-  {user:'OAK_THIRA',  hash:'7d37d06492e394475abdff1317de1cb6b97c16d5584400fa07875594165206de', role:'admin'},
-  {user:'YAI_THIRA',  hash:'382699948638670419485caee335db86e47cf7691d5bff3664c5c7714dbaaa35', role:'transport'},
-  {user:'ANTS_THIRA', hash:'33ac0909156b1b05d69a4cd3b827fb9b4789ba219e7fb2437ac4323d5771a0eb', role:'manager'},
-  {user:'SUPAN_ANTS', hash:'1de80c266a2e65d16b1a54ff1b6ba26f6402f9885f28d1a415de2571e8293cfa', role:'admin'},
-  {user:'PLA_ANTS',   hash:'4eb57a309e9e3c5384abb29d538d7356094d07c64e0c79fd2ac0c83eb6839aef', role:'manager'},
-];
+/* (ลบ hash creds เก่าที่ไม่ใช้แล้ว — login ใช้ Supabase Auth · security audit 10 ก.ย.69) */
 let USER_ROLE=''; /* 'admin' | 'transport' | 'manager' */
 let LOGGED_USER='';
-async function _hashPass(str){
-  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
 async function doLogin(){
   const raw=document.getElementById('loginUser').value.trim();
   const pass=document.getElementById('loginPass').value;
