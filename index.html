@@ -3839,6 +3839,12 @@ async function loadData(forceRefresh=false){
       _wt:c.weight||'',               /* น้ำหนัก — ใช้ในหน้าต่างแก้ไข */
     });
   });
+  /* เรียงตู้ในแต่ละใบด้วยเลข id (ดึงจาก _uid) — ตู้ LCB uid='L'+id เรียงแบบ string จะพัง
+     ('L99' > 'L100') ทำให้ตู้เก่าตกท้าย/ตู้ใหม่แทรกกลาง; sort เลขล้วนให้ต่อท้ายตามลำดับเพิ่ม */
+  Object.keys(dbMap).forEach(k=>dbMap[k].sort((a,b)=>{
+    const na=parseInt(String(a._uid).replace(/\D/g,''))||0, nb=parseInt(String(b._uid).replace(/\D/g,''))||0;
+    return na-nb;
+  }));
 
   /* ── 2. Build allInv from invoices table ── */
   const allInv=invRows.map(row=>{
