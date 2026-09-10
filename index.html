@@ -6670,9 +6670,12 @@ async function doFacPrint(dates){
     const COLS=kind==='LCB'
       ?[['ลำดับ','7%'],['ทะเบียนรถ','19%'],['เบอร์ตู้','21%'],['SEAL NO.','16%'],['วันที่เข้าโรงงาน','21%'],['น้ำหนัก (กก.)','16%']]
       :[['ลำดับ','7%'],['ทะเบียนรถ','19%'],['เบอร์ตู้','21%'],['วันที่เข้าโรงงาน','21%'],['โรงงาน','18%'],['น้ำหนัก (กก.)','14%']];
-    const cellsOf=c=>kind==='LCB'
-      ?[esc(c.truck_plate??''),esc(c.container_no??''),esc(c.seal_no??''),esc(thaiDate(c.factory_date)),c.weight?Number(c.weight).toLocaleString():'']
-      :[esc(c.truck_plate??''),esc(c.container_no??''),esc(thaiDate(c.factory_date)),esc(c.factory??''),c.weight?Number(c.weight).toLocaleString():''];
+    /* ป้าย "บ่าย" (แดง วงกลม) ต่อท้ายวันที่ — เฉพาะแถวไฮไลท์สีฟ้า (_HL[0]=#dbeafe = ตู้เข้าบ่าย) */
+    const _BAAI='<span style="display:inline-block;margin-left:6px;padding:0 7px;color:#dc2626;font-weight:800;border:1.6px solid #dc2626;border-radius:50%;font-size:.88em;line-height:1.45;-webkit-print-color-adjust:exact;print-color-adjust:exact;">บ่าย</span>';
+    const _dateCell=(c,bg)=>esc(thaiDate(c.factory_date))+(bg==='#dbeafe'?_BAAI:'');
+    const cellsOf=(c,bg)=>kind==='LCB'
+      ?[esc(c.truck_plate??''),esc(c.container_no??''),esc(c.seal_no??''),_dateCell(c,bg),c.weight?Number(c.weight).toLocaleString():'']
+      :[esc(c.truck_plate??''),esc(c.container_no??''),_dateCell(c,bg),esc(c.factory??''),c.weight?Number(c.weight).toLocaleString():''];
     /* โหมดล็อคตู้: ถ้า Edge คืน locked → โชว์ตู้ล็อคครบตามลำดับ (id) + เติมเฉพาะตู้ที่เข้าแล้ว */
     const _lk=(j.locked&&j.locked.containers&&j.locked.containers.length)?j.locked.containers:null;
     let rows='', total2, filled;
@@ -6684,16 +6687,16 @@ async function doFacPrint(dates){
       filled=0; let n=0;
       _lk.forEach(b=>{n++;const cn=b.container_no;
         if(b.freed||!cn){   // ช่องว่าง (ปลดล็อค) → เติมด้วยตู้เข้ามาแทนตามลำดับ ถ้ามี
-          if(ei<extras.length){const c=extras[ei++];filled++;const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr class="freerow"><td class="seq"${st}>${n}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;}
+          if(ei<extras.length){const c=extras[ei++];filled++;const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr class="freerow"><td class="seq"${st}>${n}</td>${cellsOf(c,bg).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;}
           else{rows+=`<tr class="pend"><td class="seq">${n}</td>${blanksLk}</tr>`;}
           return;}
-        const e=entMap[_cn(cn)]; if(e)filled++;const c=e||{container_no:cn};const bg=e?colorOfCtr(c):'';const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr class="lockrow"><td class="seq"${st}>${n}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
-      while(ei<extras.length){n++;const c=extras[ei++];filled++;const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr class="freerow"><td class="seq"${st}>${n}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;}   // ตู้เติมเกินช่องว่าง → ต่อท้าย
+        const e=entMap[_cn(cn)]; if(e)filled++;const c=e||{container_no:cn};const bg=e?colorOfCtr(c):'';const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr class="lockrow"><td class="seq"${st}>${n}</td>${cellsOf(c,bg).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
+      while(ei<extras.length){n++;const c=extras[ei++];filled++;const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr class="freerow"><td class="seq"${st}>${n}</td>${cellsOf(c,bg).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;}   // ตู้เติมเกินช่องว่าง → ต่อท้าย
       total2=Math.max(total,n);
       for(;n<total2;){n++;rows+=`<tr class="pend"><td class="seq">${n}</td>${blanksLk}</tr>`;}
     } else {
       total2=total; filled=list.length;
-      list.forEach((c,i)=>{const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr><td class="seq"${st}>${i+1}</td>${cellsOf(c).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
+      list.forEach((c,i)=>{const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr><td class="seq"${st}>${i+1}</td>${cellsOf(c,bg).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
       const blanks=COLS.slice(1).map(()=>'<td></td>').join('');
       for(let i=list.length;i<total;i++)rows+=`<tr><td class="seq">${i+1}</td>${blanks}</tr>`;
     }
