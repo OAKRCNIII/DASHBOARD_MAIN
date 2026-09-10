@@ -6641,6 +6641,9 @@ async function doFacPrint(dates){
   if(win){win.document.write('<!DOCTYPE html><meta charset="utf-8"><body style="font-family:Tahoma,sans-serif;padding:48px;text-align:center;color:#334155;font-size:15px;">⏳ กำลังเตรียมรายงาน + ใบแจ้งเบอร์ตู้…</body>');}
   const _DOW=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
   const _MON=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const _MONF=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  /* "09/09/2026" → "วันพุธ ที่ 9 กันยายน 2026" (ปี ค.ศ. ตามต้นฉบับ) */
+  const _thaiFull=s=>{const m=String(s||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);if(!m)return s;let d=+m[1],mo=+m[2],y=+m[3];if(y<100)y+=2000;const dt=new Date(y,mo-1,d);if(isNaN(dt))return s;return 'วัน'+_DOW[dt.getDay()]+' ที่ '+d+' '+(_MONF[mo-1]||'')+' '+y;};
   const thaiDate=iso=>{if(!iso)return'';const d=new Date(iso+'T00:00:00');if(isNaN(d))return'';return _DOW[d.getDay()]+' '+d.getDate()+' '+_MON[d.getMonth()];};
   const todayText=()=>{const d=new Date();return d.getDate()+' '+_MON[d.getMonth()]+' '+(d.getFullYear()+543);};
   const _CTR_API='https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-lcb';
@@ -6733,18 +6736,18 @@ async function doFacPrint(dates){
       if(_vn)_lp.push(esc(_vn));
       if(_bk&&_bk!=='-')_lp.push(`BKG ${esc(_bk)}`);
       const _vslLine=_lp.length?`<div style="font-size:9.5pt;color:#475569;margin-top:3px;">🚢 ${_lp.join(' · ')}</div>`:'';
-      tbRows+=`<tr style="${bg}"><td style="border:1px solid #cbd5e1;padding:7px 8px;text-align:center;font-weight:800;font-size:12pt;color:#1e3a5f;vertical-align:top;${bg}">${ii+1}</td><td style="border:1px solid #cbd5e1;padding:7px 12px;white-space:nowrap;vertical-align:top;${bg}"><span style="font-size:9.5pt;font-weight:700;padding:2px 7px;border-radius:4px;margin-right:6px;background:${s.bg};color:${s.tx};border:1px solid ${s.bd};">${esc(pfx)}</span>${esc(inv)}${_vslLine}</td>`;
+      tbRows+=`<tr style="${bg}"><td style="border:1.4px solid #334155;padding:7px 8px;text-align:center;font-weight:800;font-size:12pt;color:#1e3a5f;vertical-align:top;${bg}">${ii+1}</td><td style="border:1.4px solid #334155;padding:7px 12px;white-space:nowrap;vertical-align:top;${bg}"><span style="font-size:9.5pt;font-weight:700;padding:2px 7px;border-radius:4px;margin-right:6px;background:${s.bg};color:${s.tx};border:1px solid ${s.bd};">${esc(pfx)}</span>${esc(inv)}${_vslLine}</td>`;
       facCols.forEach(fd=>{
         const trucks=im[inv][fd]||[];
-        tbRows+=trucks.length?`<td style="border:1px solid #cbd5e1;padding:7px 12px;text-align:center;white-space:nowrap;vertical-align:top;${bg}">${trucks.map(t=>`${esc(t.truck)}${t.ctr?`<br><span style="font-family:monospace;font-size:9pt;color:#64748b;">${esc(t.ctr)}</span>`:''}`).join('<br>')}</td>`:`<td style="border:1px solid #cbd5e1;padding:7px 12px;text-align:center;color:#cbd5e1;vertical-align:top;${bg}">—</td>`;
+        tbRows+=trucks.length?`<td style="border:1.4px solid #334155;padding:7px 12px;text-align:center;white-space:nowrap;vertical-align:top;${bg}">${trucks.map(t=>`${esc(t.truck)}${t.ctr?`<br><span style="font-family:monospace;font-size:9pt;color:#64748b;">${esc(t.ctr)}</span>`:''}`).join('<br>')}</td>`:`<td style="border:1.4px solid #334155;padding:7px 12px;text-align:center;color:#cbd5e1;vertical-align:top;${bg}">—</td>`;
       });
       tbRows+=`</tr>`;
     });
-    const thCols=facCols.map(fd=>`<th style="background:#1e3a5f;color:#fff;padding:7px 14px;font-size:12pt;text-align:center;white-space:nowrap;">${esc(fd)}</th>`).join('');
+    const thCols=facCols.map(fd=>`<th style="border:1.6px solid #0f2a52;background:#1e3a5f;color:#fff;padding:7px 12px;font-size:11pt;text-align:center;white-space:nowrap;">${esc(_thaiFull(fd))}</th>`).join('');
     pages+=`<div class="sheet"><div class="fit">
-<div class="hd"><h1>🏭 สรุปตู้เข้าโรงงาน &nbsp;·&nbsp; วันรับตู้ ${esc(dt)}</h1>
-<p>${ttl} ตู้ · ${ins.length} อินวอยซ์ &nbsp;|&nbsp; วันเข้าโรงงาน: ${facCols.map(fd=>esc(fd)).join(' · ')}</p></div>
-<table><thead><tr><th style="background:#1e3a5f;color:#fff;padding:7px 8px;font-size:12pt;text-align:center;white-space:nowrap;">#</th><th style="background:#1e3a5f;color:#fff;padding:7px 14px;font-size:12pt;text-align:left;white-space:nowrap;">อินวอยซ์</th>${thCols}</tr></thead><tbody>${tbRows}</tbody></table>
+<div class="hd"><h1>🏭 สรุปตู้เข้าโรงงาน &nbsp;·&nbsp; ${esc(_thaiFull(dt))}</h1>
+<p>${ttl} ตู้ · ${ins.length} อินวอยซ์ &nbsp;|&nbsp; วันเข้าโรงงาน: ${facCols.map(fd=>esc(_thaiFull(fd))).join(' · ')}</p></div>
+<table style="border:2px solid #0f2a52;"><thead><tr><th style="border:1.6px solid #0f2a52;background:#1e3a5f;color:#fff;padding:7px 8px;font-size:12pt;text-align:center;white-space:nowrap;">#</th><th style="border:1.6px solid #0f2a52;background:#1e3a5f;color:#fff;padding:7px 14px;font-size:12pt;text-align:left;white-space:nowrap;">อินวอยซ์</th>${thCols}</tr></thead><tbody>${tbRows}</tbody></table>
 <div class="ft">พิมพ์เมื่อ ${new Date().toLocaleString('th-TH')}</div></div></div>`;
     /* หน้าถัดไป = ใบแจ้งเบอร์ตู้ ของแต่ละอินวอยซ์ในวันนี้ (ดึงจาก Edge Function แบบเดียวกับหน้า lcb_report เป๊ะ) */
     for(let _k=0;_k<ins.length;_k++){ const j=await _ctrData(ins[_k]); if(j) pages+=_ctrSheet(j,_k+1,facCols,ctrDateByInv[ins[_k]]); }
