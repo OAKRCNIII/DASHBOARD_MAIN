@@ -6694,7 +6694,7 @@ async function doFacPrint(dates){
     const line2=[total2?`${total2} ตู้`:'',inv.destination?`ไป ${esc(inv.destination)}`:'',inv.customer?`ของ ${esc(inv.customer)}`:''].filter(Boolean).join(' ');
     const usedKeys=[...new Set(Object.values(ctrMap).map(_dkey))];
     const legKeys=allKeys.filter(k=>usedKeys.includes(k));
-    const legend=legKeys.length?`<div class="ctrlgd"><span style="font-weight:400;border:none;color:#64748b;">ไฮไลท์ (ตู้ที่ยกวันนี้) เข้าโรงงาน:</span>${legKeys.map(k=>`<span style="background:${_HL[allKeys.indexOf(k)%_HL.length]};-webkit-print-color-adjust:exact;print-color-adjust:exact;">${esc(_thaiKey(k))}</span>`).join('')}</div>`:'';
+    const legend='';   /* เอา legend "ไฮไลท์ (ตู้ที่ยกวันนี้)" ออกตามที่ RCN ขอ */
     const thead=COLS.map(cw=>`<th style="width:${cw[1]}">${esc(cw[0])}</th>`).join('');
     return `<div class="ctrsheet${_lk?' lockmode':''}"><div class="ctrbox">${inv.shipping_line&&inv.shipping_line!=='-'?`<div class="ctrline"><small>สายเรือ</small>${esc(inv.shipping_line)}</div>`:''}<h1>${kind==='LCB'?'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง':'ใบแจ้งเบอร์ตู้'}</h1>${seq?`<div class="ctrseq"><small>ลำดับ</small>${seq}</div>`:''}</div>`
       +`<p class="ctrl1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p><p class="ctrl2">${line2}</p>${legend}`
