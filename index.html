@@ -936,7 +936,19 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
             <div id="facPrintDateList" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;margin-bottom:14px;"></div>
             <div style="display:flex;gap:8px;">
               <button id="facPrintCancel" style="flex:1;font-size:11px;padding:8px;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;background:#f8fafc;color:#64748b;font-weight:600;">ยกเลิก</button>
-              <button id="facPrintConfirm" style="flex:2;font-size:11px;padding:8px;border:none;border-radius:8px;cursor:pointer;background:#0f2a52;color:#fff;font-weight:700;">🖨️ พิมพ์ที่เลือก</button>
+              <button id="facPrintConfirm" style="flex:2;font-size:11px;padding:8px;border:none;border-radius:8px;cursor:pointer;background:#0f2a52;color:#fff;font-weight:700;">จัดลำดับ →</button>
+            </div>
+          </div>
+        </div>
+        <!-- POPUP: จัดลำดับก่อนพิมพ์ (หลังเลือกวัน) -->
+        <div id="facArrangeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;align-items:center;justify-content:center;">
+          <div style="background:#fff;border-radius:14px;padding:20px 22px;min-width:340px;max-width:460px;width:92%;box-shadow:0 24px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;max-height:85vh;">
+            <div style="font-size:14px;font-weight:800;color:#0f2a52;margin-bottom:2px;">↕ จัดลำดับก่อนพิมพ์</div>
+            <div style="font-size:10.5px;color:#94a3b8;margin-bottom:12px;">ลากสลับที่อินวอยซ์ → รีพอร์ตจะพิมพ์ตามลำดับนี้</div>
+            <div id="facArrangeBody" style="overflow-y:auto;flex:1;margin-bottom:14px;"></div>
+            <div style="display:flex;gap:8px;">
+              <button onclick="closeFacArrange()" style="flex:1;font-size:11px;padding:9px;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;background:#f8fafc;color:#64748b;font-weight:600;">← กลับ</button>
+              <button onclick="closeFacArrange();doFacPrint(_facArrDates);" style="flex:2;font-size:11px;padding:9px;border:none;border-radius:8px;cursor:pointer;background:#dc2626;color:#fff;font-weight:700;">🖨️ พิมพ์รีพอร์ต</button>
             </div>
           </div>
         </div>
@@ -6507,7 +6519,7 @@ function renderFactory(){
     ttl+=dtc;tinv+=ins.length;
     const cs=1+facCols.length;
     /* Date group header + sub-header (tbody ที่ลากไม่ได้) */
-    let hd=`<tr class="fdate-hd"><td colspan="${cs}"><span style="font-size:12px;">📅 ${h(dt)}</span><span style="float:right;font-size:9px;color:#1e40af;background:#bfdbfe;border-radius:4px;padding:1px 6px;">${dtc} ตู้ · ${ins.length} INV · <span style="opacity:.85;">↕ ลากจัดลำดับได้</span></span></td></tr>`;
+    let hd=`<tr class="fdate-hd"><td colspan="${cs}"><span style="font-size:12px;">📅 ${h(dt)}</span><span style="float:right;font-size:9px;color:#1e40af;background:#bfdbfe;border-radius:4px;padding:1px 6px;">${dtc} ตู้ · ${ins.length} INV</span></td></tr>`;
     hd+=`<tr style="background:#f8fafc;"><td style="padding:3px 10px;font-size:9px;color:#94a3b8;border-bottom:2px solid #e2e8f0;"></td>`;
     facCols.forEach(fd=>{
       const isT=fd===todayFmt,isTm=fd===tomFmt;
@@ -6526,7 +6538,7 @@ function renderFactory(){
       if(_vp){ _vn=_vp.vessel||''; _bk=_vp.bkg||''; }
       else { const _vr=VESSEL.find(v=>normInv(v.inv)===normInv(inv)); if(_vr){ _vn=_vr.vessel||''; _bk=_vr.bkg||''; } }
       const _vslLine=(_vn||(_bk&&_bk!=='-'))?`<div style="font-size:9px;color:#64748b;margin-top:2px;font-weight:400;">${_vn?`🚢 ${h(_vn)}`:''}${_bk&&_bk!=='-'?`${_vn?' · ':''}BKG ${h(_bk)}`:''}</div>`:'';
-      inv_html+=`<tr class="finv-row" data-inv="${h(inv)}" style="${bg}"><td class="finv-cell" style="border-left:3px solid ${s.tx};${bg}vertical-align:top;cursor:grab;"><span style="color:#cbd5e1;margin-right:4px;font-weight:900;">⠿</span><span class="finv-badge" style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd}">${h(pfx)}</span>${h(inv)}${_vslLine}</td>`;
+      inv_html+=`<tr class="finv-row" data-inv="${h(inv)}" style="${bg}"><td class="finv-cell" style="border-left:3px solid ${s.tx};${bg}vertical-align:top;"><span class="finv-badge" style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd}">${h(pfx)}</span>${h(inv)}${_vslLine}</td>`;
       facCols.forEach(fd=>{
         const trucks=im[inv][fd]||[];
         const isT=fd===todayFmt,isTm=fd===tomFmt;
@@ -6540,13 +6552,6 @@ function renderFactory(){
   document.querySelectorAll('#facFilterBar [data-facf]').forEach(b=>b.classList.toggle('fqfac-active',b.dataset.facf===FAC_FAC_FILTER));
   document.querySelectorAll('#facSrcBar [data-facsrc]').forEach(b=>b.classList.toggle('fqfac-active',b.dataset.facsrc===FAC_SRC_FILTER));
   document.getElementById('factoryTable').innerHTML=dates.length?`<table class="ftbl">${rows}</table>`:'<div style="padding:40px;text-align:center;color:#64748b;font-size:12px;">ไม่พบข้อมูลในช่วงวันที่เลือก</div>';
-  /* ลากจัดลำดับ invoice (SortableJS) — เก็บลำดับต่อวันใน FAC_ORDER (ชั่วคราว) */
-  if(window.Sortable){
-    document.querySelectorAll('#factoryTable tbody.fsort').forEach(tb=>{
-      new Sortable(tb,{ animation:150, draggable:'.finv-row', handle:'.finv-cell', ghostClass:'fac-ghost',
-        onEnd:()=>{ const dt=tb.dataset.fdate; FAC_ORDER[dt]=Array.from(tb.querySelectorAll('.finv-row')).map(r=>r.dataset.inv); } });
-    });
-  }
   const fromV=document.getElementById('fDateFrom').value,toV=document.getElementById('fDateTo').value;
   let rl='';if(fromV&&toV)rl=' · '+fromV.split('-').reverse().join('/')+'–'+toV.split('-').reverse().join('/');else if(fromV)rl=' · จาก '+fromV.split('-').reverse().join('/');else if(toV)rl=' · ถึง '+toV.split('-').reverse().join('/');
   const facLbl=FAC_FAC_FILTER==='today'?' · เข้าโรงงานวันนี้':FAC_FAC_FILTER==='tomorrow'?' · เข้าโรงงานพรุ่งนี้':'';
@@ -6579,6 +6584,49 @@ function printFactory(){
 function closeFacPrintModal(){
   document.getElementById('facPrintModal').style.display='none';
 }
+
+/* POPUP จัดลำดับก่อนพิมพ์ — หลังเลือกวัน โชว์ invoice ต่อวันให้ลากสลับ → พิมพ์ตามลำดับ */
+let _facArrDates=[];
+function openFacArrange(dates){
+  _facArrDates=dates.slice();
+  /* invoices + จำนวนตู้ ต่อวัน (เคารพ filter ที่มา เหมือนพรีวิว) */
+  const dm={};
+  FLAT.forEach(d=>{
+    if(d.month==='-')return; const yrM=d.month.match(/(\d{4})$/); if(yrM&&parseInt(yrM[1])<2026)return;
+    if(!d.details||!d.details.length)return;
+    (d.details||[]).forEach(row=>{
+      const _src=row._src||'PADANG';
+      if(FAC_SRC_FILTER==='PADANG'&&_src==='LCB')return;
+      if(FAC_SRC_FILTER==='LCB'&&_src!=='LCB')return;
+      const dt=(row.DATE_PICKUP&&row.DATE_PICKUP!=='-')?row.DATE_PICKUP:'-';
+      if(dates.indexOf(dt)<0)return;
+      if(!dm[dt])dm[dt]={};
+      dm[dt][d.inv]=(dm[dt][d.inv]||0)+1;
+    });
+  });
+  const body=document.getElementById('facArrangeBody'); body.innerHTML='';
+  dates.forEach(dt=>{
+    if(!dm[dt])return;
+    const invs=facSortIns(dt,Object.keys(dm[dt]));
+    const items=invs.map(inv=>{
+      const pfx=getPfx(inv);const s=pst(pfx);
+      return `<div class="facArrItem" data-inv="${h(inv)}" style="display:flex;align-items:center;gap:8px;padding:9px 11px;margin-bottom:5px;border:1px solid #e2e8f0;border-radius:9px;background:#fff;cursor:grab;">`
+        +`<span style="color:#cbd5e1;font-weight:900;font-size:15px;">⠿</span>`
+        +`<span style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd};border-radius:5px;padding:1px 7px;font-size:10px;font-weight:800;">${h(pfx)}</span>`
+        +`<span style="font-weight:700;color:#0f2a52;font-size:12px;">${h(inv)}</span>`
+        +`<span style="margin-left:auto;font-size:10px;color:#94a3b8;">${dm[dt][inv]} ตู้</span></div>`;
+    }).join('');
+    const sec=document.createElement('div'); sec.style.cssText='margin-bottom:14px;';
+    sec.innerHTML=`<div style="font-size:12px;font-weight:800;color:#1e40af;background:#eff6ff;border-radius:7px;padding:6px 10px;margin-bottom:8px;">📅 ${h(dt)} <span style="font-weight:500;color:#64748b;">· ${invs.length} INV · ลากสลับที่ได้</span></div><div class="facArrList" data-fdate="${h(dt)}">${items}</div>`;
+    body.appendChild(sec);
+  });
+  body.querySelectorAll('.facArrList').forEach(el=>{
+    if(window.Sortable) new Sortable(el,{animation:150,draggable:'.facArrItem',ghostClass:'fac-ghost',
+      onEnd:()=>{ FAC_ORDER[el.dataset.fdate]=Array.from(el.querySelectorAll('.facArrItem')).map(x=>x.dataset.inv); }});
+  });
+  document.getElementById('facArrangeModal').style.display='flex';
+}
+function closeFacArrange(){ document.getElementById('facArrangeModal').style.display='none'; }
 
 async function doFacPrint(dates){
   /* dates = array of DATE_PICKUP strings — หน้า 1..N ภาพรวม(landscape) + ต่อด้วยใบแจ้งเบอร์ตู้ต่ออินวอยซ์(portrait) */
@@ -10955,7 +11003,7 @@ document.getElementById('facPrintSelectAll').addEventListener('change',function(
 document.getElementById('facPrintConfirm').addEventListener('click',()=>{
   const sel=[...document.querySelectorAll('#facPrintDateList input[type=checkbox]:checked')].map(cb=>cb.value);
   if(!sel.length){alert('กรุณาเลือกวันที่อย่างน้อย 1 วัน');return;}
-  closeFacPrintModal();doFacPrint(sel);
+  closeFacPrintModal();openFacArrange(sel);   /* → ไปหน้าจัดลำดับก่อนพิมพ์ */
 });
 
 initApp();
