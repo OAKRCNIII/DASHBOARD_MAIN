@@ -677,6 +677,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
 .mob-tab.active{color:var(--th-yel-dark)!important;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 </head>
 <body>
 
@@ -6461,6 +6462,14 @@ const dAgoIso=n=>{const d=new Date();d.setDate(d.getDate()-n);return d.getFullYe
 const mStartIso=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-01';};
 let FAC_FAC_FILTER='all';
 let FAC_SRC_FILTER='all';   /* all | PADANG | LCB */
+let FAC_ORDER={};   /* ลำดับที่ลากจัดเอง: FAC_ORDER[วันรับตู้] = [inv,...] (ชั่วคราวในหน้าจอ ไม่ save DB) */
+function facSortIns(dt,ins){
+  const ord=FAC_ORDER[dt]; if(!ord||!ord.length) return ins;
+  const set=new Set(ins);
+  const first=ord.filter(i=>set.has(i));      /* ใบที่จัดลำดับไว้ (ที่ยังมีอยู่) มาก่อน */
+  const rest=ins.filter(i=>ord.indexOf(i)<0); /* ใบใหม่ที่ยังไม่ถูกจัด → ต่อท้าย */
+  return first.concat(rest);
+}
 function renderFactory(){
   const fr=isoInt(document.getElementById('fDateFrom').value),to=isoInt(document.getElementById('fDateTo').value);
   const todayFmt=fmtDate(new Date());const tom=new Date();tom.setDate(tom.getDate()+1);const tomFmt=fmtDate(tom);
@@ -6489,7 +6498,7 @@ function renderFactory(){
   if(fr||to)dates=dates.filter(dt=>{const v=pDate(dt);if(!v)return false;if(fr&&v<fr)return false;if(to&&v>to)return false;return true;});
   let ttl=0,tinv=0,rows='';
   dates.forEach(dt=>{
-    const im=dm[dt];const ins=Object.keys(im);
+    const im=dm[dt];const ins=facSortIns(dt,Object.keys(im));   /* ← ใช้ลำดับที่ลากจัดไว้ */
     /* รวบรวม facDates ทั้งหมดใน group → dynamic columns */
     const facDateSet=new Set();
     ins.forEach(inv=>Object.keys(im[inv]).forEach(fd=>facDateSet.add(fd)));
@@ -6497,18 +6506,19 @@ function renderFactory(){
     let dtc=0;ins.forEach(inv=>facCols.forEach(fd=>dtc+=(im[inv][fd]||[]).length));
     ttl+=dtc;tinv+=ins.length;
     const cs=1+facCols.length;
-    /* Date group header */
-    rows+=`<tr class="fdate-hd"><td colspan="${cs}"><span style="font-size:12px;">📅 ${h(dt)}</span><span style="float:right;font-size:9px;color:#1e40af;background:#bfdbfe;border-radius:4px;padding:1px 6px;">${dtc} ตู้ · ${ins.length} INV</span></td></tr>`;
-    /* Sub-header: วันที่เข้าโรงงานแต่ละ column */
-    let sh=`<tr style="background:#f8fafc;"><td style="padding:3px 10px;font-size:9px;color:#94a3b8;border-bottom:2px solid #e2e8f0;"></td>`;
+    /* Date group header + sub-header (tbody ที่ลากไม่ได้) */
+    let hd=`<tr class="fdate-hd"><td colspan="${cs}"><span style="font-size:12px;">📅 ${h(dt)}</span><span style="float:right;font-size:9px;color:#1e40af;background:#bfdbfe;border-radius:4px;padding:1px 6px;">${dtc} ตู้ · ${ins.length} INV · <span style="opacity:.85;">↕ ลากจัดลำดับได้</span></span></td></tr>`;
+    hd+=`<tr style="background:#f8fafc;"><td style="padding:3px 10px;font-size:9px;color:#94a3b8;border-bottom:2px solid #e2e8f0;"></td>`;
     facCols.forEach(fd=>{
       const isT=fd===todayFmt,isTm=fd===tomFmt;
       const bg=isT?'background:#dcfce7;':isTm?'background:#dbeafe;':'background:#f1f5f9;';
       const col=isT?'color:#16a34a;':isTm?'color:#1d4ed8;':'color:#64748b;';
-      sh+=`<td style="padding:4px 8px;font-size:9px;font-weight:700;text-align:center;border-bottom:2px solid #e2e8f0;white-space:nowrap;${bg}${col}">${h(fd)}</td>`;
+      hd+=`<td style="padding:4px 8px;font-size:9px;font-weight:700;text-align:center;border-bottom:2px solid #e2e8f0;white-space:nowrap;${bg}${col}">${h(fd)}</td>`;
     });
-    sh+=`</tr>`;rows+=sh;
-    /* Invoice rows */
+    hd+=`</tr>`;
+    rows+=`<tbody>${hd}</tbody>`;
+    /* Invoice rows (tbody ที่ลากได้ — 1 tbody ต่อวัน) */
+    let inv_html='';
     ins.forEach((inv,ii)=>{
       const pfx=getPfx(inv);const s=pst(pfx);const bg=ii%2===0?'':'background:#fafafa;';
       /* ชื่อเรือ + เลขบุคกิ้ง ต่ออินวอยซ์ (แผนจริงก่อน แล้วค่อย vessels finalized) */
@@ -6516,19 +6526,27 @@ function renderFactory(){
       if(_vp){ _vn=_vp.vessel||''; _bk=_vp.bkg||''; }
       else { const _vr=VESSEL.find(v=>normInv(v.inv)===normInv(inv)); if(_vr){ _vn=_vr.vessel||''; _bk=_vr.bkg||''; } }
       const _vslLine=(_vn||(_bk&&_bk!=='-'))?`<div style="font-size:9px;color:#64748b;margin-top:2px;font-weight:400;">${_vn?`🚢 ${h(_vn)}`:''}${_bk&&_bk!=='-'?`${_vn?' · ':''}BKG ${h(_bk)}`:''}</div>`:'';
-      rows+=`<tr style="${bg}"><td class="finv-cell" style="border-left:3px solid ${s.tx};${bg}vertical-align:top;"><span class="finv-badge" style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd}">${h(pfx)}</span>${h(inv)}${_vslLine}</td>`;
+      inv_html+=`<tr class="finv-row" data-inv="${h(inv)}" style="${bg}"><td class="finv-cell" style="border-left:3px solid ${s.tx};${bg}vertical-align:top;cursor:grab;"><span style="color:#cbd5e1;margin-right:4px;font-weight:900;">⠿</span><span class="finv-badge" style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd}">${h(pfx)}</span>${h(inv)}${_vslLine}</td>`;
       facCols.forEach(fd=>{
         const trucks=im[inv][fd]||[];
         const isT=fd===todayFmt,isTm=fd===tomFmt;
         const col=isT?'color:#16a34a;font-weight:600;':isTm?'color:#1d4ed8;font-weight:600;':'color:#475569;';
-        rows+=trucks.length?`<td class="ftrk-cell" style="${col}vertical-align:top;">${trucks.map(t=>`${h(t.truck)}${t.ctr?` <span style="font-family:monospace;font-size:9px;color:#94a3b8;">${h(t.ctr)}</span>`:''}`).join('<br>')}</td>`:`<td class="ftrk-cell" style="text-align:center;color:#cbd5e1;vertical-align:top;">—</td>`;
+        inv_html+=trucks.length?`<td class="ftrk-cell" style="${col}vertical-align:top;">${trucks.map(t=>`${h(t.truck)}${t.ctr?` <span style="font-family:monospace;font-size:9px;color:#94a3b8;">${h(t.ctr)}</span>`:''}`).join('<br>')}</td>`:`<td class="ftrk-cell" style="text-align:center;color:#cbd5e1;vertical-align:top;">—</td>`;
       });
-      rows+=`</tr>`;
+      inv_html+=`</tr>`;
     });
+    rows+=`<tbody class="fsort" data-fdate="${h(dt)}">${inv_html}</tbody>`;
   });
   document.querySelectorAll('#facFilterBar [data-facf]').forEach(b=>b.classList.toggle('fqfac-active',b.dataset.facf===FAC_FAC_FILTER));
   document.querySelectorAll('#facSrcBar [data-facsrc]').forEach(b=>b.classList.toggle('fqfac-active',b.dataset.facsrc===FAC_SRC_FILTER));
-  document.getElementById('factoryTable').innerHTML=dates.length?`<table class="ftbl"><tbody>${rows}</tbody></table>`:'<div style="padding:40px;text-align:center;color:#64748b;font-size:12px;">ไม่พบข้อมูลในช่วงวันที่เลือก</div>';
+  document.getElementById('factoryTable').innerHTML=dates.length?`<table class="ftbl">${rows}</table>`:'<div style="padding:40px;text-align:center;color:#64748b;font-size:12px;">ไม่พบข้อมูลในช่วงวันที่เลือก</div>';
+  /* ลากจัดลำดับ invoice (SortableJS) — เก็บลำดับต่อวันใน FAC_ORDER (ชั่วคราว) */
+  if(window.Sortable){
+    document.querySelectorAll('#factoryTable tbody.fsort').forEach(tb=>{
+      new Sortable(tb,{ animation:150, draggable:'.finv-row', handle:'.finv-cell', ghostClass:'fac-ghost',
+        onEnd:()=>{ const dt=tb.dataset.fdate; FAC_ORDER[dt]=Array.from(tb.querySelectorAll('.finv-row')).map(r=>r.dataset.inv); } });
+    });
+  }
   const fromV=document.getElementById('fDateFrom').value,toV=document.getElementById('fDateTo').value;
   let rl='';if(fromV&&toV)rl=' · '+fromV.split('-').reverse().join('/')+'–'+toV.split('-').reverse().join('/');else if(fromV)rl=' · จาก '+fromV.split('-').reverse().join('/');else if(toV)rl=' · ถึง '+toV.split('-').reverse().join('/');
   const facLbl=FAC_FAC_FILTER==='today'?' · เข้าโรงงานวันนี้':FAC_FAC_FILTER==='tomorrow'?' · เข้าโรงงานพรุ่งนี้':'';
@@ -6642,7 +6660,7 @@ async function doFacPrint(dates){
       if(!im[d.inv][fd])im[d.inv][fd]=[];
       im[d.inv][fd].push({truck:row['ทะเบียนรถ']||'-', ctr:row['เบอร์ตู้']||''});
     });});
-    const ins=Object.keys(im);
+    const ins=facSortIns(dt,Object.keys(im));   /* ← ใช้ลำดับที่ลากจัดในพรีวิว */
     const facDateSet=new Set();
     ins.forEach(inv=>Object.keys(im[inv]).forEach(fd=>facDateSet.add(fd)));
     const facCols=Array.from(facDateSet).sort((a,b)=>parseFacDate(a)-parseFacDate(b)||a.localeCompare(b));
