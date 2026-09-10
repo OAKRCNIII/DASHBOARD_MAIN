@@ -6672,7 +6672,7 @@ async function doFacPrint(dates){
       :[['ลำดับ','7%'],['ทะเบียนรถ','19%'],['เบอร์ตู้','21%'],['วันที่เข้าโรงงาน','21%'],['โรงงาน','18%'],['น้ำหนัก (กก.)','14%']];
     /* ป้าย "บ่าย" (แดง วงกลม) ต่อท้ายวันที่ — เฉพาะแถวไฮไลท์สีฟ้า (_HL[0]=#dbeafe = ตู้เข้าบ่าย) */
     const _BAAI='<span style="display:inline-block;margin-left:6px;padding:0 7px;color:#dc2626;font-weight:800;border:1.6px solid #dc2626;border-radius:50%;font-size:.88em;line-height:1.45;-webkit-print-color-adjust:exact;print-color-adjust:exact;">บ่าย</span>';
-    const _dateCell=(c,bg)=>esc(thaiDate(c.factory_date))+(bg==='#dbeafe'?_BAAI:'');
+    const _dateCell=(c,bg)=>esc(thaiDate(c.factory_date))+(bg===_HL[0]?_BAAI:'');   /* ผูกกับ _HL[0] (สีไฮไลท์แรก) ไม่ใช่ค่าสีดิบ — เปลี่ยนพาเลตแล้ว badge ยังตามถูก */
     const cellsOf=(c,bg)=>kind==='LCB'
       ?[esc(c.truck_plate??''),esc(c.container_no??''),esc(c.seal_no??''),_dateCell(c,bg),c.weight?Number(c.weight).toLocaleString():'']
       :[esc(c.truck_plate??''),esc(c.container_no??''),_dateCell(c,bg),esc(c.factory??''),c.weight?Number(c.weight).toLocaleString():''];
