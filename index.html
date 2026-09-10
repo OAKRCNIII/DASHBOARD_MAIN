@@ -7429,7 +7429,7 @@ const TR_EXCL=['OGM','KNT','PTN','HFI','KTW'];   /* ตัดออกจาก�
 /* ── ข้อยกเว้นรายอินวอยซ์: prefix อยู่แก๊งไม่หัก แต่ใบนี้ต้อง "หัก ณ ที่จ่าย" ──
    เพิ่มเลขอินวอยซ์ในลิสต์นี้ = ใบนั้นย้ายจากแก๊งไม่หัก → กลุ่มหัก + ติดดาว ⭐
    จับคู่แบบไม่สนเว้นวรรค (KNT(JANG2) = KNT (JANG2)) */
-const TR_WHT_INV=['KNT(JANG2)016/2026','KNT(JANG2)017/2026','KNT(JANG2)019/2026'];
+const TR_WHT_INV=['KNT(JANG2)017/2026','KNT(JANG2)019/2026'];   /* 016 เอาออก 10 ก.ย.69 = เคสปกติ (KNT ไม่หัก) */
 const _normWhtInv=s=>String(s||'').toUpperCase().replace(/\s+/g,'');
 const _WHT_SET=new Set(TR_WHT_INV.map(_normWhtInv));
 const isWhtExc=inv=>_WHT_SET.has(_normWhtInv(inv));               /* ใบข้อยกเว้น (ต้องหัก + ⭐) */
