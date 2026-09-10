@@ -6608,9 +6608,10 @@ function openFacArrange(dates){
   dates.forEach(dt=>{
     if(!dm[dt])return;
     const invs=facSortIns(dt,Object.keys(dm[dt]));
-    const items=invs.map(inv=>{
+    const items=invs.map((inv,i)=>{
       const pfx=getPfx(inv);const s=pst(pfx);
       return `<div class="facArrItem" data-inv="${h(inv)}" style="display:flex;align-items:center;gap:8px;padding:9px 11px;margin-bottom:5px;border:1px solid #e2e8f0;border-radius:9px;background:#fff;cursor:grab;">`
+        +`<span class="facArrNo" style="display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;background:#0f2a52;color:#fff;border-radius:7px;font-size:12px;font-weight:800;flex-shrink:0;">${i+1}</span>`
         +`<span style="color:#cbd5e1;font-weight:900;font-size:15px;">⠿</span>`
         +`<span style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd};border-radius:5px;padding:1px 7px;font-size:10px;font-weight:800;">${h(pfx)}</span>`
         +`<span style="font-weight:700;color:#0f2a52;font-size:12px;">${h(inv)}</span>`
@@ -6622,7 +6623,8 @@ function openFacArrange(dates){
   });
   body.querySelectorAll('.facArrList').forEach(el=>{
     if(window.Sortable) new Sortable(el,{animation:150,draggable:'.facArrItem',ghostClass:'fac-ghost',
-      onEnd:()=>{ FAC_ORDER[el.dataset.fdate]=Array.from(el.querySelectorAll('.facArrItem')).map(x=>x.dataset.inv); }});
+      onEnd:()=>{ FAC_ORDER[el.dataset.fdate]=Array.from(el.querySelectorAll('.facArrItem')).map(x=>x.dataset.inv);
+        el.querySelectorAll('.facArrItem .facArrNo').forEach((n,i)=>n.textContent=i+1); }});
   });
   document.getElementById('facArrangeModal').style.display='flex';
 }
