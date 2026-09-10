@@ -6764,6 +6764,7 @@ async function doFacPrint(dates){
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>สรุปตู้เข้าโรงงาน + ใบแจ้งเบอร์ตู้</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"><\/script>
 <style>*{box-sizing:border-box;margin:0;padding:0;}
 @page{size:A4 landscape;margin:10mm;}
 @page ctr{size:A4 portrait;margin:12mm;}
@@ -6793,8 +6794,61 @@ table{width:100%;border-collapse:collapse;}
 .ctrtbl tbody td:last-child{color:#d00000;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .lockmode .ctrtbl tbody tr.lockrow td:nth-child(3){color:#6d28d9;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .ctrfoot{margin-top:8px;display:flex;justify-content:space-between;font-size:11px;color:#555;}
-@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
-</style></head><body>${pages}
+#imgbar{position:fixed;top:0;left:0;right:0;z-index:9999;background:#0f2a52;color:#fff;padding:7px 14px;display:flex;gap:9px;align-items:center;font-family:'Sarabun',Tahoma,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.25);}
+#imgbar button{font-family:inherit;font-size:13px;font-weight:700;border:none;border-radius:8px;padding:6px 13px;cursor:pointer;}
+#imgbar .b-print{background:#e2e8f0;color:#0f172a;}
+#imgbar .b-img{background:#22c55e;color:#fff;}
+#imgmodal{display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.5);align-items:center;justify-content:center;}
+#imgmodal .box{background:#fff;border-radius:14px;padding:18px 18px 14px;max-width:540px;width:90%;max-height:82vh;overflow:auto;font-family:'Sarabun',Tahoma,sans-serif;}
+#imgmodal button{font-family:inherit;font-size:13px;font-weight:700;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;}
+@media screen{body{padding-top:50px;}}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;padding-top:0!important;}#imgbar,#imgmodal{display:none!important;}}
+</style></head><body>
+<div id="imgbar"><b style="font-size:14px;">📦 สรุปตู้เข้าโรงงาน</b><button class="b-print" onclick="window.print()">🖨 พิมพ์ / PDF</button><button class="b-img" onclick="openImgPick()">🖼 เซฟเป็นรูป</button><span id="imgstat" style="margin-left:auto;font-size:12px;opacity:.9;"></span></div>
+${pages}
+<div id="imgmodal"><div class="box"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><b style="font-size:16px;color:#0f172a;">🖼 เลือกหน้าที่จะเซฟเป็นรูป</b><button onclick="closeImgPick()" style="background:#f1f5f9;color:#334155;">✕</button></div><label style="display:flex;gap:8px;align-items:center;padding:7px 2px;font-size:13px;font-weight:800;color:#0f2a52;cursor:pointer;border-bottom:2px solid #e2e8f0;"><input type="checkbox" id="imgall" checked onclick="_toggleAllImg(this)" style="width:16px;height:16px;">เลือกทั้งหมด</label><div id="imglist"></div><div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;"><button onclick="closeImgPick()" style="background:#f1f5f9;color:#334155;">ยกเลิก</button><button onclick="doSaveImgs()" style="background:#22c55e;color:#fff;">💾 เซฟรูปที่เลือก</button></div></div></div>
+<script>
+function _imgPages(){return Array.prototype.slice.call(document.querySelectorAll('.sheet,.ctrsheet'));}
+function _imgLabel(el){
+  if(el.classList.contains('sheet')){var h=el.querySelector('.hd h1');return h?h.textContent.replace('🏭','').replace('สรุปตู้เข้าโรงงาน','ภาพรวม').replace(/\s+/g,' ').trim():'ภาพรวม';}
+  var b=el.querySelector('.ctrl1 b');return 'ใบแจ้ง '+(b?b.textContent.trim():'');
+}
+function _imgFname(el,i){var s=_imgLabel(el).replace(/[\\\/:*?"<>|·]/g,'-').replace(/\s+/g,' ').trim();return (i+1<10?'0':'')+(i+1)+' '+s;}
+function setImgStat(m){var e=document.getElementById('imgstat');if(e)e.textContent=m;}
+function _toggleAllImg(cb){var ls=document.querySelectorAll('.imgchk');for(var i=0;i<ls.length;i++)ls[i].checked=cb.checked;}
+function openImgPick(){
+  var pgs=_imgPages(),h='';
+  for(var i=0;i<pgs.length;i++){
+    var isFac=pgs[i].classList.contains('sheet');
+    h+='<label style="display:flex;gap:8px;align-items:center;padding:7px 2px;border-bottom:1px solid #eef2f7;font-size:13px;cursor:pointer;"><input type="checkbox" class="imgchk" checked data-i="'+i+'" style="width:16px;height:16px;"><span>'+(isFac?'📊':'📄')+' '+(i+1)+'. '+_imgLabel(pgs[i])+'</span></label>';
+  }
+  document.getElementById('imglist').innerHTML=h;
+  document.getElementById('imgall').checked=true;
+  document.getElementById('imgmodal').style.display='flex';
+}
+function closeImgPick(){document.getElementById('imgmodal').style.display='none';}
+async function doSaveImgs(){
+  var chks=Array.prototype.slice.call(document.querySelectorAll('.imgchk:checked'));
+  if(!chks.length){alert('ยังไม่ได้เลือกหน้า');return;}
+  if(typeof html2canvas!=='function'){alert('โหลดตัวสร้างรูปไม่ได้ — ลองรีเฟรชแล้วกดใหม่');return;}
+  var pgs=_imgPages();closeImgPick();
+  try{if(document.fonts&&document.fonts.ready){await Promise.race([document.fonts.ready,new Promise(function(r){setTimeout(r,3000);})]);}}catch(e){}
+  for(var k=0;k<chks.length;k++){
+    var i=+chks[k].getAttribute('data-i'),el=pgs[i];
+    setImgStat('กำลังสร้างรูป '+(k+1)+'/'+chks.length+'…');
+    try{
+      var cv=await html2canvas(el,{scale:2,backgroundColor:'#ffffff',useCORS:true,logging:false});
+      await new Promise(function(res){cv.toBlob(function(b){
+        if(!b){res();return;}
+        var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=_imgFname(el,i)+'.png';
+        document.body.appendChild(a);a.click();
+        setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();res();},450);
+      },'image/png');});
+    }catch(e){setImgStat('❌ หน้า '+(i+1)+' ผิดพลาด');}
+  }
+  setImgStat('✅ เซฟรูปเสร็จ ('+chks.length+' หน้า)');
+}
+<\/script>
 <script>window.onload=function(){
   document.querySelectorAll('.sheet').forEach(function(sh){
     var fit=sh.querySelector('.fit'); if(!fit)return;
