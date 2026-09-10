@@ -7360,10 +7360,14 @@ function matchContainersTr(allInv,dbMap,trMap){
     const dbRows=lookupDb(normDb,nk);
     const trRecs=trMap[nk]||[];
     const details=dbRows.map(row=>{
-      const matched=trRecs.find(tr=>
-        normStr(tr.container)===normStr(row.เบอร์ตู้)&&
-        normStr(tr.truck)===normStr(row.ทะเบียนรถ)
-      )||null;
+      /* ทะเบียนใน DB อาจมีหลายคันคั่นด้วยจุลภาค (ตู้ LCB จาก LINE เก็บทะเบียนเข้า+ออก)
+         ใบวางบิลมีทะเบียนคันเดียว → แมตช์ถ้า tr.truck ตรงกับคันใดคันหนึ่ง */
+      const _dbPlates=String(row.ทะเบียนรถ||'').split(',').map(normStr).filter(Boolean);
+      const matched=trRecs.find(tr=>{
+        if(normStr(tr.container)!==normStr(row.เบอร์ตู้))return false;
+        const _t=normStr(tr.truck);
+        return _dbPlates.includes(_t)||normStr(row.ทะเบียนรถ)===_t;
+      })||null;
       const prePaid=!matched&&isPrePaidTr(inv.inv);
       const isFacTruck=!matched&&FACTORY_TRUCKS_NORM.has(normTruck(row.ทะเบียนรถ||''));
       const effectiveMatch=matched||(prePaid?{price:0,date:'-',factory:'-',billNo:'ยืนยันแล้ว (ม.ค.2026)',al:'',_prePaid:true}:(isFacTruck?{price:0,date:'-',factory:'-',billNo:'รถโรงงาน',al:'',_factoryTruck:true}:null));
