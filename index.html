@@ -6622,9 +6622,12 @@ function openFacArrange(dates){
     body.appendChild(sec);
   });
   body.querySelectorAll('.facArrList').forEach(el=>{
-    if(window.Sortable) new Sortable(el,{animation:150,draggable:'.facArrItem',ghostClass:'fac-ghost',
-      onEnd:()=>{ FAC_ORDER[el.dataset.fdate]=Array.from(el.querySelectorAll('.facArrItem')).map(x=>x.dataset.inv);
-        el.querySelectorAll('.facArrItem .facArrNo').forEach((n,i)=>n.textContent=i+1); }});
+    if(window.Sortable){
+      const _renum=()=>el.querySelectorAll('.facArrItem .facArrNo').forEach((n,i)=>n.textContent=i+1);
+      new Sortable(el,{animation:150,draggable:'.facArrItem',ghostClass:'fac-ghost',
+        onChange:_renum,   /* เลข 1,2,3 นิ่งตลอดขณะลาก — สลับแค่ลำดับ invoice */
+        onEnd:()=>{ FAC_ORDER[el.dataset.fdate]=Array.from(el.querySelectorAll('.facArrItem')).map(x=>x.dataset.inv); _renum(); }});
+    }
   });
   document.getElementById('facArrangeModal').style.display='flex';
 }
