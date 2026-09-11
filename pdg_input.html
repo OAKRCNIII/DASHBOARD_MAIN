@@ -102,6 +102,24 @@ td input.qty{min-width:70px; text-align:right; font-variant-numeric:tabular-nums
 .pink td.bot{background:#fdf2fd}
 .pink tr.ready td.bot,.pink tr.ready{background:var(--ready)}
 
+/* ── โซน ADD แล้ว ─────────────────────────────────────────── */
+.done .scroll{border-color:#c7d4c9}
+.done thead th{background:#e2ece4; color:#20402a}
+.done thead th span{color:#5c7563}
+.done td.bot{background:#fafbf9}
+.done tr td{color:#3d4239}
+.tiles{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:10px}
+.tile{
+  background:var(--card); border:1px solid var(--line); border-radius:10px;
+  padding:9px 14px; min-width:118px;
+}
+.tile .k{font-size:11.5px; color:var(--dim)}
+.tile .v{font-size:19px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-.01em}
+.daterow td{background:#eef2ec; font-weight:700; font-size:12.5px; color:#33402f}
+.where{font-size:11.5px}
+.where.real{color:var(--accent); font-weight:600}
+.where.sand{color:var(--warn)}
+
 /* ── ท้ายหน้า ─────────────────────────────────────────────── */
 .foot{
   position:fixed; left:0; right:0; bottom:0; z-index:30;
@@ -149,6 +167,15 @@ td input.qty{min-width:70px; text-align:right; font-variant-numeric:tabular-nums
   <div class="scroll"><table id="tp"></table></div>
 </section>
 
+<section class="done">
+  <div class="zone-head">
+    <h2>ADD แล้ว · ไปอยู่ที่ DATABASE</h2>
+    <span class="note">200 ตู้ล่าสุด แบ่งตามวันที่ ADD ซึ่งเป็นวันที่ใช้แยกรีพอร์ต</span>
+  </div>
+  <div class="tiles" id="tiles"></div>
+  <div class="scroll"><table id="td"></table></div>
+</section>
+
 </div>
 
 <div class="foot">
@@ -175,6 +202,7 @@ const COLS = [
 
 let META = {invoices:[], factories:[], live:false};
 let ROWS = [];                 /* แถวจริงจากเซิร์ฟเวอร์ + ค่าที่แก้ในหน้า */
+let DONE = [];                 /* ที่ ADD ไปแล้ว — อ่านอย่างเดียว */
 
 const $   = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
@@ -236,6 +264,63 @@ function rowHtml(r, i){
   </tr>`;
 }
 
+/* ── ADD แล้วไปไหนต่อ ─────────────────────────────────────
+   จัดกลุ่มตามวันที่ ADD เพราะวันนี้แหละคือตัวแบ่งรีพอร์ต
+   ป้ายขวาสุดบอกตรงๆ ว่าลงตาราง containers จริงหรือยังอยู่แค่ในกล่องทดสอบ */
+const thDate = s => s ? new Date(s).toLocaleDateString('th-TH',
+  {day:'numeric', month:'short', year:'2-digit'}) : '—';
+
+function drawDone(){
+  const el = $('#td');
+  if (!DONE.length){
+    el.innerHTML = head() +
+      `<tbody><tr><td colspan="${COLS.length + 1}" class="empty">ยังไม่มีตู้ที่ ADD</td></tr></tbody>`;
+    $('#tiles').innerHTML = '';
+    return;
+  }
+  const byDay = new Map();
+  for (const r of DONE){
+    const k = (r.added_at || '').slice(0, 10);
+    if (!byDay.has(k)) byDay.set(k, []);
+    byDay.get(k).push(r);
+  }
+  const real = DONE.filter(r => r.added_ctr_id).length;
+  const inv = new Set(DONE.map(r => r.invoice_no).filter(Boolean)).size;
+  $('#tiles').innerHTML = [
+    ['ADD แล้วทั้งหมด', DONE.length],
+    ['ลง DATABASE จริง', real],
+    ['ยังอยู่ในกล่องทดสอบ', DONE.length - real],
+    ['อินวอยซ์ที่แตะไปแล้ว', inv],
+    ['วันที่ ADD', byDay.size],
+  ].map(([k, v]) =>
+    `<div class="tile"><div class="k">${esc(k)}</div><div class="v">${v}</div></div>`).join('');
+
+  let body = '';
+  let n = 0;
+  for (const [day, list] of byDay){
+    body += `<tr class="daterow"><td colspan="${COLS.length + 1}">`
+          + `${esc(thDate(day))} · ${list.length} ตู้</td></tr>`;
+    for (const r of list){
+      n++;
+      body += `<tr>
+        <td class="seq">${n}</td>
+        <td>${esc(r.invoice_no)}</td>
+        <td class="bot mono">${esc(r.truck_plate)}</td>
+        <td class="bot num">${esc(r.bundle_count)}</td>
+        <td>${esc(r.factory)}</td>
+        <td class="bot">${esc(thDate(r.factory_date))}</td>
+        <td class="bot">${esc(r.shipping_line)}</td>
+        <td class="bot mono">${esc(r.container_no)}</td>
+        <td class="bot num">${num(r.weight)}</td>
+        <td class="bot mono">${esc(r.cado_no)}</td>
+        <td class="bot"><span class="where ${r.added_ctr_id ? 'real' : 'sand'}">${
+          r.added_ctr_id ? 'containers #' + r.added_ctr_id : 'กล่องทดสอบ'}</span></td>
+      </tr>`;
+    }
+  }
+  el.innerHTML = head() + '<tbody>' + body + '</tbody>';
+}
+
 function draw(){
   const q = ROWS.filter(r => r.state === 'QUEUE');
   const p = ROWS.filter(r => r.state === 'PARKED');
@@ -246,6 +331,7 @@ function draw(){
   };
   fill($('#tq'), q, 'ยังไม่มีตู้เข้ามา ส่งรูปท้ายตู้กับใบ EIR เข้าไลน์บอทได้เลย');
   fill($('#tp'), p, 'ไม่มีตู้ค้างหาง');
+  drawDone();
 
   const done = ROWS.filter(ready).length;
   $('#count').innerHTML =
@@ -283,6 +369,7 @@ async function load(){
       factory_date: r.factory_date || '',
       bundle_count: r.bundle_count == null ? '' : r.bundle_count,
     }));
+    DONE = d.done || [];
     const b = $('#banner');
     b.className = 'banner' + (META.live ? ' live' : '');
     b.innerHTML = META.live
