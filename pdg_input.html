@@ -151,20 +151,21 @@ td input.qty{min-width:70px; text-align:right; font-variant-numeric:tabular-nums
   <span class="count" id="count"></span>
 </div>
 
-<section>
-  <div class="zone-head">
-    <h2>คิวจากไลน์บอท</h2>
-    <span class="note">กรอกครบ 3 ช่อง แล้วกดบันทึก จะเข้า DATABASE</span>
-  </div>
-  <div class="scroll"><table id="tq"></table></div>
-</section>
-
+<!-- ค้างหางอยู่บนสุด — ตู้พวกนี้จอดอยู่หน้าบ้าน รอจัดสรรโรงงาน ต้องเห็นก่อนเพื่อน -->
 <section class="pink">
   <div class="zone-head">
     <h2>พักไว้ · ตู้ค้างหาง</h2>
     <span class="note">รับตู้กลับบ้านแล้ว แต่ยังไม่มีโรงงานให้เข้า ค้างได้ข้ามวันจนกว่าจะจัดสรร</span>
   </div>
   <div class="scroll"><table id="tp"></table></div>
+</section>
+
+<section>
+  <div class="zone-head">
+    <h2>คิวจากไลน์บอท</h2>
+    <span class="note">กรอกครบ 3 ช่อง แล้วกดบันทึก จะเข้า DATABASE</span>
+  </div>
+  <div class="scroll"><table id="tq"></table></div>
 </section>
 
 <section class="done">
@@ -335,7 +336,7 @@ function draw(){
 
   const done = ROWS.filter(ready).length;
   $('#count').innerHTML =
-    `คิว <b>${q.length}</b> · ค้างหาง <b>${p.length}</b> · กรอกครบแล้ว <b>${done}</b>`;
+    `ค้างหาง <b>${p.length}</b> · คิว <b>${q.length}</b> · กรอกครบแล้ว <b>${done}</b>`;
   $('#btnSave').disabled = ROWS.length === 0;
 }
 
