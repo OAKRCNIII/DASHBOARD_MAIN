@@ -147,6 +147,44 @@ button.del:hover{background:#fdeaea; border-color:#c08585}
 .where.real{color:var(--ok); font-weight:600}
 .where.sand{color:var(--warn)}
 
+/* ── กล่องยืนยันการลบ ─────────────────────────────────────
+   ทำเองแทน confirm()+prompt() ของเบราว์เซอร์ ซึ่งหน้าตาคนละเรื่องกับหน้านี้
+   และบางเครื่องบล็อกทิ้งเงียบๆ จนกดลบไม่ได้ */
+.veil{
+  position:fixed; inset:0; z-index:60; display:none;
+  background:rgba(28,31,35,.45); align-items:center; justify-content:center; padding:16px;
+}
+.veil.on{display:flex}
+.dlg{
+  background:var(--paper); border:1px solid #9aa2aa; width:100%; max-width:390px;
+  box-shadow:0 10px 34px rgba(0,0,0,.28);
+}
+.dlg .head{
+  background:var(--bad); color:#fff; padding:7px 13px;
+  font-size:13.5px; font-weight:700;
+}
+.dlg .body{padding:14px 13px 4px}
+.dlg .ctr{
+  font-size:17px; font-weight:700; letter-spacing:.02em; margin:0 0 2px;
+  font-variant-numeric:tabular-nums;
+}
+.dlg .meta{font-size:12px; color:var(--dim); margin-bottom:11px}
+.dlg label{display:block; font-size:12px; font-weight:600; margin-bottom:4px}
+.dlg input{
+  font:inherit; font-size:20px; font-weight:700; letter-spacing:.32em;
+  width:100%; padding:7px 10px; text-align:center;
+  border:1px solid #9aa2aa; border-radius:2px; background:#fff;
+  font-variant-numeric:tabular-nums;
+}
+.dlg input.bad{border-color:var(--bad); background:#fdf3f3}
+.dlg .err{min-height:17px; font-size:12px; color:var(--bad); font-weight:600; padding:3px 1px 0}
+.dlg .foot{
+  display:flex; justify-content:flex-end; gap:8px;
+  padding:5px 13px 13px;
+}
+.dlg button.danger{background:var(--bad); border-color:#8b1616; color:#fff}
+.dlg button.danger:hover{background:#8b1616}
+
 /* ── แถบสถานะล่างจอ ──────────────────────────────────────── */
 .foot{
   position:fixed; left:0; right:0; bottom:0; z-index:30;
@@ -206,6 +244,24 @@ button.del:hover{background:#fdeaea; border-color:#c08585}
 
 <div class="foot">
   <span class="msg" id="msg">—</span>
+</div>
+
+<div class="veil" id="veil">
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgHead">
+    <div class="head" id="dlgHead">ยืนยันการลบ</div>
+    <div class="body">
+      <p class="ctr" id="dlgCtr">—</p>
+      <p class="meta" id="dlgMeta">—</p>
+      <label for="dlgPin">รหัสยืนยัน</label>
+      <input id="dlgPin" type="password" inputmode="numeric" autocomplete="off"
+             maxlength="10" placeholder="••••••">
+      <div class="err" id="dlgErr"></div>
+    </div>
+    <div class="foot">
+      <button id="dlgNo">ยกเลิก</button>
+      <button class="danger" id="dlgYes">ลบออก</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -398,21 +454,55 @@ document.addEventListener('change', onEdit);
 /* ── ลบทั้งบรรทัด — ต้องใส่รหัสยืนยัน ──────────────────────
    รหัสถูกตรวจซ้ำที่เซิร์ฟเวอร์ด้วย หน้าเว็บถามแค่กันเผลอกด
    ไม่ได้ลบทิ้งจริง เปลี่ยนสถานะเป็น VOID สาวกลับได้ว่าใครลบตู้ไหน */
+let _pinResolve = null;
+
+function askPin(row){
+  $('#dlgCtr').textContent = row.container_no || '—';
+  $('#dlgMeta').textContent =
+    [row.cado_no, row.truck_plate, row.invoice_no].filter(Boolean).join(' · ')
+    || 'ตู้จะหายจากหน้านี้ แต่ยังสาวกลับได้ในฐานข้อมูล';
+  const pin = $('#dlgPin');
+  pin.value = ''; pin.classList.remove('bad');
+  $('#dlgErr').textContent = '';
+  $('#veil').classList.add('on');
+  setTimeout(() => pin.focus(), 30);
+  return new Promise(res => { _pinResolve = res; });
+}
+function closePin(val){
+  $('#veil').classList.remove('on');
+  const f = _pinResolve; _pinResolve = null;
+  if (f) f(val);
+}
+$('#dlgNo').onclick = () => closePin(null);
+$('#dlgYes').onclick = () => {
+  const v = $('#dlgPin').value.trim();
+  if (!v){
+    $('#dlgPin').classList.add('bad');
+    $('#dlgErr').textContent = 'ยังไม่ได้ใส่รหัส';
+    $('#dlgPin').focus();
+    return;
+  }
+  closePin(v);
+};
+$('#dlgPin').addEventListener('keydown', e => {
+  if (e.key === 'Enter') $('#dlgYes').click();
+  if (e.key === 'Escape') closePin(null);
+});
+/* คลิกนอกกล่องถือว่ายกเลิก แต่ลากเมาส์ออกมาแล้วปล่อยไม่นับ
+   (เคยเจอปัญหานี้ในหน้าอื่น ลากเลือกข้อความแล้วกล่องเด้งปิด) */
+$('#veil').addEventListener('mousedown', e => { if (e.target === $('#veil')) closePin(null); });
+
 async function delRow(id){
   const r = ROWS.find(x => String(x.id) === String(id));
   if (!r) return;
-  if (!confirm(`ลบตู้ ${r.container_no} ออกจากรายการ?
-
-ตู้จะหายจากหน้านี้ ` +
-               `แต่ยังสาวกลับได้ในฐานข้อมูล`)) return;
-  const pin = prompt(`ใส่รหัสยืนยันการลบ ตู้ ${r.container_no}`);
+  const pin = await askPin(r);
   if (pin === null) return;
 
   $('#msg').className = 'msg'; $('#msg').textContent = 'กำลังลบ…';
   try{
     const res = await fetch(`${API}/del`, {
       method: 'POST', headers: {'content-type': 'application/json'},
-      body: JSON.stringify({id: r.id, pin: pin.trim(), by: $('#who').value.trim()}),
+      body: JSON.stringify({id: r.id, pin, by: $('#who').value.trim()}),
     });
     const d = await res.json();
     if (!res.ok || d.error) throw new Error(d.error || `เซิร์ฟเวอร์ตอบ ${res.status}`);
