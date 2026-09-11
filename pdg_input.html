@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>INPUT ใบยกตู้ สายใต้</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+:root{
+  --bg:#f4f5f1; --card:#ffffff; --ink:#1b1d1a; --dim:#6b7168; --line:#dfe2d9;
+  --accent:#166534; --accent-soft:#e7f1e9;
+  --pink:#ffccff; --pink-line:#e39ae3; --pink-ink:#6b2a6b;
+  --warn:#9a5b00; --warn-soft:#fdf3e2; --bad:#b3261e;
+  --ready:#f2f8f3;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"IBM Plex Sans Thai",system-ui,"Segoe UI",sans-serif;
+  font-size:14px; line-height:1.5;
+}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace; letter-spacing:.01em}
+.wrap{max-width:1360px; margin:0 auto; padding:20px 16px 96px}
+
+/* ── หัวเรื่อง ─────────────────────────────────────────────── */
+header{display:flex; flex-wrap:wrap; align-items:baseline; gap:10px 16px; margin-bottom:4px}
+h1{font-size:21px; font-weight:700; margin:0; letter-spacing:-.01em}
+.sub{color:var(--dim); font-size:13px}
+.banner{
+  display:flex; gap:10px; align-items:flex-start;
+  background:var(--warn-soft); border:1px solid #edd6a8; border-left:4px solid #d9a441;
+  border-radius:8px; padding:10px 14px; margin:14px 0 18px; color:var(--warn); font-size:13px;
+}
+.banner b{color:#7a4700}
+.banner.live{background:var(--accent-soft); border-color:#b9d7c3; border-left-color:var(--accent); color:#14532d}
+
+/* ── แถบเครื่องมือ ─────────────────────────────────────────── */
+.bar{
+  position:sticky; top:0; z-index:20; display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+  background:rgba(244,245,241,.94); backdrop-filter:blur(6px);
+  padding:10px 0; margin-bottom:12px; border-bottom:1px solid var(--line);
+}
+.bar .spacer{flex:1}
+button{
+  font:inherit; font-weight:600; border-radius:8px; border:1px solid var(--line);
+  background:var(--card); color:var(--ink); padding:8px 14px; cursor:pointer;
+}
+button:hover{border-color:#c3c8ba}
+button.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+button.primary:hover{background:#12512a}
+button:disabled{opacity:.5; cursor:not-allowed}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+input.who{
+  font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:8px;
+  background:var(--card); width:150px;
+}
+.count{font-size:13px; color:var(--dim)}
+.count b{color:var(--ink)}
+
+/* ── ตาราง ────────────────────────────────────────────────── */
+section{margin-top:22px}
+.zone-head{display:flex; align-items:baseline; gap:10px; margin-bottom:8px}
+.zone-head h2{font-size:15px; font-weight:700; margin:0}
+.zone-head .note{font-size:12.5px; color:var(--dim)}
+.scroll{overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--card)}
+table{border-collapse:collapse; width:100%; min-width:1180px}
+th,td{padding:7px 9px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle}
+thead th{
+  position:sticky; top:0; background:#eceee7; font-size:11px; font-weight:700;
+  text-transform:uppercase; letter-spacing:.04em; color:#4a5046; white-space:nowrap;
+}
+thead th span{display:block; font-size:11px; font-weight:500; text-transform:none;
+  letter-spacing:0; color:var(--dim)}
+tbody tr:last-child td{border-bottom:none}
+td.seq{color:var(--dim); font-variant-numeric:tabular-nums; width:38px; text-align:right}
+td.num{text-align:right; font-variant-numeric:tabular-nums}
+td.bot{background:#fbfcfa; color:#3d4239}
+tr.ready td.bot{background:var(--ready)}
+tr.ready{background:var(--ready)}
+td.fill{background:#fff}
+td select,td input{
+  font:inherit; width:100%; min-width:92px; padding:5px 6px;
+  border:1px solid #d6dace; border-radius:6px; background:#fff; color:var(--ink);
+}
+td select{min-width:150px}
+td input[type=date]{min-width:132px}
+td input.qty{min-width:70px; text-align:right; font-variant-numeric:tabular-nums}
+.tag{
+  display:inline-block; font-size:11px; font-weight:600; padding:1px 7px;
+  border-radius:999px; background:var(--accent-soft); color:var(--accent);
+}
+.tag.gray{background:#eceee7; color:var(--dim)}
+.empty{padding:26px; text-align:center; color:var(--dim); font-size:13px}
+
+/* ── โซนชมพู — ตู้ค้างหาง ─────────────────────────────────── */
+.pink .scroll{border-color:var(--pink-line)}
+.pink thead th{background:var(--pink); color:var(--pink-ink)}
+.pink thead th span{color:#8a4a8a}
+.pink td.bot{background:#fdf2fd}
+.pink tr.ready td.bot,.pink tr.ready{background:var(--ready)}
+
+/* ── ท้ายหน้า ─────────────────────────────────────────────── */
+.foot{
+  position:fixed; left:0; right:0; bottom:0; z-index:30;
+  background:rgba(255,255,255,.96); border-top:1px solid var(--line);
+  padding:10px 16px; display:flex; gap:12px; align-items:center; justify-content:center;
+  backdrop-filter:blur(6px);
+}
+.foot .msg{font-size:13px; color:var(--dim)}
+.foot .msg.ok{color:var(--accent); font-weight:600}
+.foot .msg.err{color:var(--bad); font-weight:600}
+@media(max-width:640px){ .wrap{padding:14px 10px 96px} h1{font-size:18px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>INPUT ใบยกตู้ · สายใต้</h1>
+  <span class="sub">ตู้ที่ไลน์บอทบันทึกเข้ามา รอกรอกอินวอยซ์ โรงงาน วันเข้าโรงงาน</span>
+</header>
+
+<div class="banner" id="banner">กำลังโหลด…</div>
+
+<div class="bar">
+  <button class="primary" id="btnSave" disabled>บันทึก</button>
+  <button id="btnReload">โหลดใหม่</button>
+  <input class="who" id="who" placeholder="ชื่อผู้บันทึก">
+  <span class="spacer"></span>
+  <span class="count" id="count"></span>
+</div>
+
+<section>
+  <div class="zone-head">
+    <h2>คิวจากไลน์บอท</h2>
+    <span class="note">กรอกครบ 3 ช่อง แล้วกดบันทึก จะเข้า DATABASE</span>
+  </div>
+  <div class="scroll"><table id="tq"></table></div>
+</section>
+
+<section class="pink">
+  <div class="zone-head">
+    <h2>พักไว้ · ตู้ค้างหาง</h2>
+    <span class="note">รับตู้กลับบ้านแล้ว แต่ยังไม่มีโรงงานให้เข้า ค้างได้ข้ามวันจนกว่าจะจัดสรร</span>
+  </div>
+  <div class="scroll"><table id="tp"></table></div>
+</section>
+
+</div>
+
+<div class="foot">
+  <span class="msg" id="msg">—</span>
+</div>
+
+<script>
+const API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-pdg';
+
+/* คอลัมน์เรียงตามตาราง containers ใน Supabase เป๊ะ
+   หัวเป็นชื่อคอลัมน์จริง ใต้หัวเป็นคำไทยที่พนักงานคุ้น */
+const COLS = [
+  ['invoice_no',    'อินวอยซ์'],
+  ['truck_plate',   'ทะเบียน'],
+  ['bundle_count',  'จำนวนมัด'],
+  ['factory',       'โรงงาน'],
+  ['factory_date',  'วันเข้าโรงงาน'],
+  ['shipping_line', 'สายเรือ'],
+  ['container_no',  'เบอร์ตู้'],
+  ['weight',        'น.น.ตู้'],
+  ['cado_no',       'CADO'],
+  ['pickup_date',   'วัน ADD'],
+];
+
+let META = {invoices:[], factories:[], live:false};
+let ROWS = [];                 /* แถวจริงจากเซิร์ฟเวอร์ + ค่าที่แก้ในหน้า */
+
+const $   = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ready = r => !!(r.invoice_no && r.factory && r.factory_date);
+const num = v => v == null || v === '' ? '' : Number(v).toLocaleString('th-TH');
+
+/* ยอดตู้ที่ใบนั้นยังขาด — หักที่กรอกค้างอยู่ในหน้านี้ออกด้วย
+   พนักงานจะเห็นว่าใบไหนใกล้เต็มโดยไม่ต้องเปิดแดชบอร์ดเทียบ */
+function left(no){
+  const v = META.invoices.find(x => x.no === no);
+  if (!v) return 0;
+  const typed = ROWS.filter(r => r.invoice_no === no).length;
+  return Math.max(0, v.total - v.done - typed);
+}
+
+function invOptions(cur){
+  let out = `<option value=""${cur ? '' : ' selected'}>— เลือก —</option>`;
+  for (const v of META.invoices){
+    out += `<option value="${esc(v.no)}"${v.no === cur ? ' selected' : ''}>`
+         + `${esc(v.no)} · เหลือ ${left(v.no)} ตู้</option>`;
+  }
+  /* ใบที่บอทเติมมาแต่ปิดงานไปแล้ว ต้องยังเห็นอยู่ ไม่งั้นค่าหายเงียบ */
+  if (cur && !META.invoices.some(v => v.no === cur))
+    out += `<option value="${esc(cur)}" selected>${esc(cur)} (ปิดงานแล้ว)</option>`;
+  return out;
+}
+
+function facOptions(cur){
+  let out = `<option value=""${cur ? '' : ' selected'}>— เลือก —</option>`;
+  for (const f of META.factories)
+    out += `<option value="${esc(f)}"${f === cur ? ' selected' : ''}>${esc(f)}</option>`;
+  if (cur && !META.factories.includes(cur))
+    out += `<option value="${esc(cur)}" selected>${esc(cur)}</option>`;
+  return out;
+}
+
+function head(){
+  return '<thead><tr><th>#</th>' + COLS.map(([k, th]) =>
+    `<th>${esc(k)}<span>${esc(th)}</span></th>`).join('') + '</tr></thead>';
+}
+
+function rowHtml(r, i){
+  return `<tr class="${ready(r) ? 'ready' : ''}" data-id="${r.id}">
+    <td class="seq">${i + 1}</td>
+    <td class="fill"><select data-f="invoice_no">${invOptions(r.invoice_no)}</select></td>
+    <td class="bot mono">${esc(r.truck_plate)}</td>
+    <td class="fill"><input class="qty" data-f="bundle_count" inputmode="numeric"
+        value="${esc(r.bundle_count)}" placeholder="—"></td>
+    <td class="fill"><select data-f="factory">${facOptions(r.factory)}</select></td>
+    <td class="fill"><input type="date" data-f="factory_date" value="${esc(r.factory_date)}"></td>
+    <td class="bot">${esc(r.shipping_line)}</td>
+    <td class="bot mono">${esc(r.container_no)}</td>
+    <td class="bot num">${num(r.weight)}</td>
+    <td class="bot mono">${esc(r.cado_no)}</td>
+    <td class="bot">${ready(r)
+        ? '<span class="tag">ประทับวันนี้ตอนบันทึก</span>'
+        : '<span class="tag gray">ยังไม่ ADD</span>'}</td>
+  </tr>`;
+}
+
+function draw(){
+  const q = ROWS.filter(r => r.state === 'QUEUE');
+  const p = ROWS.filter(r => r.state === 'PARKED');
+  const fill = (el, list, emptyText) => {
+    el.innerHTML = head() + (list.length
+      ? '<tbody>' + list.map(rowHtml).join('') + '</tbody>'
+      : `<tbody><tr><td colspan="${COLS.length + 1}" class="empty">${emptyText}</td></tr></tbody>`);
+  };
+  fill($('#tq'), q, 'ยังไม่มีตู้เข้ามา ส่งรูปท้ายตู้กับใบ EIR เข้าไลน์บอทได้เลย');
+  fill($('#tp'), p, 'ไม่มีตู้ค้างหาง');
+
+  const done = ROWS.filter(ready).length;
+  $('#count').innerHTML =
+    `คิว <b>${q.length}</b> · ค้างหาง <b>${p.length}</b> · กรอกครบแล้ว <b>${done}</b>`;
+  $('#btnSave').disabled = ROWS.length === 0;
+}
+
+/* แก้ช่องไหนก็อัปเดตในหน่วยความจำทันที แล้ววาดใหม่
+   ต้องวาดใหม่เพราะยอด "เหลือ N ตู้" ของทุกใบเปลี่ยนตาม */
+function onEdit(e){
+  const f = e.target.dataset.f;
+  if (!f) return;
+  const tr = e.target.closest('tr');
+  const r = ROWS.find(x => String(x.id) === tr.dataset.id);
+  if (!r) return;
+  r[f] = e.target.value;
+  const focus = [tr.dataset.id, f];
+  draw();
+  const back = document.querySelector(`tr[data-id="${focus[0]}"] [data-f="${focus[1]}"]`);
+  if (back) back.focus();
+}
+document.addEventListener('change', onEdit);
+
+async function load(){
+  $('#msg').className = 'msg'; $('#msg').textContent = 'กำลังโหลด…';
+  try{
+    const r = await fetch(`${API}/meta`);
+    if (!r.ok) throw new Error(`เซิร์ฟเวอร์ตอบ ${r.status}`);
+    const d = await r.json();
+    META = {invoices: d.invoices || [], factories: d.factories || [], live: !!d.live};
+    ROWS = (d.rows || []).map(r => ({
+      ...r,
+      invoice_no:   r.invoice_no   || '',
+      factory:      r.factory      || '',
+      factory_date: r.factory_date || '',
+      bundle_count: r.bundle_count == null ? '' : r.bundle_count,
+    }));
+    const b = $('#banner');
+    b.className = 'banner' + (META.live ? ' live' : '');
+    b.innerHTML = META.live
+      ? '<b>เปิดใช้งานจริง</b> กดบันทึกแล้วตู้จะถูกเพิ่มเข้า DATABASE ทันที และประทับวัน ADD เป็นวันนี้'
+      : '<b>โหมดทดสอบ</b> กดบันทึกได้ตามปกติ แต่ยังไม่เขียนลง DATABASE จริง '
+        + 'เปิดใช้งานจริงเมื่อสวิตช์ pdg_write_containers ถูกเปลี่ยนเป็น true';
+    draw();
+    $('#msg').textContent = `โหลดแล้ว ${ROWS.length} แถว`;
+  }catch(e){
+    $('#msg').className = 'msg err';
+    $('#msg').textContent = 'โหลดไม่สำเร็จ: ' + e.message;
+  }
+}
+
+async function save(){
+  const btn = $('#btnSave');
+  btn.disabled = true;
+  $('#msg').className = 'msg'; $('#msg').textContent = 'กำลังบันทึก…';
+  try{
+    const r = await fetch(`${API}/save`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        by: $('#who').value.trim(),
+        rows: ROWS.map(x => ({
+          id: x.id, invoice_no: x.invoice_no, factory: x.factory,
+          factory_date: x.factory_date, bundle_count: x.bundle_count,
+        })),
+      }),
+    });
+    const d = await r.json();
+    if (!r.ok || d.error) throw new Error(d.error || `เซิร์ฟเวอร์ตอบ ${r.status}`);
+    $('#msg').className = 'msg ok';
+    $('#msg').textContent =
+      `${d.live ? 'เข้า DATABASE' : 'บันทึก (โหมดทดสอบ)'} ${d.added} แถว · พักไว้ ${d.parked} แถว`
+      + (d.errors?.length ? ` · มีปัญหา ${d.errors.length} แถว: ${d.errors[0]}` : '');
+    localStorage.setItem('pdg_who', $('#who').value.trim());
+    await load();
+  }catch(e){
+    $('#msg').className = 'msg err';
+    $('#msg').textContent = 'บันทึกไม่สำเร็จ: ' + e.message;
+  }finally{ btn.disabled = false; }
+}
+
+$('#btnSave').onclick = save;
+$('#btnReload').onclick = load;
+try{ $('#who').value = localStorage.getItem('pdg_who') || ''; }catch(e){}
+load();
+</script>
+</body>
+</html>
