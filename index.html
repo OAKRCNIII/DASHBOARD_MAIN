@@ -3888,11 +3888,33 @@ async function loadData(forceRefresh=false){
       zone:c.factory_date?'today':'pink',
     }));
 
-  /* ── 5. Build STOCK from bookings ── */
-  const bkgContainers=bkgRows.map(r=>({
-    no:r.bkg_seq||'',bkg:r.bkg_no||'',ctrNum:r.container_no||'',
-    liner:r.liner||'',lockFor:r.lock_for||'',status:r.status||'AVAILABLE',
-  }));
+  /* ── 5. Build STOCK from bookings ──
+     bookings.status ถูกคำนวณตอน sync (ทุก 30 นาที) โดยดูชีต DATABASE ใน Excel
+     ตู้ที่เข้ามาทางไลน์บอทสายใต้เขียนลง containers ตรงๆ ไม่ผ่าน Excel
+     ถ้าเชื่อ status อย่างเดียว สต๊อกจะไม่ลดจนกว่าจะ sync รอบถัดไป
+     → คิดสดจาก containers ด้วย ใช้กุญแจคู่ (เบอร์ตู้ + CADO) ตัวเดียวกับที่ sync ใช้
+       จับเบอร์ตู้อย่างเดียวไม่ได้ ตู้เวียนใช้ซ้ำข้ามรอบได้ (เจอจริง 11 คู่)
+       เช่น OOCU5832787 วิ่งใต้ P88 รอบหนึ่ง แล้ววนกลับมาใต้ P307 อีกรอบ */
+  /* ⚠️ นับเฉพาะตู้ที่ ADD เข้า DATABASE แล้วจริงๆ
+     แถว PENDING คือตู้ที่ยังค้างอยู่ในชีต INPUT ยังไม่ ADD
+     พวกนั้นถูกหักไปแล้วอีกทางหนึ่งผ่าน pendCtrs (ป้ายส้ม ⏳ pending)
+     ถ้านับซ้ำตรงนี้ด้วย สต๊อกจะโดนหักสองเด้ง ตัวเลขจะขาดไปเท่าตัว */
+  const USED_KEYS=new Set();
+  ctrRows.forEach(c=>{
+    if(c.status==='PENDING')return;
+    const ctr=String(c.container_no||'').trim().toUpperCase();
+    const cado=String(c.cado_no||'').trim().toUpperCase();
+    if(ctr&&cado)USED_KEYS.add(ctr+'|'+cado);
+  });
+  const bkgContainers=bkgRows.map(r=>{
+    const key=String(r.container_no||'').trim().toUpperCase()+'|'
+             +String(r.bkg_seq||'').trim().toUpperCase();
+    return{
+      no:r.bkg_seq||'',bkg:r.bkg_no||'',ctrNum:r.container_no||'',
+      liner:r.liner||'',lockFor:r.lock_for||'',
+      status:USED_KEYS.has(key)?'USED':(r.status||'AVAILABLE'),
+    };
+  });
   const gmap={};
   bkgContainers.forEach(c=>{
     const k=c.no||c.bkg;if(!k)return;
