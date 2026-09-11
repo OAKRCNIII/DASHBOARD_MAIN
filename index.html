@@ -4222,6 +4222,8 @@ async function openLoginLog(){
 function _updateLoginLogBtn(){ const b=document.getElementById('loginLogBtn'); if(b)b.style.display=(LOGGED_USER==='OAK_THIRA')?'inline-flex':'none'; }
 function _canSeeFees(){return USER_ROLE==='admin';}
 function _canSeeBilledPaid(){return USER_ROLE==='admin';}
+/* ปุ่มอัปโหลดใบล็อค: admin + PLA (PLA เห็นปุ่มนี้ได้ แต่ไม่เห็นค่าธรรมเนียม/การเงิน) */
+function _canLockUpload(){return _canSeeFees()||LOGGED_USER==='PLA_ANTS';}
 function applyRoleRestrictions(){
   const dashBtn=document.getElementById('dashToggleBtn');
   const debtBtn=document.getElementById('debtDashBtn');
@@ -5098,7 +5100,7 @@ function showInvDetail(id,panelId){
   /* ใบแจ้งเบอร์ตู้ — ทุกอินวอยซ์ หน้ารายงานสลับคอลัมน์ตามท่าเรือให้เอง */
   out+=` <button onclick="openLcbReport('${_invEsc}')" style="padding:6px 14px;background:#1a3a6b;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📄 ใบแจ้งเบอร์ตู้</button>`;
   out+=` <span id="lockBadgeSlot" data-inv="${h(d.inv)}"></span>`;   /* badge 🔒 LOCK เติม async หลังเช็ค Edge */
-  if(_canSeeFees()) out+=` <button onclick="openLockUpload('${_invEsc}')" title="อัปโหลดใบล็อคตู้ (master) ให้บอทอ่านลำดับ" style="padding:6px 14px;background:#6d28d9;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📋 อัปโหลดใบล็อค</button>`;
+  if(_canLockUpload()) out+=` <button onclick="openLockUpload('${_invEsc}')" title="อัปโหลดใบล็อคตู้ (master) ให้บอทอ่านลำดับ" style="padding:6px 14px;background:#6d28d9;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📋 อัปโหลดใบล็อค</button>`;
   /* ── ฝั่งรับข้อมูลเข้า วางไว้ขวาสุดแยกจากปุ่มออกเอกสาร ──
      ปุ่มอื่นคือ "ออก" เอกสาร ปุ่มนี้คือ "รับ" เข้า คนละทิศทางกัน
      ต้องกดปุ่มนี้ก่อน ปุ่มใบ SI ถึงจะใช้ได้ */
