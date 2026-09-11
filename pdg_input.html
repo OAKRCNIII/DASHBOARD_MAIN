@@ -117,6 +117,14 @@ td input.qty{min-width:64px; text-align:right; font-variant-numeric:tabular-nums
 .tag.gray{color:#8a929a; font-weight:400}
 .empty{padding:16px; text-align:center; color:var(--dim); font-size:12px; background:var(--paper)}
 
+td.delcol,th.delcol{width:40px; text-align:center; padding:2px}
+button.del{
+  font-size:12px; font-weight:700; line-height:1;
+  padding:2px 6px; border:1px solid #d9b4b4; border-radius:2px;
+  background:#fff; color:#a61b1b; min-width:0;
+}
+button.del:hover{background:#fdeaea; border-color:#c08585}
+
 /* ── โซนชมพู — ตู้ค้างหาง (สีเดียวกับช่องชมพูในไฟล์ Excel) ── */
 .pink .scroll{border-color:var(--pink-grid)}
 .pink thead th{background:var(--pink); color:var(--pink-ink); border-color:var(--pink-grid)}
@@ -260,8 +268,10 @@ function facOptions(cur){
 
 function head(){
   return '<thead><tr><th>#</th>' + COLS.map(([k, th]) =>
-    `<th>${esc(k)}<span>${esc(th)}</span></th>`).join('') + '</tr></thead>';
+    `<th>${esc(k)}<span>${esc(th)}</span></th>`).join('')
+    + '<th class="delcol">ลบ<span>ใส่รหัส</span></th></tr></thead>';
 }
+const EDIT_COLS = COLS.length + 2;   /* # + คอลัมน์ข้อมูล + ปุ่มลบ */
 
 function rowHtml(r, i){
   return `<tr class="${ready(r) ? 'ready' : ''}" data-id="${r.id}">
@@ -279,6 +289,8 @@ function rowHtml(r, i){
     <td class="bot">${ready(r)
         ? '<span class="tag">ประทับวันนี้ตอนบันทึก</span>'
         : '<span class="tag gray">ยังไม่ ADD</span>'}</td>
+    <td class="delcol"><button class="del" data-del="${r.id}"
+        title="ลบแถวนี้ ต้องใส่รหัสยืนยัน">✕</button></td>
   </tr>`;
 }
 
@@ -355,7 +367,7 @@ function draw(){
   const fill = (el, list, emptyText) => {
     el.innerHTML = head() + (list.length
       ? '<tbody>' + list.map(rowHtml).join('') + '</tbody>'
-      : `<tbody><tr><td colspan="${COLS.length + 1}" class="empty">${emptyText}</td></tr></tbody>`);
+      : `<tbody><tr><td colspan="${EDIT_COLS}" class="empty">${emptyText}</td></tr></tbody>`);
   };
   fill($('#tq'), q, 'ยังไม่มีตู้เข้ามา ส่งรูปท้ายตู้กับใบ EIR เข้าไลน์บอทได้เลย');
   fill($('#tp'), p, 'ไม่มีตู้ค้างหาง');
@@ -382,6 +394,40 @@ function onEdit(e){
   if (back) back.focus();
 }
 document.addEventListener('change', onEdit);
+
+/* ── ลบทั้งบรรทัด — ต้องใส่รหัสยืนยัน ──────────────────────
+   รหัสถูกตรวจซ้ำที่เซิร์ฟเวอร์ด้วย หน้าเว็บถามแค่กันเผลอกด
+   ไม่ได้ลบทิ้งจริง เปลี่ยนสถานะเป็น VOID สาวกลับได้ว่าใครลบตู้ไหน */
+async function delRow(id){
+  const r = ROWS.find(x => String(x.id) === String(id));
+  if (!r) return;
+  if (!confirm(`ลบตู้ ${r.container_no} ออกจากรายการ?
+
+ตู้จะหายจากหน้านี้ ` +
+               `แต่ยังสาวกลับได้ในฐานข้อมูล`)) return;
+  const pin = prompt(`ใส่รหัสยืนยันการลบ ตู้ ${r.container_no}`);
+  if (pin === null) return;
+
+  $('#msg').className = 'msg'; $('#msg').textContent = 'กำลังลบ…';
+  try{
+    const res = await fetch(`${API}/del`, {
+      method: 'POST', headers: {'content-type': 'application/json'},
+      body: JSON.stringify({id: r.id, pin: pin.trim(), by: $('#who').value.trim()}),
+    });
+    const d = await res.json();
+    if (!res.ok || d.error) throw new Error(d.error || `เซิร์ฟเวอร์ตอบ ${res.status}`);
+    $('#msg').className = 'msg ok';
+    $('#msg').textContent = `ลบตู้ ${d.container_no} แล้ว`;
+    await load();
+  }catch(e){
+    $('#msg').className = 'msg err';
+    $('#msg').textContent = 'ลบไม่สำเร็จ: ' + e.message;
+  }
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-del]');
+  if (b) delRow(b.dataset.del);
+});
 
 async function load(){
   $('#msg').className = 'msg'; $('#msg').textContent = 'กำลังโหลด…';
