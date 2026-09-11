@@ -67,6 +67,7 @@ section{margin-top:22px}
 .zone-head .note{font-size:12.5px; color:var(--dim)}
 .scroll{overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--card)}
 table{border-collapse:collapse; width:100%; min-width:1180px}
+.done table{min-width:1300px}
 th,td{padding:7px 9px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle}
 thead th{
   position:sticky; top:0; background:#eceee7; font-size:11px; font-weight:700;
@@ -271,11 +272,20 @@ function rowHtml(r, i){
 const thDate = s => s ? new Date(s).toLocaleDateString('th-TH',
   {day:'numeric', month:'short', year:'2-digit'}) : '—';
 
+/* ตาราง ADD แล้ว มีคอลัมน์เกินมาหนึ่งช่อง = ตู้ไปอยู่ไหนต่อ
+   ห้ามเอาไปทับช่อง pickup_date เพราะช่องนั้นต้องเป็นวันที่จริง */
+const DONE_COLS = COLS.length + 2;
+function doneHead(){
+  return '<thead><tr><th>#</th>' + COLS.map(([k, th]) =>
+    `<th>${esc(k)}<span>${esc(th)}</span></th>`).join('')
+    + '<th>ที่อยู่ตอนนี้<span>เขียนลงตารางจริงหรือยัง</span></th></tr></thead>';
+}
+
 function drawDone(){
   const el = $('#td');
   if (!DONE.length){
-    el.innerHTML = head() +
-      `<tbody><tr><td colspan="${COLS.length + 1}" class="empty">ยังไม่มีตู้ที่ ADD</td></tr></tbody>`;
+    el.innerHTML = doneHead() +
+      `<tbody><tr><td colspan="${DONE_COLS}" class="empty">ยังไม่มีตู้ที่ ADD</td></tr></tbody>`;
     $('#tiles').innerHTML = '';
     return;
   }
@@ -299,8 +309,8 @@ function drawDone(){
   let body = '';
   let n = 0;
   for (const [day, list] of byDay){
-    body += `<tr class="daterow"><td colspan="${COLS.length + 1}">`
-          + `${esc(thDate(day))} · ${list.length} ตู้</td></tr>`;
+    body += `<tr class="daterow"><td colspan="${DONE_COLS}">`
+          + `ADD วันที่ ${esc(thDate(day))} · ${list.length} ตู้</td></tr>`;
     for (const r of list){
       n++;
       body += `<tr>
@@ -314,12 +324,13 @@ function drawDone(){
         <td class="bot mono">${esc(r.container_no)}</td>
         <td class="bot num">${num(r.weight)}</td>
         <td class="bot mono">${esc(r.cado_no)}</td>
-        <td class="bot"><span class="where ${r.added_ctr_id ? 'real' : 'sand'}">${
+        <td class="bot">${esc(thDate(r.added_at))}</td>
+        <td><span class="where ${r.added_ctr_id ? 'real' : 'sand'}">${
           r.added_ctr_id ? 'containers #' + r.added_ctr_id : 'กล่องทดสอบ'}</span></td>
       </tr>`;
     }
   }
-  el.innerHTML = head() + '<tbody>' + body + '</tbody>';
+  el.innerHTML = doneHead() + '<tbody>' + body + '</tbody>';
 }
 
 function draw(){
