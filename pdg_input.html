@@ -252,18 +252,12 @@ td.newrow{background:#fffbe8}
   <div class="scroll"><table id="tq"></table></div>
 </section>
 
-<section class="inv">
-  <div class="zone-head">
-    <h2>อินวอยซ์ — แทนชีต ALL_INV</h2>
-    <span class="note">ทะเบียนใบทั้งหมด ดรอปดาวน์ด้านบนดึงจากตารางนี้</span>
-    <span class="spacer"></span>
-    <label class="chk"><input type="checkbox" id="invAll"> โชว์ใบที่ปล่อยเอกสารแล้วด้วย</label>
-    <button id="btnInvAdd">+ เพิ่มใบ</button>
-    <button class="primary" id="btnInvSave" disabled>บันทึกอินวอยซ์</button>
-  </div>
-  <div class="notice2" id="invNotice"></div>
-  <div class="scroll"><table id="ti"></table></div>
-</section>
+<!-- โซนอินวอยซ์ (แทนชีต ALL_INV) พับเก็บไว้ก่อน — RCN ขอค่อยทำทีหลัง
+     โค้ดฝั่งเซิร์ฟเวอร์ยังอยู่ครบ (Edge line-pdg: GET/POST /inv, POST /inv-del)
+     และฟังก์ชันในหน้านี้ยังอยู่ แค่ไม่มีตารางให้วาด จึงไม่ทำงาน
+     จะเปิดกลับ: เอาคอมเมนต์นี้ออกแล้วคืน <section class="inv"> เดิม + เรียก loadInv()
+     ⚠️ ต้องเพิ่มสวิตช์ app_config.inv_from_web + แก้ sync_excel_to_db.py ให้ข้าม
+        ท่อน ALL_INV ก่อน ไม่งั้นที่แก้ในเว็บจะถูก Excel เขียนทับใน 30 นาที -->
 
 <section class="done">
   <div class="zone-head">
@@ -607,6 +601,7 @@ function invRow(v, i){
 }
 
 function drawInv(){
+  if (!$('#ti')) return;          /* โซนอินวอยซ์ถูกพับเก็บไว้ */
   const showAll = $('#invAll').checked;
   const list = INV.filter(v => v._new || showAll || v.doc_status !== DOC_DONE);
   $('#ti').innerHTML = invHead() + (list.length
@@ -636,8 +631,8 @@ document.addEventListener('change', e => {
   $('#btnInvSave').disabled = false;
 });
 
-$('#invAll').onchange = drawInv;
-$('#btnInvAdd').onclick = () => {
+if ($('#invAll')) $('#invAll').onchange = drawInv;
+if ($('#btnInvAdd')) $('#btnInvAdd').onclick = () => {
   const now = new Date();
   INV.unshift({invoice_no: '', shipping_line: 'OOCL', container_count: '',
     destination: 'NANSHA', customer: '', doc_status: '',
@@ -672,7 +667,7 @@ async function saveInv(){
     btn.disabled = false;
   }
 }
-$('#btnInvSave').onclick = saveInv;
+if ($('#btnInvSave')) $('#btnInvSave').onclick = saveInv;
 
 async function delInv(no){
   const v = INV.find(x => x.invoice_no === no);
@@ -821,7 +816,6 @@ $('#btnDraft').onclick = () => saveDraft(false);
 $('#btnReload').onclick = load;
 try{ $('#who').value = localStorage.getItem('pdg_who') || ''; }catch(e){}
 load();
-loadInv();
 </script>
 </body>
 </html>
