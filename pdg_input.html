@@ -384,20 +384,22 @@ function facOptions(cur){
   return out;
 }
 
+/* จำนวนมัดไม่ได้กรอกตอนยกตู้ — ตัดออกจากตารางที่กรอก ให้เหลือช่องที่ใช้จริง
+   คอลัมน์ยังอยู่ในตาราง "ADD แล้ว" และในตาราง containers ตามเดิม แค่ว่าง */
+const EDIT_FIELDS = COLS.filter(([k]) => k !== 'bundle_count');
+const EDIT_COLS = EDIT_FIELDS.length + 2;   /* # + คอลัมน์ข้อมูล + ปุ่มลบ */
+
 function head(){
-  return '<thead><tr><th>#</th>' + COLS.map(([k, th]) =>
+  return '<thead><tr><th>#</th>' + EDIT_FIELDS.map(([k, th]) =>
     `<th>${esc(k)}<span>${esc(th)}</span></th>`).join('')
     + '<th class="delcol">ลบ<span>ใส่รหัส</span></th></tr></thead>';
 }
-const EDIT_COLS = COLS.length + 2;   /* # + คอลัมน์ข้อมูล + ปุ่มลบ */
 
 function rowHtml(r, i){
   return `<tr class="${ready(r) ? 'ready' : ''}" data-id="${r.id}">
     <td class="seq">${i + 1}</td>
     <td class="fill"><select data-f="invoice_no">${invOptions(r.invoice_no)}</select></td>
     <td class="bot">${botCell(r, 'truck_plate')}</td>
-    <td class="fill"><input class="qty" data-f="bundle_count" inputmode="numeric"
-        value="${esc(r.bundle_count)}" placeholder="—"></td>
     <td class="fill"><select data-f="factory">${facOptions(r.factory)}</select></td>
     <td class="fill"><input type="date" data-f="factory_date" value="${esc(r.factory_date)}"></td>
     <td class="bot">${botCell(r, 'shipping_line')}</td>
