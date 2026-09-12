@@ -344,7 +344,7 @@ const COLS = [
   ['pickup_date',   'วัน ADD'],
 ];
 
-let META = {invoices:[], factories:[], live:false};
+let META = {invoices:[], factories:[], plates:[], live:false};
 let ROWS = [];                 /* แถวจริงจากเซิร์ฟเวอร์ + ค่าที่แก้ในหน้า */
 let DONE = [];                 /* ที่ ADD ไปแล้ว — อ่านอย่างเดียว */
 
@@ -590,12 +590,28 @@ function askPin(row, opt){
   _edit = opt.edit || null;
   if (_edit){
     $('#dlgValLabel').textContent = _edit.label;
-    box.innerHTML = _edit.field === 'shipping_line'
-      ? `<select id="dlgVal">${[...new Set([...LINES, _edit.value].filter(Boolean))]
-          .map(x => `<option value="${esc(x)}"${x === _edit.value ? ' selected' : ''}>${esc(x)}</option>`)
-          .join('')}</select>`
+    /* ช่องไหนมีลิสต์ตายตัว ใช้ดรอปดาวน์ จะได้ไม่พิมพ์ผิด
+       ทะเบียนดึงสดจาก containers ย้อนหลัง 120 วัน รถเข้าออกฝูงก็ตามทัน
+       เผื่อรถคันใหม่ที่ยังไม่เคยวิ่ง มีตัวเลือก "พิมพ์เอง" ท้ายลิสต์ */
+    const pick = (list, cur) =>
+      `<select id="dlgVal">${[...new Set([...list, cur].filter(Boolean))]
+        .map(x => `<option value="${esc(x)}"${x === cur ? ' selected' : ''}>${esc(x)}</option>`)
+        .join('')}<option value="__other">— พิมพ์เอง —</option></select>`;
+
+    box.innerHTML =
+        _edit.field === 'shipping_line' ? pick(LINES, _edit.value)
+      : _edit.field === 'truck_plate'   ? pick(META.plates, _edit.value)
       : `<input id="dlgVal" class="${_edit.field === 'weight' ? 'wt' : ''}"
            value="${esc(_edit.value)}"${_edit.field === 'weight' ? ' inputmode="numeric"' : ''}>`;
+
+    /* เลือก "พิมพ์เอง" → สลับเป็นช่องพิมพ์ทันที */
+    const sel = box.querySelector('select');
+    if (sel) sel.onchange = () => {
+      if (sel.value !== '__other') return;
+      box.innerHTML = `<input id="dlgVal" placeholder="${
+        _edit.field === 'truck_plate' ? '72-2953' : 'พิมพ์ค่าใหม่'}">`;
+      box.querySelector('input').focus();
+    };
     row2.hidden = false;
   }else{
     box.innerHTML = '';
@@ -620,7 +636,9 @@ $('#dlgYes').onclick = () => {
   const v = $('#dlgPin').value.trim();
   if (_edit){
     const nv = String($('#dlgVal').value ?? '').trim();
-    if (!nv){ $('#dlgErr').textContent = 'ยังไม่ได้ใส่ค่าใหม่'; $('#dlgVal').focus(); return; }
+    if (!nv || nv === '__other'){
+      $('#dlgErr').textContent = 'ยังไม่ได้ใส่ค่าใหม่'; $('#dlgVal').focus(); return;
+    }
     if (nv === String(_edit.value ?? '').trim()){
       $('#dlgErr').textContent = 'ค่าเหมือนเดิม ไม่ต้องแก้';
       return;
@@ -845,7 +863,8 @@ async function load(){
     const r = await fetch(`${API}/meta`);
     if (!r.ok) throw new Error(`เซิร์ฟเวอร์ตอบ ${r.status}`);
     const d = await r.json();
-    META = {invoices: d.invoices || [], factories: d.factories || [], live: !!d.live};
+    META = {invoices: d.invoices || [], factories: d.factories || [],
+            plates: d.plates || [], live: !!d.live};
     ROWS = (d.rows || []).map(r => ({
       ...r,
       invoice_no:   r.invoice_no   || '',
