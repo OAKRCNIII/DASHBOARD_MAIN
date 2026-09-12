@@ -117,6 +117,18 @@ td input.qty{min-width:64px; text-align:right; font-variant-numeric:tabular-nums
 .tag.gray{color:#8a929a; font-weight:400}
 .empty{padding:16px; text-align:center; color:var(--dim); font-size:12px; background:var(--paper)}
 
+/* ช่องบอท: ดูเหมือนข้อความธรรมดา จนกว่าจะเอาเมาส์ไปจิ้ม */
+.botf{
+  font:inherit !important; font-size:12.5px !important; width:100%;
+  border:1px solid transparent !important; background:transparent !important;
+  padding:2px 4px !important; height:21px !important; color:#3b424a !important;
+  border-radius:2px;
+}
+.botf:hover{border-color:#c3c8cd !important; background:#fff !important}
+.botf:focus{border-color:var(--blue) !important; background:#fff !important}
+.botf.wt{text-align:right; font-variant-numeric:tabular-nums}
+td.bot:has(.botf){padding:2px 4px}
+
 td.delcol,th.delcol{width:40px; text-align:center; padding:2px}
 button.del{
   font-size:12px; font-weight:700; line-height:1;
@@ -362,15 +374,15 @@ function rowHtml(r, i){
   return `<tr class="${ready(r) ? 'ready' : ''}" data-id="${r.id}">
     <td class="seq">${i + 1}</td>
     <td class="fill"><select data-f="invoice_no">${invOptions(r.invoice_no)}</select></td>
-    <td class="bot">${esc(r.truck_plate)}</td>
+    <td class="bot">${botInput(r, 'truck_plate', 'plate')}</td>
     <td class="fill"><input class="qty" data-f="bundle_count" inputmode="numeric"
         value="${esc(r.bundle_count)}" placeholder="—"></td>
     <td class="fill"><select data-f="factory">${facOptions(r.factory)}</select></td>
     <td class="fill"><input type="date" data-f="factory_date" value="${esc(r.factory_date)}"></td>
-    <td class="bot">${esc(r.shipping_line)}</td>
-    <td class="bot">${esc(r.container_no)}</td>
-    <td class="bot num">${num(r.weight)}</td>
-    <td class="bot">${esc(r.cado_no)}</td>
+    <td class="bot">${botInput(r, 'shipping_line', 'line')}</td>
+    <td class="bot">${botInput(r, 'container_no', 'ctr')}</td>
+    <td class="bot num">${botInput(r, 'weight', 'wt')}</td>
+    <td class="bot">${botInput(r, 'cado_no', 'cado')}</td>
     <td class="bot">${ready(r)
         ? '<span class="tag">ประทับวันนี้ตอน ADD</span>'
         : '<span class="tag gray">ยังไม่ ADD</span>'}</td>
@@ -445,6 +457,68 @@ function drawDone(){
   }
   el.innerHTML = doneHead() + '<tbody>' + body + '</tbody>';
 }
+
+/* ── ช่องที่บอทเติมมา ───────────────────────────────────────
+   ปกติมาจากการอ่านใบ EIR/รูปตู้ ไม่ควรมีใครพิมพ์ทับเล่นๆ
+   แต่บอทอ่านผิดได้จริง (เคสจริง: สายเรือขึ้น FLORENS ซึ่งเป็นเจ้าของตู้
+   ไม่ใช่สายเรือ เพราะไม่มีใบ EIR ให้อ่าน) เลยเปิดให้แก้ได้
+   แก้แล้วต้องใส่รหัสทันที เซิร์ฟเวอร์ตรวจรหัสซ้ำและตรวจค่าที่ใส่ด้วย */
+const LINES = ['OOCL','MSV(ONE LINE)','CU-LINE','COSCO','KMTC(PIXEL)','SSC AGENCY','HEUNG A','CMA','MSC'];
+const BOT_LABEL = {truck_plate:'ทะเบียนหัวลาก', shipping_line:'สายเรือ',
+                   container_no:'เบอร์ตู้', weight:'น.น.ตู้', cado_no:'CADO'};
+
+function botInput(r, field, cls){
+  const v = r[field] ?? '';
+  if (field === 'shipping_line'){
+    const opts = [...new Set([...LINES, v].filter(Boolean))].map(x =>
+      `<option value="${esc(x)}"${x === v ? ' selected' : ''}>${esc(x)}</option>`).join('');
+    return `<select class="botf" data-b="${field}">${opts}</select>`;
+  }
+  const num = field === 'weight' ? ' inputmode="numeric"' : '';
+  return `<input class="botf ${cls}" data-b="${field}" value="${esc(v)}"${num}>`;
+}
+
+/* จำค่าเดิมไว้ก่อนแก้ ถ้าใส่รหัสผิดหรือกดยกเลิกจะได้คืนค่าได้ */
+document.addEventListener('focusin', e => {
+  if (e.target.dataset.b) e.target.dataset.was = e.target.value;
+});
+
+document.addEventListener('change', async e => {
+  const field = e.target.dataset.b;
+  if (!field) return;
+  const el = e.target;
+  const was = el.dataset.was ?? '';
+  const now = el.value.trim();
+  if (now === was.trim()) return;
+
+  const tr = el.closest('tr');
+  const r = ROWS.find(x => String(x.id) === tr.dataset.id);
+  if (!r) return;
+
+  const pin = await askPin(
+    {container_no: r.container_no},
+    {head: 'ยืนยันการแก้ไข', ok: 'บันทึกการแก้',
+     meta: `${BOT_LABEL[field]}:  ${was || '(ว่าง)'}  →  ${now || '(ว่าง)'}`});
+  if (pin === null){ el.value = was; return; }
+
+  $('#msg').className = 'msg'; $('#msg').textContent = 'กำลังแก้…';
+  try{
+    const res = await fetch(`${API}/fix`, {
+      method: 'POST', headers: {'content-type': 'application/json'},
+      body: JSON.stringify({id: r.id, field, value: now, pin, by: $('#who').value.trim()}),
+    });
+    const d = await res.json();
+    if (!res.ok || d.error) throw new Error(d.error || `เซิร์ฟเวอร์ตอบ ${res.status}`);
+    r[field] = d.value;
+    el.dataset.was = String(d.value ?? '');
+    $('#msg').className = 'msg ok';
+    $('#msg').textContent = `แก้ ${BOT_LABEL[field]} เป็น ${d.value} แล้ว`;
+  }catch(err){
+    el.value = was;                       /* เซิร์ฟเวอร์ไม่รับ = คืนค่าเดิม */
+    $('#msg').className = 'msg err';
+    $('#msg').textContent = 'แก้ไม่สำเร็จ: ' + err.message;
+  }
+});
 
 function draw(){
   const q = ROWS.filter(r => r.state === 'QUEUE');
