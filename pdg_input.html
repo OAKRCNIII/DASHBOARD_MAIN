@@ -505,7 +505,7 @@ document.addEventListener('click', async e => {
   if (!r) return;
 
   const res = await askPin({container_no: r.container_no}, {
-    head: `แก้${BOT_LABEL[field]}`, ok: 'บันทึกการแก้',
+    head: `แก้ ${BOT_LABEL[field]}`, ok: 'บันทึกการแก้',
     meta: `ค่าเดิม ${r[field] || '(ว่าง)'}`,
     edit: {field, label: BOT_LABEL[field], value: r[field] ?? ''},
   });
@@ -523,7 +523,7 @@ document.addEventListener('click', async e => {
     r[field] = d.value;
     draw();
     $('#msg').className = 'msg ok';
-    $('#msg').textContent = `แก้${BOT_LABEL[field]}เป็น ${d.value} แล้ว`;
+    $('#msg').textContent = `แก้ ${BOT_LABEL[field]} เป็น ${d.value} แล้ว`;
   }catch(err){
     $('#msg').className = 'msg err';
     $('#msg').textContent = 'แก้ไม่สำเร็จ: ' + err.message;
