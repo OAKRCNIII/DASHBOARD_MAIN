@@ -147,6 +147,22 @@ button.del:hover{background:#fdeaea; border-color:#c08585}
 .where.real{color:var(--ok); font-weight:600}
 .where.sand{color:var(--warn)}
 
+/* ── โซนอินวอยซ์ ──────────────────────────────────────────── */
+.inv .zone-head{border-left-color:#8a6d1f}
+.inv thead th{background:#efe7cf; color:#4a3c12}
+.inv thead th span{color:#6d5c2a}
+.inv table{min-width:1320px}
+.zone-head .spacer{flex:1}
+.zone-head button{font-size:11.5px; padding:2px 9px}
+.chk{font-size:11.5px; color:var(--dim); display:flex; align-items:center; gap:4px}
+.notice2{
+  font-size:11.5px; color:var(--warn); background:var(--warn-bg);
+  border:1px solid var(--warn-line); padding:4px 9px; margin-bottom:5px;
+}
+.notice2:empty{display:none}
+.notice2.ok{color:var(--ok); background:var(--ok-bg); border-color:#9cc0a6}
+td.newrow{background:#fffbe8}
+
 /* ── กล่องยืนยันการลบ ─────────────────────────────────────
    ทำเองแทน confirm()+prompt() ของเบราว์เซอร์ ซึ่งหน้าตาคนละเรื่องกับหน้านี้
    และบางเครื่องบล็อกทิ้งเงียบๆ จนกดลบไม่ได้ */
@@ -234,6 +250,19 @@ button.del:hover{background:#fdeaea; border-color:#c08585}
     <span class="note">กรอกครบ 3 ช่อง แล้วกด ADD DATABASE จะเข้าระบบ</span>
   </div>
   <div class="scroll"><table id="tq"></table></div>
+</section>
+
+<section class="inv">
+  <div class="zone-head">
+    <h2>อินวอยซ์ — แทนชีต ALL_INV</h2>
+    <span class="note">ทะเบียนใบทั้งหมด ดรอปดาวน์ด้านบนดึงจากตารางนี้</span>
+    <span class="spacer"></span>
+    <label class="chk"><input type="checkbox" id="invAll"> โชว์ใบที่ปล่อยเอกสารแล้วด้วย</label>
+    <button id="btnInvAdd">+ เพิ่มใบ</button>
+    <button class="primary" id="btnInvSave" disabled>บันทึกอินวอยซ์</button>
+  </div>
+  <div class="notice2" id="invNotice"></div>
+  <div class="scroll"><table id="ti"></table></div>
 </section>
 
 <section class="done">
@@ -527,6 +556,163 @@ document.addEventListener('click', e => {
   if (b) delRow(b.dataset.del);
 });
 
+/* ══════════════════════════════════════════════════════════
+   อินวอยซ์ — แทนชีต ALL_INV ในไฟล์ใบยกตู้
+   ⚠️ ตราบใดที่สคริปต์ sync ยังอ่านชีต ALL_INV อยู่ ของที่แก้ในนี้จะถูก
+      ค่าจาก Excel เขียนทับภายใน 30 นาที ต้องเปิดสวิตช์ inv_from_web ก่อน
+   ══════════════════════════════════════════════════════════ */
+const INV_COLS = [
+  ['invoice_no',      'อินวอยซ์',   'text'],
+  ['shipping_line',   'สายเรือ',     'text'],
+  ['container_count', 'จำนวนตู้',    'num'],
+  ['destination',     'ปลายทาง',    'text'],
+  ['customer',        'ลูกค้า',      'text'],
+  ['doc_status',      'ปล่อยเอกสาร', 'doc'],
+  ['month',           'เดือน',       'num'],
+  ['year',            'ปี',          'num'],
+  ['vessel',          'เรือ',        'text'],
+  ['notes',           'หมายเหตุ',    'text'],
+];
+const DOC_DONE = 'ปล่อยเอกสารแล้ว';
+let INV = [], INV_WEB = false, _invDirty = false;
+
+function invHead(){
+  return '<thead><tr><th>#</th>'
+    + INV_COLS.map(([k, th]) => `<th>${esc(k)}<span>${esc(th)}</span></th>`).join('')
+    + '<th>ลงแล้ว<span>ตู้ในระบบ</span></th>'
+    + '<th class="delcol">ลบ<span>ใส่รหัส</span></th></tr></thead>';
+}
+
+function invRow(v, i){
+  const cells = INV_COLS.map(([k, , kind]) => {
+    if (kind === 'doc'){
+      return `<td class="fill"><select data-iv="${k}">
+        <option value=""${v.doc_status ? '' : ' selected'}>— ยังไม่ปล่อย —</option>
+        <option value="${esc(DOC_DONE)}"${v.doc_status === DOC_DONE ? ' selected' : ''}>${esc(DOC_DONE)}</option>
+      </select></td>`;
+    }
+    const cls = kind === 'num' ? 'qty' : '';
+    /* เลขใบเป็นกุญแจ แก้ของเดิมไม่ได้ จะกลายเป็นสร้างใบใหม่แทนที่จะแก้ */
+    const lock = k === 'invoice_no' && !v._new ? ' readonly' : '';
+    return `<td class="fill${v._new ? ' newrow' : ''}">
+      <input class="${cls}" data-iv="${k}" value="${esc(v[k] ?? '')}"${lock}></td>`;
+  }).join('');
+  const short = (v.container_count || 0) - (v.done || 0);
+  return `<tr data-inv="${esc(v.invoice_no)}" data-i="${i}">
+    <td class="seq">${i + 1}</td>${cells}
+    <td class="bot num">${v.done || 0}${short > 0 ? ` <span class="tag gray">ขาด ${short}</span>` : ''}</td>
+    <td class="delcol"><button class="del" data-invdel="${esc(v.invoice_no)}"
+        title="ลบใบนี้ ต้องใส่รหัสยืนยัน">✕</button></td>
+  </tr>`;
+}
+
+function drawInv(){
+  const showAll = $('#invAll').checked;
+  const list = INV.filter(v => v._new || showAll || v.doc_status !== DOC_DONE);
+  $('#ti').innerHTML = invHead() + (list.length
+    ? '<tbody>' + list.map((v, i) => invRow(v, i)).join('') + '</tbody>'
+    : `<tbody><tr><td colspan="${INV_COLS.length + 3}" class="empty">ไม่มีใบที่ยังไม่ปล่อยเอกสาร</td></tr></tbody>`);
+  const n = $('#invNotice');
+  if (INV_WEB){
+    n.className = 'notice2 ok';
+    n.textContent = `เว็บเป็นเจ้าของตารางนี้แล้ว · โชว์ ${list.length} ใบ จากทั้งหมด ${INV.length}`;
+  }else{
+    n.className = 'notice2';
+    n.textContent = 'สคริปต์ sync ยังอ่านชีต ALL_INV อยู่ ที่แก้ในนี้จะถูกค่าจาก Excel '
+                  + 'เขียนทับใน 30 นาที — เปิดสวิตช์ inv_from_web ก่อนถึงจะใช้แทนกันได้จริง';
+  }
+  $('#btnInvSave').disabled = !_invDirty;
+}
+
+document.addEventListener('change', e => {
+  const k = e.target.dataset.iv;
+  if (!k) return;
+  const tr = e.target.closest('tr');
+  const v = INV.find(x => x.invoice_no === tr.dataset.inv);
+  if (!v) return;
+  v[k] = e.target.value;
+  if (k === 'invoice_no') tr.dataset.inv = e.target.value;
+  _invDirty = true;
+  $('#btnInvSave').disabled = false;
+});
+
+$('#invAll').onchange = drawInv;
+$('#btnInvAdd').onclick = () => {
+  const now = new Date();
+  INV.unshift({invoice_no: '', shipping_line: 'OOCL', container_count: '',
+    destination: 'NANSHA', customer: '', doc_status: '',
+    month: now.getMonth() + 1, year: now.getFullYear() + 543 - 543, vessel: '',
+    notes: '', done: 0, _new: true});
+  _invDirty = true;
+  drawInv();
+  const first = document.querySelector('#ti [data-iv="invoice_no"]');
+  if (first) first.focus();
+};
+
+async function saveInv(){
+  const btn = $('#btnInvSave');
+  btn.disabled = true;
+  $('#msg').className = 'msg'; $('#msg').textContent = 'กำลังบันทึกอินวอยซ์…';
+  try{
+    const rows = INV.filter(v => String(v.invoice_no || '').trim());
+    const r = await fetch(`${API}/inv`, {
+      method: 'POST', headers: {'content-type': 'application/json'},
+      body: JSON.stringify({rows, by: $('#who').value.trim()}),
+    });
+    const d = await r.json();
+    if (!r.ok || d.error) throw new Error(d.error || `เซิร์ฟเวอร์ตอบ ${r.status}`);
+    $('#msg').className = 'msg ok';
+    $('#msg').textContent = `บันทึกอินวอยซ์ ${d.saved} ใบ`;
+    _invDirty = false;
+    await loadInv();
+    await load();               /* ดรอปดาวน์ด้านบนต้องเห็นใบใหม่ทันที */
+  }catch(e){
+    $('#msg').className = 'msg err';
+    $('#msg').textContent = 'บันทึกอินวอยซ์ไม่สำเร็จ: ' + e.message;
+    btn.disabled = false;
+  }
+}
+$('#btnInvSave').onclick = saveInv;
+
+async function delInv(no){
+  const v = INV.find(x => x.invoice_no === no);
+  if (!v) return;
+  if (v._new){ INV = INV.filter(x => x !== v); drawInv(); return; }
+  const pin = await askPin({container_no: no,
+    cado_no: v.customer, truck_plate: v.destination, invoice_no: `${v.done} ตู้ในระบบ`});
+  if (pin === null) return;
+  try{
+    const r = await fetch(`${API}/inv-del`, {
+      method: 'POST', headers: {'content-type': 'application/json'},
+      body: JSON.stringify({invoice_no: no, pin}),
+    });
+    const d = await r.json();
+    if (!r.ok || d.error) throw new Error(d.error || `เซิร์ฟเวอร์ตอบ ${r.status}`);
+    $('#msg').className = 'msg ok'; $('#msg').textContent = `ลบใบ ${no} แล้ว`;
+    await loadInv();
+  }catch(e){
+    $('#msg').className = 'msg err'; $('#msg').textContent = 'ลบไม่สำเร็จ: ' + e.message;
+  }
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-invdel]');
+  if (b) delInv(b.dataset.invdel);
+});
+
+async function loadInv(){
+  try{
+    const r = await fetch(`${API}/inv`);
+    const d = await r.json();
+    INV = d.invoices || [];
+    INV_WEB = !!d.web_owns;
+    _invDirty = false;
+    drawInv();
+  }catch(e){
+    $('#invNotice').className = 'notice2';
+    $('#invNotice').textContent = 'โหลดอินวอยซ์ไม่ได้: ' + e.message;
+  }
+}
+
 async function load(){
   $('#msg').className = 'msg'; $('#msg').textContent = 'กำลังโหลด…';
   try{
@@ -635,6 +821,7 @@ $('#btnDraft').onclick = () => saveDraft(false);
 $('#btnReload').onclick = load;
 try{ $('#who').value = localStorage.getItem('pdg_who') || ''; }catch(e){}
 load();
+loadInv();
 </script>
 </body>
 </html>
