@@ -211,10 +211,10 @@ button.del:hover{background:#fdeaea; border-color:#c08585}
 <div class="notice" id="banner">กำลังโหลด…</div>
 
 <div class="bar">
-  <button class="primary" id="btnSave" disabled>บันทึก</button>
+  <button class="primary" id="btnSave" disabled>ADD DATABASE</button>
   <button id="btnDraft" disabled>เก็บร่าง</button>
   <button id="btnReload">โหลดใหม่</button>
-  <input class="who" id="who" placeholder="ชื่อผู้บันทึก">
+  <input class="who" id="who" placeholder="ชื่อผู้ ADD">
   <span class="spacer"></span>
   <span class="count" id="count"></span>
 </div>
@@ -231,7 +231,7 @@ button.del:hover{background:#fdeaea; border-color:#c08585}
 <section>
   <div class="zone-head">
     <h2>คิวจากไลน์บอท</h2>
-    <span class="note">กรอกครบ 3 ช่อง แล้วกดบันทึก จะเข้า DATABASE</span>
+    <span class="note">กรอกครบ 3 ช่อง แล้วกด ADD DATABASE จะเข้าระบบ</span>
   </div>
   <div class="scroll"><table id="tq"></table></div>
 </section>
@@ -349,7 +349,7 @@ function rowHtml(r, i){
     <td class="bot num">${num(r.weight)}</td>
     <td class="bot">${esc(r.cado_no)}</td>
     <td class="bot">${ready(r)
-        ? '<span class="tag">ประทับวันนี้ตอนบันทึก</span>'
+        ? '<span class="tag">ประทับวันนี้ตอน ADD</span>'
         : '<span class="tag gray">ยังไม่ ADD</span>'}</td>
     <td class="delcol"><button class="del" data-del="${r.id}"
         title="ลบแถวนี้ ต้องใส่รหัสยืนยัน">✕</button></td>
@@ -545,8 +545,8 @@ async function load(){
     const b = $('#banner');
     b.className = 'notice' + (META.live ? ' live' : '');
     b.innerHTML = META.live
-      ? '<b>เปิดใช้งานจริง</b> กดบันทึกแล้วตู้จะถูกเพิ่มเข้า DATABASE ทันที และประทับวัน ADD เป็นวันนี้'
-      : '<b>โหมดทดสอบ</b> กดบันทึกได้ตามปกติ แต่ยังไม่เขียนลง DATABASE จริง '
+      ? '<b>เปิดใช้งานจริง</b> กด ADD DATABASE แล้วตู้เข้าระบบทันที และประทับวัน ADD เป็นวันนี้'
+      : '<b>โหมดทดสอบ</b> กด ADD DATABASE ได้ตามปกติ แต่ยังไม่เขียนลงจริง '
         + 'เปิดใช้งานจริงเมื่อสวิตช์ pdg_write_containers ถูกเปลี่ยนเป็น true';
     draw();
     $('#msg').textContent = `โหลดแล้ว ${ROWS.length} แถว`;
@@ -603,7 +603,7 @@ addEventListener('beforeunload', e => {
 async function save(){
   const btn = $('#btnSave');
   btn.disabled = true;
-  $('#msg').className = 'msg'; $('#msg').textContent = 'กำลังบันทึก…';
+  $('#msg').className = 'msg'; $('#msg').textContent = 'กำลัง ADD…';
   try{
     const r = await fetch(`${API}/save`, {
       method: 'POST',
@@ -620,7 +620,7 @@ async function save(){
     if (!r.ok || d.error) throw new Error(d.error || `เซิร์ฟเวอร์ตอบ ${r.status}`);
     $('#msg').className = 'msg ok';
     $('#msg').textContent =
-      `${d.live ? 'เข้า DATABASE' : 'บันทึก (โหมดทดสอบ)'} ${d.added} แถว · พักไว้ ${d.parked} แถว`
+      `${d.live ? 'ADD เข้า DATABASE' : 'ADD (โหมดทดสอบ)'} ${d.added} แถว · พักไว้ ${d.parked} แถว`
       + (d.errors?.length ? ` · มีปัญหา ${d.errors.length} แถว: ${d.errors[0]}` : '');
     localStorage.setItem('pdg_who', $('#who').value.trim());
     await load();
