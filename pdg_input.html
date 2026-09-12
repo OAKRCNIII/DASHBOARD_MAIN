@@ -561,11 +561,18 @@ document.addEventListener('change', onEdit);
    ไม่ได้ลบทิ้งจริง เปลี่ยนสถานะเป็น VOID สาวกลับได้ว่าใครลบตู้ไหน */
 let _pinResolve = null;
 
-function askPin(row){
+function askPin(row, opt){
+  opt = opt || {};
+  const edit = !!opt.head;              /* แก้ไข = หัวฟ้า · ลบ = หัวแดง */
+  $('#dlgHead').textContent = opt.head || 'ยืนยันการลบ';
+  $('#dlgHead').style.background = edit ? 'var(--blue)' : '';
+  $('#dlgYes').textContent = opt.ok || 'ลบออก';
+  $('#dlgYes').style.background = edit ? 'var(--blue)' : '';
+  $('#dlgYes').style.borderColor = edit ? 'var(--blue-dk)' : '';
   $('#dlgCtr').textContent = row.container_no || '—';
-  $('#dlgMeta').textContent =
-    [row.cado_no, row.truck_plate, row.invoice_no].filter(Boolean).join(' · ')
-    || 'ตู้จะหายจากหน้านี้ แต่ยังสาวกลับได้ในฐานข้อมูล';
+  $('#dlgMeta').textContent = opt.meta ||
+    ([row.cado_no, row.truck_plate, row.invoice_no].filter(Boolean).join(' · ')
+     || 'ตู้จะหายจากหน้านี้ แต่ยังสาวกลับได้ในฐานข้อมูล');
   const pin = $('#dlgPin');
   pin.value = ''; pin.classList.remove('bad');
   $('#dlgErr').textContent = '';
