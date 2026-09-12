@@ -590,28 +590,30 @@ function askPin(row, opt){
   _edit = opt.edit || null;
   if (_edit){
     $('#dlgValLabel').textContent = _edit.label;
-    /* ช่องไหนมีลิสต์ตายตัว ใช้ดรอปดาวน์ จะได้ไม่พิมพ์ผิด
-       ทะเบียนดึงสดจาก containers ย้อนหลัง 120 วัน รถเข้าออกฝูงก็ตามทัน
-       เผื่อรถคันใหม่ที่ยังไม่เคยวิ่ง มีตัวเลือก "พิมพ์เอง" ท้ายลิสต์ */
-    const pick = (list, cur) =>
-      `<select id="dlgVal">${[...new Set([...list, cur].filter(Boolean))]
-        .map(x => `<option value="${esc(x)}"${x === cur ? ' selected' : ''}>${esc(x)}</option>`)
-        .join('')}<option value="__other">— พิมพ์เอง —</option></select>`;
+    /* ช่องที่มีลิสต์ ใช้ input คู่ datalist แทน select
+       ได้ทั้งสองอย่าง: กดลูกศรเห็นลิสต์ทั้งหมด และพิมพ์เพื่อกรองก็ได้
+       (select เลือกได้อย่างเดียว ลิสต์ 44 คันเลื่อนหาเหนื่อย)
+       รถคันใหม่ที่ยังไม่เคยวิ่งก็พิมพ์ลงไปตรงๆ ได้เลย ไม่ต้องมีตัวเลือกพิเศษ
+       เซิร์ฟเวอร์ตรวจรูปแบบให้อีกชั้นอยู่แล้ว */
+    const combo = (list, cur, ph) =>
+      `<input id="dlgVal" list="dlgList" autocomplete="off" placeholder="${esc(ph)}"
+              value="${esc(cur)}">
+       <datalist id="dlgList">${[...new Set(list.filter(Boolean))]
+         .map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>`;
 
     box.innerHTML =
-        _edit.field === 'shipping_line' ? pick(LINES, _edit.value)
-      : _edit.field === 'truck_plate'   ? pick(META.plates, _edit.value)
+        _edit.field === 'shipping_line' ? combo(LINES, _edit.value, 'เลือกหรือพิมพ์')
+      : _edit.field === 'truck_plate'   ? combo(META.plates, _edit.value, 'เช่น 72-2953')
       : `<input id="dlgVal" class="${_edit.field === 'weight' ? 'wt' : ''}"
            value="${esc(_edit.value)}"${_edit.field === 'weight' ? ' inputmode="numeric"' : ''}>`;
 
-    /* เลือก "พิมพ์เอง" → สลับเป็นช่องพิมพ์ทันที */
-    const sel = box.querySelector('select');
-    if (sel) sel.onchange = () => {
-      if (sel.value !== '__other') return;
-      box.innerHTML = `<input id="dlgVal" placeholder="${
-        _edit.field === 'truck_plate' ? '72-2953' : 'พิมพ์ค่าใหม่'}">`;
-      box.querySelector('input').focus();
-    };
+    /* คลิกเข้าช่องแล้วเลือกข้อความเดิมทั้งหมด พิมพ์ทับได้ทันที
+       และเคาะช่องว่างเปิดลิสต์ให้ด้วย (Chrome เปิดตอนพิมพ์เท่านั้น) */
+    const inp = box.querySelector('input');
+    if (inp && inp.hasAttribute('list')){
+      inp.onfocus = () => inp.select();
+      inp.onmousedown = () => setTimeout(() => { try{ inp.showPicker(); }catch(e){} }, 0);
+    }
     row2.hidden = false;
   }else{
     box.innerHTML = '';
@@ -636,9 +638,7 @@ $('#dlgYes').onclick = () => {
   const v = $('#dlgPin').value.trim();
   if (_edit){
     const nv = String($('#dlgVal').value ?? '').trim();
-    if (!nv || nv === '__other'){
-      $('#dlgErr').textContent = 'ยังไม่ได้ใส่ค่าใหม่'; $('#dlgVal').focus(); return;
-    }
+    if (!nv){ $('#dlgErr').textContent = 'ยังไม่ได้ใส่ค่าใหม่'; $('#dlgVal').focus(); return; }
     if (nv === String(_edit.value ?? '').trim()){
       $('#dlgErr').textContent = 'ค่าเหมือนเดิม ไม่ต้องแก้';
       return;
