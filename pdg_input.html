@@ -117,6 +117,23 @@ td input.qty{min-width:64px; text-align:right; font-variant-numeric:tabular-nums
 .tag.gray{color:#8a929a; font-weight:400}
 .empty{padding:16px; text-align:center; color:var(--dim); font-size:12px; background:var(--paper)}
 
+/* ปุ่มดินสอท้ายช่องที่บอทเติม — กดแล้วเปิดกล่องแก้ */
+td.bot .cell{display:flex; align-items:center; gap:5px; justify-content:space-between}
+td.bot .cell.r{justify-content:flex-end}
+button.pen{
+  font-size:11px; line-height:1; padding:1px 4px; min-width:0;
+  border:1px solid transparent; background:transparent; color:#9aa2aa; border-radius:2px;
+}
+tr:hover button.pen{border-color:#c3c8cd; color:var(--blue); background:#fff}
+button.pen:hover{border-color:var(--blue); color:var(--blue); background:#eef3fa}
+
+#dlgValRow{margin-bottom:11px}
+#dlgValBox input,#dlgValBox select{
+  font:inherit; font-size:15px; font-weight:600; width:100%;
+  padding:6px 9px; border:1px solid #9aa2aa; border-radius:2px; background:#fff;
+}
+#dlgValBox input.wt{text-align:right; font-variant-numeric:tabular-nums}
+
 /* ช่องบอท: ดูเหมือนข้อความธรรมดา จนกว่าจะเอาเมาส์ไปจิ้ม */
 .botf{
   font:inherit !important; font-size:12.5px !important; width:100%;
@@ -293,6 +310,10 @@ td.newrow{background:#fffbe8}
     <div class="body">
       <p class="ctr" id="dlgCtr">—</p>
       <p class="meta" id="dlgMeta">—</p>
+      <div id="dlgValRow" hidden>
+        <label id="dlgValLabel" for="dlgVal">ค่าใหม่</label>
+        <div id="dlgValBox"></div>
+      </div>
       <label for="dlgPin">รหัสยืนยัน</label>
       <input id="dlgPin" type="password" inputmode="numeric" autocomplete="off"
              maxlength="10" placeholder="••••••">
@@ -374,15 +395,15 @@ function rowHtml(r, i){
   return `<tr class="${ready(r) ? 'ready' : ''}" data-id="${r.id}">
     <td class="seq">${i + 1}</td>
     <td class="fill"><select data-f="invoice_no">${invOptions(r.invoice_no)}</select></td>
-    <td class="bot">${botInput(r, 'truck_plate', 'plate')}</td>
+    <td class="bot">${botCell(r, 'truck_plate')}</td>
     <td class="fill"><input class="qty" data-f="bundle_count" inputmode="numeric"
         value="${esc(r.bundle_count)}" placeholder="—"></td>
     <td class="fill"><select data-f="factory">${facOptions(r.factory)}</select></td>
     <td class="fill"><input type="date" data-f="factory_date" value="${esc(r.factory_date)}"></td>
-    <td class="bot">${botInput(r, 'shipping_line', 'line')}</td>
-    <td class="bot">${botInput(r, 'container_no', 'ctr')}</td>
-    <td class="bot num">${botInput(r, 'weight', 'wt')}</td>
-    <td class="bot">${botInput(r, 'cado_no', 'cado')}</td>
+    <td class="bot">${botCell(r, 'shipping_line')}</td>
+    <td class="bot">${botCell(r, 'container_no')}</td>
+    <td class="bot num">${botCell(r, 'weight', true)}</td>
+    <td class="bot">${botCell(r, 'cado_no')}</td>
     <td class="bot">${ready(r)
         ? '<span class="tag">ประทับวันนี้ตอน ADD</span>'
         : '<span class="tag gray">ยังไม่ ADD</span>'}</td>
@@ -467,54 +488,43 @@ const LINES = ['OOCL','MSV(ONE LINE)','CU-LINE','COSCO','KMTC(PIXEL)','SSC AGENC
 const BOT_LABEL = {truck_plate:'ทะเบียนหัวลาก', shipping_line:'สายเรือ',
                    container_no:'เบอร์ตู้', weight:'น.น.ตู้', cado_no:'CADO'};
 
-function botInput(r, field, cls){
+function botCell(r, field, right){
   const v = r[field] ?? '';
-  if (field === 'shipping_line'){
-    const opts = [...new Set([...LINES, v].filter(Boolean))].map(x =>
-      `<option value="${esc(x)}"${x === v ? ' selected' : ''}>${esc(x)}</option>`).join('');
-    return `<select class="botf" data-b="${field}">${opts}</select>`;
-  }
-  const num = field === 'weight' ? ' inputmode="numeric"' : '';
-  return `<input class="botf ${cls}" data-b="${field}" value="${esc(v)}"${num}>`;
+  const shown = field === 'weight' ? num(v) : esc(v);
+  return `<span class="cell${right ? ' r' : ''}"><span>${shown || '—'}</span>` +
+    `<button class="pen" data-edit="${field}" title="แก้ ${esc(BOT_LABEL[field])}">✏️</button></span>`;
 }
 
-/* จำค่าเดิมไว้ก่อนแก้ ถ้าใส่รหัสผิดหรือกดยกเลิกจะได้คืนค่าได้ */
-document.addEventListener('focusin', e => {
-  if (e.target.dataset.b) e.target.dataset.was = e.target.value;
-});
-
-document.addEventListener('change', async e => {
-  const field = e.target.dataset.b;
-  if (!field) return;
-  const el = e.target;
-  const was = el.dataset.was ?? '';
-  const now = el.value.trim();
-  if (now === was.trim()) return;
-
-  const tr = el.closest('tr');
+/* กดดินสอ → กล่องแก้ (ช่องค่าใหม่ + ช่องรหัส อยู่ในกล่องเดียวกัน) */
+document.addEventListener('click', async e => {
+  const btn = e.target.closest('[data-edit]');
+  if (!btn) return;
+  const field = btn.dataset.edit;
+  const tr = btn.closest('tr');
   const r = ROWS.find(x => String(x.id) === tr.dataset.id);
   if (!r) return;
 
-  const pin = await askPin(
-    {container_no: r.container_no},
-    {head: 'ยืนยันการแก้ไข', ok: 'บันทึกการแก้',
-     meta: `${BOT_LABEL[field]}:  ${was || '(ว่าง)'}  →  ${now || '(ว่าง)'}`});
-  if (pin === null){ el.value = was; return; }
+  const res = await askPin({container_no: r.container_no}, {
+    head: `แก้${BOT_LABEL[field]}`, ok: 'บันทึกการแก้',
+    meta: `ค่าเดิม ${r[field] || '(ว่าง)'}`,
+    edit: {field, label: BOT_LABEL[field], value: r[field] ?? ''},
+  });
+  if (res === null) return;
 
   $('#msg').className = 'msg'; $('#msg').textContent = 'กำลังแก้…';
   try{
-    const res = await fetch(`${API}/fix`, {
+    const rs = await fetch(`${API}/fix`, {
       method: 'POST', headers: {'content-type': 'application/json'},
-      body: JSON.stringify({id: r.id, field, value: now, pin, by: $('#who').value.trim()}),
+      body: JSON.stringify({id: r.id, field, value: res.value, pin: res.pin,
+                            by: $('#who').value.trim()}),
     });
-    const d = await res.json();
-    if (!res.ok || d.error) throw new Error(d.error || `เซิร์ฟเวอร์ตอบ ${res.status}`);
+    const d = await rs.json();
+    if (!rs.ok || d.error) throw new Error(d.error || `เซิร์ฟเวอร์ตอบ ${rs.status}`);
     r[field] = d.value;
-    el.dataset.was = String(d.value ?? '');
+    draw();
     $('#msg').className = 'msg ok';
-    $('#msg').textContent = `แก้ ${BOT_LABEL[field]} เป็น ${d.value} แล้ว`;
+    $('#msg').textContent = `แก้${BOT_LABEL[field]}เป็น ${d.value} แล้ว`;
   }catch(err){
-    el.value = was;                       /* เซิร์ฟเวอร์ไม่รับ = คืนค่าเดิม */
     $('#msg').className = 'msg err';
     $('#msg').textContent = 'แก้ไม่สำเร็จ: ' + err.message;
   }
@@ -559,7 +569,7 @@ document.addEventListener('change', onEdit);
 /* ── ลบทั้งบรรทัด — ต้องใส่รหัสยืนยัน ──────────────────────
    รหัสถูกตรวจซ้ำที่เซิร์ฟเวอร์ด้วย หน้าเว็บถามแค่กันเผลอกด
    ไม่ได้ลบทิ้งจริง เปลี่ยนสถานะเป็น VOID สาวกลับได้ว่าใครลบตู้ไหน */
-let _pinResolve = null;
+let _pinResolve = null, _edit = null;
 
 function askPin(row, opt){
   opt = opt || {};
@@ -573,11 +583,29 @@ function askPin(row, opt){
   $('#dlgMeta').textContent = opt.meta ||
     ([row.cado_no, row.truck_plate, row.invoice_no].filter(Boolean).join(' · ')
      || 'ตู้จะหายจากหน้านี้ แต่ยังสาวกลับได้ในฐานข้อมูล');
+  // โหมดแก้ไข: มีช่องค่าใหม่โผล่เหนือช่องรหัส
+  const row2 = $('#dlgValRow'), box = $('#dlgValBox');
+  _edit = opt.edit || null;
+  if (_edit){
+    $('#dlgValLabel').textContent = _edit.label;
+    box.innerHTML = _edit.field === 'shipping_line'
+      ? `<select id="dlgVal">${[...new Set([...LINES, _edit.value].filter(Boolean))]
+          .map(x => `<option value="${esc(x)}"${x === _edit.value ? ' selected' : ''}>${esc(x)}</option>`)
+          .join('')}</select>`
+      : `<input id="dlgVal" class="${_edit.field === 'weight' ? 'wt' : ''}"
+           value="${esc(_edit.value)}"${_edit.field === 'weight' ? ' inputmode="numeric"' : ''}>`;
+    row2.hidden = false;
+  }else{
+    box.innerHTML = '';
+    row2.hidden = true;
+  }
+
   const pin = $('#dlgPin');
   pin.value = ''; pin.classList.remove('bad');
   $('#dlgErr').textContent = '';
   $('#veil').classList.add('on');
-  setTimeout(() => pin.focus(), 30);
+  // โหมดแก้ไขให้เคอร์เซอร์ไปที่ช่องค่าใหม่ก่อน จะได้พิมพ์ต่อได้เลย
+  setTimeout(() => (_edit ? $('#dlgVal') : pin).focus(), 30);
   return new Promise(res => { _pinResolve = res; });
 }
 function closePin(val){
@@ -588,6 +616,22 @@ function closePin(val){
 $('#dlgNo').onclick = () => closePin(null);
 $('#dlgYes').onclick = () => {
   const v = $('#dlgPin').value.trim();
+  if (_edit){
+    const nv = String($('#dlgVal').value ?? '').trim();
+    if (!nv){ $('#dlgErr').textContent = 'ยังไม่ได้ใส่ค่าใหม่'; $('#dlgVal').focus(); return; }
+    if (nv === String(_edit.value ?? '').trim()){
+      $('#dlgErr').textContent = 'ค่าเหมือนเดิม ไม่ต้องแก้';
+      return;
+    }
+    if (!v){
+      $('#dlgPin').classList.add('bad');
+      $('#dlgErr').textContent = 'ยังไม่ได้ใส่รหัส';
+      $('#dlgPin').focus();
+      return;
+    }
+    closePin({value: nv, pin: v});
+    return;
+  }
   if (!v){
     $('#dlgPin').classList.add('bad');
     $('#dlgErr').textContent = 'ยังไม่ได้ใส่รหัส';
@@ -596,6 +640,10 @@ $('#dlgYes').onclick = () => {
   }
   closePin(v);
 };
+$('#dlgValBox').addEventListener('keydown', e => {
+  if (e.key === 'Enter'){ e.preventDefault(); $('#dlgPin').focus(); }
+  if (e.key === 'Escape') closePin(null);
+});
 $('#dlgPin').addEventListener('keydown', e => {
   if (e.key === 'Enter') $('#dlgYes').click();
   if (e.key === 'Escape') closePin(null);
