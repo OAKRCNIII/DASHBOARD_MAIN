@@ -884,20 +884,25 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
       </div>
       <div class="stock-body">
         <div class="stock-left">
-          <div class="stock-lhdr" id="stockHdr">📋 BKG ทั้งหมด</div>
+          <div class="stock-lhdr" style="display:flex;align-items:center;justify-content:space-between;gap:10px;"><span id="stockHdr">📋 BKG ทั้งหมด</span><button onclick="openCadoModal()" style="flex-shrink:0;padding:5px 13px;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap;">📋 CADO ย้อนหลัง</button></div>
           <div class="stock-lbody" id="stockBody"></div>
         </div>
       </div>
-      <!-- CADO ย้อนหลัง — ดูตู้ของแต่ละบุคกิ้ง (P) · อยู่ล่างสุด -->
-      <div style="flex-shrink:0;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:13px 16px;margin:8px 16px 16px;">
-        <div style="font-size:14px;font-weight:800;color:#0f2a52;margin-bottom:9px;">📋 CADO ย้อนหลัง <span style="font-size:11px;font-weight:400;color:#94a3b8;">— ดูตู้ของแต่ละบุคกิ้ง (P)</span></div>
+    </div>
+    <!-- MODAL: CADO ย้อนหลัง -->
+    <div id="cadoModal" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(15,23,42,.5);align-items:center;justify-content:center;padding:20px;">
+      <div style="background:#fff;border-radius:14px;padding:20px 22px;width:780px;max-width:96vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-size:16px;font-weight:800;color:#0f2a52;">📋 CADO ย้อนหลัง <span style="font-size:11px;font-weight:400;color:#94a3b8;">— ดูตู้ของแต่ละบุคกิ้ง (P)</span></div>
+          <button onclick="closeCadoModal()" style="border:none;background:#f1f5f9;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;color:#475569;">✕</button>
+        </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          <input id="cadoHistInp" list="cadoHistList" placeholder="พิมพ์/เลือกเลข CADO เช่น P390" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')cadoHistSearch()" style="flex:1;min-width:180px;max-width:300px;box-sizing:border-box;padding:8px 11px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:14px;color:#0f2a52;outline:none;">
+          <input id="cadoHistInp" list="cadoHistList" placeholder="พิมพ์/เลือกเลข CADO เช่น P390" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')cadoHistSearch()" style="flex:1;min-width:180px;max-width:320px;box-sizing:border-box;padding:8px 11px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:14px;color:#0f2a52;outline:none;">
           <datalist id="cadoHistList"></datalist>
           <button onclick="cadoHistSearch()" style="padding:8px 16px;border:none;background:#1e40af;color:#fff;border-radius:9px;font-weight:700;cursor:pointer;font-size:13px;">🔍 ค้นหา</button>
           <button onclick="cadoHistPrint()" style="padding:8px 16px;border:none;background:#0f2a52;color:#fff;border-radius:9px;font-weight:700;cursor:pointer;font-size:13px;">🖨 ออกรีพอร์ต</button>
         </div>
-        <div id="cadoHistResult" style="margin-top:12px;max-height:42vh;overflow-y:auto;"></div>
+        <div id="cadoHistResult" style="margin-top:14px;overflow-y:auto;flex:1;min-height:80px;"></div>
       </div>
     </div>
     <!-- VESSEL -->
@@ -5439,16 +5444,31 @@ function buildCadoIndex(){
   if(dl) dl.innerHTML=Object.keys(_cadoIdx).sort((a,b)=>(parseInt(a.slice(1))||0)-(parseInt(b.slice(1))||0))
     .map(p=>`<option value="${p}">${p} · ${_cadoIdx[p].length} ตู้</option>`).join('');
 }
+/* ตู้ของ CADO = ทุกตู้ใน booking (STOCK) เรียงตาม master; ตู้ที่ยกแล้วเติมทะเบียน/อินวอยซ์, ยังไม่ยก=เว้นว่าง */
+function getCadoContainers(p){
+  const used={};
+  ((_cadoIdx&&_cadoIdx[p])||[]).forEach(r=>{ used[String(r.ctr||'').trim().toUpperCase()]=r; });
+  const seen=new Set(), out=[];
+  (STOCK.containers||[]).forEach(c=>{
+    if(_cadoPnum(c.no)!==p) return;
+    const cn=String(c.ctrNum||'').trim().toUpperCase(); if(!cn||seen.has(cn))return; seen.add(cn);
+    const u=used[cn];
+    out.push({ctr:c.ctrNum, truck:u?u.truck:'', inv:u?u.inv:'', used:!!u});
+  });
+  ((_cadoIdx&&_cadoIdx[p])||[]).forEach(r=>{ const cn=String(r.ctr||'').trim().toUpperCase(); if(!seen.has(cn)){seen.add(cn); out.push({ctr:r.ctr,truck:r.truck,inv:r.inv,used:true});} });
+  return out;
+}
 function cadoHistSearch(){
   try{ buildCadoIndex(); }catch(e){}
   const raw=(document.getElementById('cadoHistInp').value||'').trim();
   const res=document.getElementById('cadoHistResult'); if(!res)return;
   if(!raw){ res.innerHTML=''; return; }
   const p=_cadoPnum(raw)||raw.toUpperCase();
-  const rows=(_cadoIdx&&_cadoIdx[p])||[];
+  const rows=getCadoContainers(p);
   if(!rows.length){ res.innerHTML=`<div style="padding:12px;color:#94a3b8;font-size:13px;">— ไม่พบ CADO "${h(p)}" (ลองเลือกจากดรอปดาวน์)</div>`; return; }
-  let t=`<div style="font-size:13px;font-weight:800;color:#0f2a52;margin-bottom:8px;">CADO ${h(p)} — ${rows.length} ตู้</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;"><thead><tr style="background:#0f2a52;color:#fff;"><th style="padding:6px 10px;text-align:left;border:1px solid #1e3a5f;">เบอร์ตู้</th><th style="padding:6px 10px;text-align:left;border:1px solid #1e3a5f;">ทะเบียนรถที่ยกตู้</th><th style="padding:6px 10px;text-align:left;border:1px solid #1e3a5f;">โรงงานที่เข้า (อินวอยซ์)</th></tr></thead><tbody>`;
-  rows.forEach((r,i)=>{ t+=`<tr style="background:${i%2?'#f8fafc':'#fff'}"><td style="padding:5px 10px;border:1px solid #e2e8f0;font-family:monospace;font-weight:700;color:#0f172a;">${h(r.ctr)}</td><td style="padding:5px 10px;border:1px solid #e2e8f0;">${h(r.truck)}</td><td style="padding:5px 10px;border:1px solid #e2e8f0;">${h(r.inv)}${r.cado&&_cadoPnum(r.cado)!==r.cado?`<span style="color:#94a3b8;font-size:10px;"> · ${h(r.cado)}</span>`:''}</td></tr>`; });
+  const _u=rows.filter(r=>r.used).length;
+  let t=`<div style="font-size:13px;font-weight:800;color:#0f2a52;margin-bottom:8px;">CADO ${h(p)} — ${rows.length} ตู้${_u<rows.length?` <span style="font-weight:600;color:#c2410c;">(ยกแล้ว ${_u} · เหลือ ${rows.length-_u})</span>`:''}</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;"><thead><tr style="background:#0f2a52;color:#fff;"><th style="padding:6px 10px;text-align:left;border:1px solid #1e3a5f;">เบอร์ตู้</th><th style="padding:6px 10px;text-align:left;border:1px solid #1e3a5f;">ทะเบียนรถที่ยกตู้</th><th style="padding:6px 10px;text-align:left;border:1px solid #1e3a5f;">โรงงานที่เข้า (อินวอยซ์)</th></tr></thead><tbody>`;
+  rows.forEach((r,i)=>{ const bg=r.used?(i%2?'#f8fafc':'#fff'):'#fff7ed'; t+=`<tr style="background:${bg}"><td style="padding:5px 10px;border:1px solid #e2e8f0;font-family:monospace;font-weight:700;color:${r.used?'#0f172a':'#b45309'};">${h(r.ctr)}</td><td style="padding:5px 10px;border:1px solid #e2e8f0;">${h(r.truck)}</td><td style="padding:5px 10px;border:1px solid #e2e8f0;">${h(r.inv)}</td></tr>`; });
   res.innerHTML=t+'</tbody></table></div>';
 }
 /* ออกรีพอร์ต CADO — ฟอร์แมต Booking Acknowledgement (ไม่มีเลข E booking ตามที่ไม่มีข้อมูลบันทึก) */
@@ -5456,7 +5476,7 @@ function cadoHistPrint(){
   try{ buildCadoIndex(); }catch(e){}
   const raw=(document.getElementById('cadoHistInp').value||'').trim();
   const p=_cadoPnum(raw)||raw.toUpperCase();
-  const rows=(_cadoIdx&&_cadoIdx[p])||[];
+  const rows=getCadoContainers(p);
   if(!p||!rows.length){ alert('กรอก/เลือกเลข CADO ที่มีข้อมูลก่อน แล้วค่อยกดออกรีพอร์ต'); return; }
   const meta=(STOCK.containers||[]).find(c=>String(c.no||'').trim().toUpperCase()===p)||{};
   const pip=meta.bkg||'', liner=(meta.liner||'OOCL').toUpperCase(), pick=meta.lockFor||'';
@@ -5507,6 +5527,8 @@ table.ct td.i{width:33%;font-size:15px;}
 </body></html>`;
   w.document.open(); w.document.write(html); w.document.close();
 }
+function openCadoModal(){ try{ buildCadoIndex(); }catch(e){} const m=document.getElementById('cadoModal'); if(m)m.style.display='flex'; setTimeout(()=>{const i=document.getElementById('cadoHistInp'); if(i)i.focus();},60); }
+function closeCadoModal(){ const m=document.getElementById('cadoModal'); if(m)m.style.display='none'; }
 
 function renderStock(){
   try{ buildCadoIndex(); }catch(e){}
