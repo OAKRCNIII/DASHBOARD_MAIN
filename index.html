@@ -895,6 +895,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
           <input id="cadoHistInp" list="cadoHistList" placeholder="พิมพ์/เลือกเลข CADO เช่น P390" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')cadoHistSearch()" style="flex:1;min-width:180px;max-width:300px;box-sizing:border-box;padding:8px 11px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:14px;color:#0f2a52;outline:none;">
           <datalist id="cadoHistList"></datalist>
           <button onclick="cadoHistSearch()" style="padding:8px 16px;border:none;background:#1e40af;color:#fff;border-radius:9px;font-weight:700;cursor:pointer;font-size:13px;">🔍 ค้นหา</button>
+          <button onclick="cadoHistPrint()" style="padding:8px 16px;border:none;background:#0f2a52;color:#fff;border-radius:9px;font-weight:700;cursor:pointer;font-size:13px;">🖨 ออกรีพอร์ต</button>
         </div>
         <div id="cadoHistResult" style="margin-top:12px;max-height:42vh;overflow-y:auto;"></div>
       </div>
@@ -5449,6 +5450,57 @@ function cadoHistSearch(){
   let t=`<div style="font-size:13px;font-weight:800;color:#0f2a52;margin-bottom:8px;">CADO ${h(p)} — ${rows.length} ตู้</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;"><thead><tr style="background:#0f2a52;color:#fff;"><th style="padding:6px 10px;text-align:left;border:1px solid #1e3a5f;">เบอร์ตู้</th><th style="padding:6px 10px;text-align:left;border:1px solid #1e3a5f;">ทะเบียนรถที่ยกตู้</th><th style="padding:6px 10px;text-align:left;border:1px solid #1e3a5f;">โรงงานที่เข้า (อินวอยซ์)</th></tr></thead><tbody>`;
   rows.forEach((r,i)=>{ t+=`<tr style="background:${i%2?'#f8fafc':'#fff'}"><td style="padding:5px 10px;border:1px solid #e2e8f0;font-family:monospace;font-weight:700;color:#0f172a;">${h(r.ctr)}</td><td style="padding:5px 10px;border:1px solid #e2e8f0;">${h(r.truck)}</td><td style="padding:5px 10px;border:1px solid #e2e8f0;">${h(r.inv)}${r.cado&&_cadoPnum(r.cado)!==r.cado?`<span style="color:#94a3b8;font-size:10px;"> · ${h(r.cado)}</span>`:''}</td></tr>`; });
   res.innerHTML=t+'</tbody></table></div>';
+}
+/* ออกรีพอร์ต CADO — ฟอร์แมต Booking Acknowledgement (ไม่มีเลข E booking ตามที่ไม่มีข้อมูลบันทึก) */
+function cadoHistPrint(){
+  try{ buildCadoIndex(); }catch(e){}
+  const raw=(document.getElementById('cadoHistInp').value||'').trim();
+  const p=_cadoPnum(raw)||raw.toUpperCase();
+  const rows=(_cadoIdx&&_cadoIdx[p])||[];
+  if(!p||!rows.length){ alert('กรอก/เลือกเลข CADO ที่มีข้อมูลก่อน แล้วค่อยกดออกรีพอร์ต'); return; }
+  const meta=(STOCK.containers||[]).find(c=>String(c.no||'').trim().toUpperCase()===p)||{};
+  const pip=meta.bkg||'', liner=(meta.liner||'OOCL').toUpperCase(), pick=meta.lockFor||'';
+  const w=window.open('','_blank'); if(!w){ alert('เบราว์เซอร์บล็อก popup — อนุญาต popup ให้เว็บนี้'); return; }
+  const es=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const trs=rows.map((r,i)=>`<tr><td class="n">${i+1}</td><td class="c">${es(r.ctr)}</td><td></td><td></td></tr>`).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>CADO ${es(p)}</title>
+<style>@page{size:A4 portrait;margin:14mm;}*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Arial,'Segoe UI','Sarabun',sans-serif;color:#000;font-size:12px;}
+.hd{display:flex;border:2px solid #000;}
+.hd>div{padding:6px 8px;display:flex;flex-direction:column;justify-content:center;}
+.hd .logo{border-right:2px solid #000;min-width:112px;align-items:center;text-align:center;}
+.hd .logo b{color:#c00000;font-size:22px;letter-spacing:1px;}.hd .logo small{font-style:italic;font-size:7.5px;color:#c00000;}
+.hd .mid{flex:1;border-right:2px solid #000;text-align:center;align-items:center;}.hd .mid .bk{font-weight:700;font-size:13px;}
+.hd .pn{border-right:2px solid #000;min-width:92px;align-items:center;justify-content:center;}.hd .pn b{font-size:26px;}
+.hd .dt{min-width:92px;font-size:9px;justify-content:flex-start;}
+.info{display:flex;justify-content:space-between;margin-top:12px;align-items:flex-start;}
+.info table td{padding:1px 6px;font-size:11px;vertical-align:top;}.info table td.k{font-weight:700;white-space:nowrap;}
+.pipbox{border:3px solid #000;padding:12px 20px;text-align:center;font-weight:800;font-size:24px;line-height:1.15;min-width:130px;}
+.qt{font-weight:700;font-size:12px;margin:16px 0 6px;}
+table.ct{width:100%;border-collapse:collapse;}table.ct td{border:1.4px solid #000;height:30px;padding:0 8px;}
+table.ct td.n{width:74px;text-align:center;font-weight:700;font-size:15px;}
+table.ct td.c{font-weight:700;font-size:18px;letter-spacing:1px;}
+</style></head><body>
+<div class="hd">
+  <div class="logo"><b>${es(liner)}</b><small>We take it personally</small></div>
+  <div class="mid"><div class="bk">Booking Acknowledgement</div></div>
+  <div class="pn"><b>${es(p)}</b></div>
+  <div class="dt"><div>DATE :</div><div style="margin-top:4px;">VERSION NUM</div></div>
+</div>
+<div class="info">
+  <table>
+    <tr><td class="k">BOOKING STATUS :</td><td>Confirmed</td></tr>
+    <tr><td class="k">CUSTOMER :</td><td>A.N.T.S Star Transit Co Ltd</td></tr>
+    <tr><td class="k">DEPOT :</td><td></td></tr>
+    <tr><td class="k">PICK UP :</td><td>${es(pick)}</td></tr>
+  </table>
+  ${pip?`<div class="pipbox">${es(pick||'PIP')}<br>${es(pip)}</div>`:''}
+</div>
+<div class="qt">TOTAL BOOKING CONTAINER QT&nbsp;&nbsp;&nbsp;&nbsp;${rows.length} Container</div>
+<table class="ct">${trs}</table>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+  w.document.open(); w.document.write(html); w.document.close();
 }
 
 function renderStock(){
