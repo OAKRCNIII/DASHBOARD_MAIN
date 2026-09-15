@@ -5462,24 +5462,29 @@ function cadoHistPrint(){
   const pip=meta.bkg||'', liner=(meta.liner||'OOCL').toUpperCase(), pick=meta.lockFor||'';
   const w=window.open('','_blank'); if(!w){ alert('เบราว์เซอร์บล็อก popup — อนุญาต popup ให้เว็บนี้'); return; }
   const es=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const trs=rows.map((r,i)=>`<tr><td class="n">${i+1}</td><td class="c">${es(r.ctr)}</td><td></td><td></td></tr>`).join('');
+  const trs=rows.map((r,i)=>`<tr><td class="n">${i+1}</td><td class="c">${es(r.ctr)}</td><td class="t">${es(r.truck)}</td><td class="i">${es(r.inv)}</td></tr>`).join('');
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>CADO ${es(p)}</title>
-<style>@page{size:A4 portrait;margin:14mm;}*{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:Arial,'Segoe UI','Sarabun',sans-serif;color:#000;font-size:12px;}
-.hd{display:flex;border:2px solid #000;}
-.hd>div{padding:6px 8px;display:flex;flex-direction:column;justify-content:center;}
-.hd .logo{border-right:2px solid #000;min-width:112px;align-items:center;text-align:center;}
-.hd .logo b{color:#c00000;font-size:22px;letter-spacing:1px;}.hd .logo small{font-style:italic;font-size:7.5px;color:#c00000;}
-.hd .mid{flex:1;border-right:2px solid #000;text-align:center;align-items:center;}.hd .mid .bk{font-weight:700;font-size:13px;}
-.hd .pn{border-right:2px solid #000;min-width:92px;align-items:center;justify-content:center;}.hd .pn b{font-size:26px;}
-.hd .dt{min-width:92px;font-size:9px;justify-content:flex-start;}
-.info{display:flex;justify-content:space-between;margin-top:12px;align-items:flex-start;}
-.info table td{padding:1px 6px;font-size:11px;vertical-align:top;}.info table td.k{font-weight:700;white-space:nowrap;}
-.pipbox{border:3px solid #000;padding:12px 20px;text-align:center;font-weight:800;font-size:24px;line-height:1.15;min-width:130px;}
-.qt{font-weight:700;font-size:12px;margin:16px 0 6px;}
-table.ct{width:100%;border-collapse:collapse;}table.ct td{border:1.4px solid #000;height:30px;padding:0 8px;}
-table.ct td.n{width:74px;text-align:center;font-weight:700;font-size:15px;}
-table.ct td.c{font-weight:700;font-size:18px;letter-spacing:1px;}
+<style>@page{size:A4 portrait;margin:13mm;}*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Arial,'Segoe UI','Sarabun',sans-serif;color:#000;font-size:13px;}
+.hd{display:flex;border:2.5px solid #000;}
+.hd>div{padding:8px 10px;display:flex;flex-direction:column;justify-content:center;}
+.hd .logo{border-right:2.5px solid #000;min-width:132px;align-items:center;text-align:center;}
+.hd .logo b{color:#c00000;font-size:27px;letter-spacing:1px;}.hd .logo small{font-style:italic;font-size:8px;color:#c00000;}
+.hd .mid{flex:1;border-right:2.5px solid #000;text-align:center;align-items:center;}.hd .mid .bk{font-weight:700;font-size:16px;}
+.hd .pn{border-right:2.5px solid #000;min-width:104px;align-items:center;justify-content:center;}.hd .pn b{font-size:33px;}
+.hd .dt{min-width:104px;font-size:10px;justify-content:flex-start;}
+.info{display:flex;justify-content:space-between;margin-top:18px;align-items:flex-start;}
+.info table td{padding:3px 8px;font-size:13.5px;vertical-align:top;}.info table td.k{font-weight:700;white-space:nowrap;}
+.pipbox{border:3px solid #000;padding:16px 30px;text-align:center;font-weight:800;font-size:28px;min-width:130px;}
+.qt{font-weight:700;font-size:14px;margin:22px 0 9px;}
+table.ct{width:100%;border-collapse:collapse;}
+table.ct th,table.ct td{border:1.6px solid #000;padding:0 10px;}
+table.ct th{background:#e8edf2;font-size:13px;font-weight:700;padding:9px 10px;text-transform:uppercase;letter-spacing:.4px;}
+table.ct td{height:12.5mm;}
+table.ct td.n{width:9%;text-align:center;font-weight:700;font-size:18px;}
+table.ct td.c{width:33%;font-weight:700;font-size:20px;letter-spacing:1px;font-family:'Courier New',monospace;}
+table.ct td.t{width:25%;font-size:15px;}
+table.ct td.i{width:33%;font-size:15px;}
 </style></head><body>
 <div class="hd">
   <div class="logo"><b>${es(liner)}</b><small>We take it personally</small></div>
@@ -5497,7 +5502,7 @@ table.ct td.c{font-weight:700;font-size:18px;letter-spacing:1px;}
   ${pick?`<div class="pipbox">${es(pick)}</div>`:''}
 </div>
 <div class="qt">TOTAL BOOKING CONTAINER QT&nbsp;&nbsp;&nbsp;&nbsp;${rows.length} Container</div>
-<table class="ct">${trs}</table>
+<table class="ct"><thead><tr><th class="n">ลำดับ</th><th>เบอร์ตู้</th><th>ทะเบียนรถ</th><th>อินวอยซ์</th></tr></thead><tbody>${trs}</tbody></table>
 <script>window.onload=function(){window.print();}<\/script>
 </body></html>`;
   w.document.open(); w.document.write(html); w.document.close();
