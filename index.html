@@ -5494,7 +5494,7 @@ table.ct td.c{font-weight:700;font-size:18px;letter-spacing:1px;}
     <tr><td class="k">DEPOT :</td><td></td></tr>
     <tr><td class="k">PICK UP :</td><td>${es(pick)}</td></tr>
   </table>
-  ${pip?`<div class="pipbox">${es(pick||'PIP')}<br>${es(pip)}</div>`:''}
+  ${pick?`<div class="pipbox">${es(pick)}</div>`:''}
 </div>
 <div class="qt">TOTAL BOOKING CONTAINER QT&nbsp;&nbsp;&nbsp;&nbsp;${rows.length} Container</div>
 <table class="ct">${trs}</table>
