@@ -5481,10 +5481,11 @@ function cadoHistSearch(){
   res.innerHTML=t+'</tbody></table></div>';
 }
 /* ออกรีพอร์ต CADO — ฟอร์แมต Booking Acknowledgement (ไม่มีเลข E booking ตามที่ไม่มีข้อมูลบันทึก) */
-function cadoHistPrint(){
+function cadoHistPrint(pArg){
   try{ buildCadoIndex(); }catch(e){}
-  const raw=(document.getElementById('cadoHistInp').value||'').trim();
-  const p=_cadoPnum(raw)||raw.toUpperCase();
+  let p;
+  if(pArg){ p=_cadoPnum(pArg)||String(pArg).trim().toUpperCase(); }
+  else { const raw=(document.getElementById('cadoHistInp').value||'').trim(); p=_cadoPnum(raw)||raw.toUpperCase(); }
   const rows=getCadoContainers(p);
   if(!p||!rows.length){ alert('กรอก/เลือกเลข CADO ที่มีข้อมูลก่อน แล้วค่อยกดออกรีพอร์ต'); return; }
   const meta=(STOCK.containers||[]).find(c=>String(c.no||'').trim().toUpperCase()===p)||{};
@@ -5574,7 +5575,7 @@ function renderPendCtrs(){
 }
 function selBkg(no){
   const b=STOCK.groups.find(g=>g.no===no);if(!b)return;
-  document.getElementById('bkgModalTitle').innerHTML=`BKG: ${h(no)} ${lockBadge(b.lockFor)} <span style="font-size:11px;font-weight:400;color:#64748b;">${h(b.liner)}</span>`;
+  document.getElementById('bkgModalTitle').innerHTML=`BKG: ${h(no)} ${lockBadge(b.lockFor)} <span style="font-size:11px;font-weight:400;color:#64748b;">${h(b.liner)}</span>${_cadoPnum(no)?` <button onclick="cadoHistPrint('${_cadoPnum(no)}')" style="margin-left:10px;padding:5px 13px;border:none;background:#0f2a52;color:#fff;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;">🖨 ออกรีพอร์ต</button>`:''}`;
   const bkgSet=new Set(b.containers.map(c=>c.ctrNum.trim().toUpperCase()));
   const pend=PEND_CTRS.filter(p=>bkgSet.has(p.ctr.trim().toUpperCase()));
   const pendSet=new Set(pend.map(p=>p.ctr.trim().toUpperCase()));
