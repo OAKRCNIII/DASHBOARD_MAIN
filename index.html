@@ -5440,9 +5440,18 @@ function buildCadoIndex(){
       (_cadoIdx[p]=_cadoIdx[p]||[]).push({ctr:r['เบอร์ตู้']||'', truck:r['ทะเบียนรถ']||'', inv, cado:r.CADO||''});
     });
   });
+  /* รวม P-number จาก booking (STOCK) ด้วย → CADO ที่ยังไม่ถูกใช้เลย (ไม่มีตู้เข้า) ก็ขึ้น dropdown */
+  const totalByP={}, seenByP={};
+  (STOCK.containers||[]).forEach(c=>{
+    const p=_cadoPnum(c.no); if(!p)return;
+    const cn=String(c.ctrNum||'').trim().toUpperCase(); if(!cn)return;
+    (seenByP[p]=seenByP[p]||new Set());
+    if(!seenByP[p].has(cn)){ seenByP[p].add(cn); totalByP[p]=(totalByP[p]||0)+1; }
+  });
+  const allP=new Set([...Object.keys(_cadoIdx), ...Object.keys(totalByP)]);
   const dl=document.getElementById('cadoHistList');
-  if(dl) dl.innerHTML=Object.keys(_cadoIdx).sort((a,b)=>(parseInt(a.slice(1))||0)-(parseInt(b.slice(1))||0))
-    .map(p=>`<option value="${p}">${p} · ${_cadoIdx[p].length} ตู้</option>`).join('');
+  if(dl) dl.innerHTML=[...allP].sort((a,b)=>(parseInt(a.slice(1))||0)-(parseInt(b.slice(1))||0))
+    .map(p=>`<option value="${p}">${p} · ${totalByP[p]||(_cadoIdx[p]?_cadoIdx[p].length:0)} ตู้</option>`).join('');
 }
 /* ตู้ของ CADO = ทุกตู้ใน booking (STOCK) เรียงตาม master; ตู้ที่ยกแล้วเติมทะเบียน/อินวอยซ์, ยังไม่ยก=เว้นว่าง */
 function getCadoContainers(p){
