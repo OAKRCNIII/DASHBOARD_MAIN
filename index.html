@@ -878,16 +878,6 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     </div>
     <!-- STOCK -->
     <div class="view stock-view" id="stockView">
-      <!-- CADO ย้อนหลัง — ดูตู้ของแต่ละบุคกิ้ง (P) -->
-      <div style="flex-shrink:0;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:13px 16px;margin:12px 16px 4px;">
-        <div style="font-size:14px;font-weight:800;color:#0f2a52;margin-bottom:9px;">📋 CADO ย้อนหลัง <span style="font-size:11px;font-weight:400;color:#94a3b8;">— ดูตู้ของแต่ละบุคกิ้ง (P)</span></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          <input id="cadoHistInp" list="cadoHistList" placeholder="พิมพ์/เลือกเลข CADO เช่น P390" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')cadoHistSearch()" style="flex:1;min-width:180px;max-width:300px;box-sizing:border-box;padding:8px 11px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:14px;color:#0f2a52;outline:none;">
-          <datalist id="cadoHistList"></datalist>
-          <button onclick="cadoHistSearch()" style="padding:8px 16px;border:none;background:#1e40af;color:#fff;border-radius:9px;font-weight:700;cursor:pointer;font-size:13px;">🔍 ค้นหา</button>
-        </div>
-        <div id="cadoHistResult" style="margin-top:12px;"></div>
-      </div>
       <div class="pend-panel" id="pendPanel" style="display:none">
         <div class="pend-panel-hdr">🚛 กำลังใช้งาน (ตู้ใน INPUT ยังไม่ถึง DATABASE)<span class="pc" id="pendCount">0</span><span style="margin-left:auto;font-size:10px;font-weight:400;color:#b45309;">← เลื่อนดูทั้งหมด</span></div>
         <div class="pend-scroll" id="pendScroll"></div>
@@ -897,6 +887,16 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
           <div class="stock-lhdr" id="stockHdr">📋 BKG ทั้งหมด</div>
           <div class="stock-lbody" id="stockBody"></div>
         </div>
+      </div>
+      <!-- CADO ย้อนหลัง — ดูตู้ของแต่ละบุคกิ้ง (P) · อยู่ล่างสุด -->
+      <div style="flex-shrink:0;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:13px 16px;margin:8px 16px 16px;">
+        <div style="font-size:14px;font-weight:800;color:#0f2a52;margin-bottom:9px;">📋 CADO ย้อนหลัง <span style="font-size:11px;font-weight:400;color:#94a3b8;">— ดูตู้ของแต่ละบุคกิ้ง (P)</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <input id="cadoHistInp" list="cadoHistList" placeholder="พิมพ์/เลือกเลข CADO เช่น P390" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')cadoHistSearch()" style="flex:1;min-width:180px;max-width:300px;box-sizing:border-box;padding:8px 11px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:14px;color:#0f2a52;outline:none;">
+          <datalist id="cadoHistList"></datalist>
+          <button onclick="cadoHistSearch()" style="padding:8px 16px;border:none;background:#1e40af;color:#fff;border-radius:9px;font-weight:700;cursor:pointer;font-size:13px;">🔍 ค้นหา</button>
+        </div>
+        <div id="cadoHistResult" style="margin-top:12px;max-height:42vh;overflow-y:auto;"></div>
       </div>
     </div>
     <!-- VESSEL -->
