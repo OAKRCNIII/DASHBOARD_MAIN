@@ -6574,7 +6574,7 @@ function renderFactory(){
         const trucks=im[inv][fd]||[];
         const isT=fd===todayFmt,isTm=fd===tomFmt;
         const col=isT?'color:#16a34a;font-weight:600;':isTm?'color:#1d4ed8;font-weight:600;':'color:#475569;';
-        inv_html+=trucks.length?`<td class="ftrk-cell" style="${col}vertical-align:top;">${trucks.map(t=>`${h(t.truck)}${t.fac&&t.fac!=='-'&&!/^[?？]+$/.test(t.fac)?` <span style="color:#6d28d9;font-size:9px;font-weight:600;">(${h(t.fac)})</span>`:''}${t.ctr?` <span style="font-family:monospace;font-size:9px;color:#94a3b8;">${h(t.ctr)}</span>`:''}`).join('<br>')}</td>`:`<td class="ftrk-cell" style="text-align:center;color:#cbd5e1;vertical-align:top;">—</td>`;
+        inv_html+=trucks.length?`<td class="ftrk-cell" style="${col}vertical-align:top;">${trucks.map(t=>`${h(t.truck)}${t.ctr?` <span style="font-family:monospace;font-size:9px;color:#94a3b8;">${h(t.ctr)}</span>`:''}`).join('<br>')}</td>`:`<td class="ftrk-cell" style="text-align:center;color:#cbd5e1;vertical-align:top;">—</td>`;
       });
       inv_html+=`</tr>`;
     });
