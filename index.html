@@ -1418,52 +1418,85 @@ const sbFetch = async (table, params = '') => {
   return all;
 };
 /* ══════════════════════════════════════════════════════════════
-   ป้าย "แหลมฉบัง" ต่ออินวอยซ์
-   เก็บใน table lcb_invoices — บอท LINE (ANTS-LCB-CTN) อ่านตารางนี้
-   ไปทำตัวเลือกอินวอยซ์ตอนบันทึกตู้จากรูปถ่าย
+   ท่าเรือต่ออินวอยซ์ — 3 ท่า: ปาดัง / แหลมฉบัง / สงขลา
+   เก็บใน invoices.port (migrate_18)
+   LCB_INV ยังคงไว้ เพราะโค้ดเดิมกว่า 20 จุดเช็คแหลมฉบังผ่าน Set นี้
+   บอท ANTS-LCB-CTN อ่าน lcb_invoices ซึ่ง trigger ในฐานข้อมูลเติม/ลบให้ตาม port เอง
    ══════════════════════════════════════════════════════════════ */
 const LCB_DEFAULT_FACTORY = 'บ้านส้อง';
-let LCB_INV = new Set();          /* invoice_no ที่เป็นแหลมฉบัง */
+const PORTS = {
+  PADANG:   {icon:'🚚', th:'ปาดัง',    bd:'#cbd5e1', bg:'#f8fafc', tx:'#475569'},
+  LCB:      {icon:'⚓', th:'แหลมฉบัง', bd:'#f9a8d4', bg:'#fdf2f8', tx:'#9d174d'},
+  SONGKHLA: {icon:'🛳️', th:'สงขลา',    bd:'#93c5fd', bg:'#eff6ff', tx:'#1d4ed8'},
+};
+let LCB_INV  = new Set();         /* invoice_no ที่เป็นแหลมฉบัง */
+let PORT_OF  = new Map();         /* invoice_no → port เก็บเฉพาะที่ไม่ใช่ PADANG */
+let _PORT_COL = true;             /* false = ยังไม่รัน migrate_18 → ถอยไปใช้ lcb_invoices แบบเดิม */
+const portOf = inv => PORT_OF.get(String(inv).trim()) || 'PADANG';
+const _syncLcbSet = () => {
+  LCB_INV = new Set([...PORT_OF].filter(([, p]) => p === 'LCB').map(([k]) => k));
+};
 
 async function loadLcbInv(){
   try{
-    const rows = await sbFetch('lcb_invoices','select=invoice_no');
-    LCB_INV = new Set(rows.map(r=>String(r.invoice_no).trim()));
-  }catch(e){ console.warn('โหลดป้ายแหลมฉบังไม่ได้:', e.message); }
+    const rows = await sbFetch('invoices','select=invoice_no,port&port=neq.PADANG');
+    PORT_OF = new Map(rows.map(r => [String(r.invoice_no).trim(), r.port]));
+    _PORT_COL = true;
+  }catch(e){
+    /* คอลัมน์ port ยังไม่มี (ยังไม่รัน migrate_18) — ใช้ lcb_invoices แบบเดิมไปก่อน
+       ห้ามให้แดชบอร์ดพังเพราะ deploy โค้ดก่อนรัน SQL (เคยเจอแล้วกับ sheet_deduct) */
+    _PORT_COL = false;
+    try{
+      const rows = await sbFetch('lcb_invoices','select=invoice_no');
+      PORT_OF = new Map(rows.map(r => [String(r.invoice_no).trim(), 'LCB']));
+    }catch(e2){ console.warn('โหลดท่าเรือไม่ได้:', e2.message); }
+  }
+  _syncLcbSet();
 }
 
-/* กดสวิตช์ต้องใส่ PIN ก่อน — กันเผลอกดโดนแล้วบอท LINE เห็นอินวอยซ์ผิดใบ */
-function toggleLcb(rawInv, btn){
+/* กดเปลี่ยนท่าต้องใส่ PIN ก่อน — กันเผลอกดโดนแล้วบอท LINE เห็นอินวอยซ์ผิดใบ */
+function setPort(rawInv, port, btn){
   const inv = String(rawInv).trim();
-  const on  = LCB_INV.has(inv);
-  requirePin(
-    ()=>_doToggleLcb(inv, btn),
-    on ? `ยืนยันเปลี่ยน ${inv} กลับเป็น ปาดัง`
-       : `ยืนยันเปลี่ยน ${inv} เป็น แหลมฉบัง`
-  );
+  if (portOf(inv) === port) return;
+  if (port === 'SONGKHLA' && !_PORT_COL){
+    alert('ยังเปิดท่าสงขลาไม่ได้ ต้องรัน SQL migrate_18 ก่อน');
+    return;
+  }
+  requirePin(() => _doSetPort(inv, port, btn),
+             `ยืนยันเปลี่ยน ${inv} เป็นท่า ${PORTS[port].th}`);
+}
+/* ชื่อเดิม เผื่อมีที่ไหนยังเรียกอยู่ */
+function toggleLcb(rawInv, btn){
+  setPort(rawInv, portOf(rawInv) === 'LCB' ? 'PADANG' : 'LCB', btn);
 }
 
-async function _doToggleLcb(inv, btn){
-  const on = LCB_INV.has(inv);
-  if(btn){ btn.disabled = true; btn.textContent = '…'; }
+async function _doSetPort(inv, port, btn){
+  if (btn) btn.disabled = true;
   const hdr = {'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'};
   try{
-    if(on){
-      const r = await fetch(`${SB_URL}/rest/v1/lcb_invoices?invoice_no=eq.${encodeURIComponent(inv)}`,
-                            {method:'DELETE', headers:hdr});
-      if(!r.ok) throw new Error(await r.text());
-      LCB_INV.delete(inv);
-    }else{
+    if (_PORT_COL){
+      const r = await fetch(`${SB_URL}/rest/v1/invoices?invoice_no=eq.${encodeURIComponent(inv)}`, {
+        method:'PATCH', headers:{...hdr, 'Prefer':'return=representation'},
+        body: JSON.stringify({port}),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const got = await r.json();
+      if (!got.length) throw new Error('ไม่เจออินวอยซ์นี้ในตาราง invoices');
+    }else if (port === 'LCB'){
       const r = await fetch(`${SB_URL}/rest/v1/lcb_invoices`, {
-        method:'POST',
-        headers:{...hdr, 'Prefer':'resolution=merge-duplicates'},
+        method:'POST', headers:{...hdr, 'Prefer':'resolution=merge-duplicates'},
         body: JSON.stringify({invoice_no: inv, factory: LCB_DEFAULT_FACTORY, active: true}),
       });
-      if(!r.ok) throw new Error(await r.text());
-      LCB_INV.add(inv);
+      if (!r.ok) throw new Error(await r.text());
+    }else{
+      const r = await fetch(`${SB_URL}/rest/v1/lcb_invoices?invoice_no=eq.${encodeURIComponent(inv)}`,
+                            {method:'DELETE', headers:hdr});
+      if (!r.ok) throw new Error(await r.text());
     }
+    if (port === 'PADANG') PORT_OF.delete(inv); else PORT_OF.set(inv, port);
+    _syncLcbSet();
   }catch(e){
-    alert('เปลี่ยนป้ายไม่สำเร็จ: ' + e.message);
+    alert('เปลี่ยนท่าเรือไม่สำเร็จ: ' + e.message);
   }
   /* วาดหน้ารายละเอียดใหม่ให้ป้ายอัปเดต */
   if(typeof _lastInvDetail === 'object' && _lastInvDetail)
@@ -5067,12 +5100,21 @@ function showInvDetail(id,panelId){
   out+=`<span class="pv-badge" style="background:#f1f5f9;color:#475569">${d.total_actual}/${d.total_expected} ตู้</span>`;
   if(invPendCtrs.length)out+=`<span class="pv-badge" style="background:#fef9c3;color:#92400e;border:1px solid #fcd34d;">⏳ +${invPendCtrs.length} PENDING</span>`;
   if(d.destination&&d.destination!=='-')out+=`<span class="pv-badge" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;">🚢 ${h(d.destination)}</span>`;
-  /* ── สวิตช์ ปาดัง / แหลมฉบัง — เปิดแล้วอินวอยซ์นี้จะไปโผล่เป็นตัวเลือกในบอท LINE ── */
-  {const _isL=LCB_INV.has(String(d.inv).trim());
-   out+=`<button onclick='toggleLcb(${JSON.stringify(String(d.inv))},this)' title="สลับท่าเรือ — เปิดแหลมฉบังแล้วบอท LINE จะเห็นอินวอยซ์นี้"
-      style="font-size:9px;padding:2px 9px;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;
-             border:1px solid ${_isL?'#f9a8d4':'#cbd5e1'};background:${_isL?'#fdf2f8':'#f8fafc'};color:${_isL?'#9d174d':'#64748b'};">
-      ${_isL?'⚓ แหลมฉบัง':'🚚 ปาดัง'}</button>`;}
+  /* ── สวิตช์ท่าเรือ 3 ท่า — ท่าที่เลือกอยู่สีเข้ม กดท่าอื่นต้องใส่ PIN ──
+     แหลมฉบัง: อินวอยซ์ไปโผล่เป็นตัวเลือกในบอท ANTS-LCB-CTN
+     สงขลา: เตรียมไว้ให้บอท ANTS-SKH (ยังไม่เปิด) */
+  {const _cur=portOf(d.inv), _invJ=JSON.stringify(String(d.inv));
+   out+=`<span style="display:inline-flex;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;" title="ท่าเรือส่งออกของอินวอยซ์นี้">`;
+   for(const k of ['PADANG','LCB','SONGKHLA']){
+     const P=PORTS[k], on=_cur===k;
+     out+=`<button onclick='setPort(${_invJ},"${k}",this)'${on?' disabled':''}
+       style="font-size:9px;padding:2px 8px;border:none;font-weight:700;font-family:inherit;
+              cursor:${on?'default':'pointer'};opacity:${on?1:.55};
+              background:${on?P.bg:'#fff'};color:${on?P.tx:'#94a3b8'};
+              ${k!=='PADANG'?'border-left:1px solid #e2e8f0;':''}${on?`box-shadow:inset 0 0 0 1px ${P.bd};`:''}">
+       ${P.icon} ${P.th}</button>`;
+   }
+   out+=`</span>`;}
   out+=`</div>`;
   /* ── Shipment Timeline ── */
   {const _tA=d.total_actual||0,_tE=d.total_expected||0;
