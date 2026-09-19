@@ -902,6 +902,11 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
           <button onclick="cadoHistSearch()" style="padding:8px 16px;border:none;background:#1e40af;color:#fff;border-radius:9px;font-weight:700;cursor:pointer;font-size:13px;">🔍 ค้นหา</button>
           <button onclick="cadoHistPrint()" style="padding:8px 16px;border:none;background:#0f2a52;color:#fff;border-radius:9px;font-weight:700;cursor:pointer;font-size:13px;">🖨 ออกรีพอร์ต</button>
         </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:9px;padding-top:9px;border-top:1px dashed #e2e8f0;">
+          <span style="font-size:11px;font-weight:800;color:#64748b;white-space:nowrap;">หรือค้นเบอร์ตู้:</span>
+          <input id="cadoCtrInp" placeholder="พิมพ์เบอร์ตู้ เช่น TCLU1234567" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')cadoCtrSearch()" style="flex:1;min-width:180px;max-width:320px;box-sizing:border-box;padding:8px 11px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:14px;color:#0f2a52;outline:none;">
+          <button onclick="cadoCtrSearch()" style="padding:8px 16px;border:none;background:#0369a1;color:#fff;border-radius:9px;font-weight:700;cursor:pointer;font-size:13px;">🔍 ค้นตู้</button>
+        </div>
         <div id="cadoHistResult" style="margin-top:14px;overflow-y:auto;flex:1;min-height:80px;"></div>
       </div>
     </div>
@@ -5479,7 +5484,7 @@ function buildCadoIndex(){
   Object.keys(DB_MAP||{}).forEach(inv=>{
     (DB_MAP[inv]||[]).forEach(r=>{
       const p=_cadoPnum(r.CADO); if(!p)return;
-      (_cadoIdx[p]=_cadoIdx[p]||[]).push({ctr:r['เบอร์ตู้']||'', truck:r['ทะเบียนรถ']||'', inv, cado:r.CADO||''});
+      (_cadoIdx[p]=_cadoIdx[p]||[]).push({ctr:r['เบอร์ตู้']||'', truck:r['ทะเบียนรถ']||'', inv, cado:r.CADO||'', date:r.DATE_PICKUP||'', fac:r['โรงงาน']||''});
     });
   });
   /* รวม P-number จาก booking (STOCK) ด้วย → CADO ที่ยังไม่ถูกใช้เลย (ไม่มีตู้เข้า) ก็ขึ้น dropdown */
@@ -5520,6 +5525,26 @@ function cadoHistSearch(){
   const _u=rows.filter(r=>r.used).length;
   let t=`<div style="font-size:13px;font-weight:800;color:#0f2a52;margin-bottom:8px;">CADO ${h(p)} — ${rows.length} ตู้${_u<rows.length?` <span style="font-weight:600;color:#c2410c;">(ยกแล้ว ${_u} · เหลือ ${rows.length-_u})</span>`:''}</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;"><thead><tr style="background:#0f2a52;color:#fff;"><th style="padding:6px 10px;text-align:left;border:1px solid #1e3a5f;">เบอร์ตู้</th><th style="padding:6px 10px;text-align:left;border:1px solid #1e3a5f;">ทะเบียนรถที่ยกตู้</th><th style="padding:6px 10px;text-align:left;border:1px solid #1e3a5f;">โรงงานที่เข้า (อินวอยซ์)</th></tr></thead><tbody>`;
   rows.forEach((r,i)=>{ const bg=r.used?(i%2?'#f8fafc':'#fff'):'#fff7ed'; t+=`<tr style="background:${bg}"><td style="padding:5px 10px;border:1px solid #e2e8f0;font-family:monospace;font-weight:700;color:${r.used?'#0f172a':'#b45309'};">${h(r.ctr)}</td><td style="padding:5px 10px;border:1px solid #e2e8f0;">${h(r.truck)}</td><td style="padding:5px 10px;border:1px solid #e2e8f0;">${h(r.inv)}</td></tr>`; });
+  res.innerHTML=t+'</tbody></table></div>';
+}
+/* parse d/m/yyyy → ts (ใช้เรียงประวัติตู้ตามวันรับ) */
+function _cadoDt(s){ const t=String(s||'').trim(); if(!t||t==='-')return 0; const p=t.split(/[\/\-]/); if(p.length>=3){const d=+p[0],m=+p[1];let y=+p[2]; if(y<100)y+=2000; if(d&&m)return new Date(y,m-1,d).getTime();} const dt=new Date(t); return isNaN(dt.getTime())?0:dt.getTime(); }
+/* ค้นหาด้วยเบอร์ตู้ → โชว์ทุกครั้งที่ตู้ถูกใช้ (อยู่ P ไหน / อินวอยซ์ไหน / ทะเบียนอะไร); ตู้เวียนซ้ำ = หลายบรรทัด */
+function cadoCtrSearch(){
+  try{ buildCadoIndex(); }catch(e){}
+  const raw=(document.getElementById('cadoCtrInp').value||'').trim().toUpperCase().replace(/\s+/g,'');
+  const res=document.getElementById('cadoHistResult'); if(!res)return;
+  if(!raw){ res.innerHTML=''; return; }
+  const hits=[];
+  Object.keys(_cadoIdx||{}).forEach(p=>{ (_cadoIdx[p]||[]).forEach(r=>{
+    const cn=String(r.ctr||'').trim().toUpperCase().replace(/\s+/g,'');
+    if(cn && cn.includes(raw)) hits.push({p:p, ctr:r.ctr, truck:r.truck, inv:r.inv, date:r.date, fac:r.fac});
+  }); });
+  if(!hits.length){ res.innerHTML=`<div style="padding:12px;color:#94a3b8;font-size:13px;">— ไม่พบเบอร์ตู้ "${h(raw)}" ในประวัติ CADO (โชว์เฉพาะตู้ที่ยกเข้าโรงงานแล้ว)</div>`; return; }
+  hits.sort((a,b)=>{ const d=_cadoDt(a.date)-_cadoDt(b.date); if(d)return d; return (parseInt(a.p.slice(1))||0)-(parseInt(b.p.slice(1))||0); });
+  const nP=new Set(hits.map(x=>x.p)).size;
+  let t=`<div style="font-size:13px;font-weight:800;color:#0f2a52;margin-bottom:8px;">เบอร์ตู้ "${h(raw)}" — เจอ ${hits.length} ครั้ง${hits.length>1?` <span style="font-weight:600;color:#c2410c;">(เวียนซ้ำ ${hits.length} รอบ · ${nP} บุคกิ้ง)</span>`:''}</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;"><thead><tr style="background:#0369a1;color:#fff;"><th style="padding:6px 8px;text-align:left;border:1px solid #075985;">#</th><th style="padding:6px 10px;text-align:left;border:1px solid #075985;">เบอร์ตู้</th><th style="padding:6px 10px;text-align:left;border:1px solid #075985;">CADO (P)</th><th style="padding:6px 10px;text-align:left;border:1px solid #075985;">อินวอยซ์ (โรงงาน)</th><th style="padding:6px 10px;text-align:left;border:1px solid #075985;">ทะเบียนรถ</th><th style="padding:6px 10px;text-align:left;border:1px solid #075985;">วันรับตู้</th></tr></thead><tbody>`;
+  hits.forEach((r,i)=>{ const _fac=r.fac&&r.fac!=='-'&&!/^[?？]+$/.test(r.fac)?` <span style="color:#94a3b8;">(${h(r.fac)})</span>`:''; t+=`<tr style="background:${i%2?'#f8fafc':'#fff'}"><td style="padding:5px 8px;border:1px solid #e2e8f0;color:#94a3b8;">${i+1}</td><td style="padding:5px 10px;border:1px solid #e2e8f0;font-family:monospace;font-weight:700;color:#0f172a;">${h(r.ctr)}</td><td style="padding:5px 10px;border:1px solid #e2e8f0;font-weight:800;color:#0369a1;cursor:pointer;text-decoration:underline;" title="ดูรีพอร์ต CADO นี้" onclick="var e=document.getElementById('cadoHistInp');e.value='${h(r.p)}';cadoHistSearch();">${h(r.p)}</td><td style="padding:5px 10px;border:1px solid #e2e8f0;">${h(r.inv)}${_fac}</td><td style="padding:5px 10px;border:1px solid #e2e8f0;">${h(r.truck)}</td><td style="padding:5px 10px;border:1px solid #e2e8f0;white-space:nowrap;">${h(r.date||'-')}</td></tr>`; });
   res.innerHTML=t+'</tbody></table></div>';
 }
 /* ออกรีพอร์ต CADO — ฟอร์แมต Booking Acknowledgement (ไม่มีเลข E booking ตามที่ไม่มีข้อมูลบันทึก) */
