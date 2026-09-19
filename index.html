@@ -5409,7 +5409,8 @@ function execPrintQuotation(invNo){
     .remark{font-size:14px;color:#374151;margin-top:6px;line-height:1.9;}
     .closing{margin-top:22px;line-height:1.85;}
     .sig{margin-top:55px;text-align:right;}
-    .sign-img{display:block;height:2.15cm;margin:6px auto 0;object-fit:contain;}
+    .sign-img{display:block;height:2.15cm;margin:4px auto -8px;object-fit:contain;position:relative;z-index:1;}
+    .sig-line{border-top:1px solid #000;width:230px;margin:0 auto;}
     .sig-name{margin-top:3px;}
     .sig-block{position:relative;display:inline-block;text-align:center;}
     .stamp-img{position:absolute;left:-3.5cm;top:-0.95cm;width:3.1cm;height:3.1cm;object-fit:contain;opacity:.92;pointer-events:none;}`;
@@ -5424,7 +5425,7 @@ function execPrintQuotation(invNo){
   const stampImg=(useStamp&&window.QUOT_STAMP_B64)?`<img src="${window.QUOT_STAMP_B64}" class="stamp-img" alt="ตราบริษัท">`:'';
   const signImg=(useSign&&window.QUOT_SIGN_B64)?`<img src="${window.QUOT_SIGN_B64}" class="sign-img" alt="ลายเซ็น">`:'<div style="height:1.9cm;"></div>';
   const FOOTER=`<div class="closing">จึงเรียนมาเพื่อโปรดพิจารณาและบริษัทฯหวังเป็นอย่างยิ่งว่าจะได้รับการสนับสนุนและมอบความไว้วางใจให้บริษัทฯได้เป็นผู้ดูแลและให้บริการแก่ท่าน</div>
-  <div class="sig"><div>ขอแสดงความนับถือ</div><div class="sig-block">${stampImg}${signImg}<div class="sig-name">(นายสุพรรณ จงสุวิวัฒน์วงศ์)</div></div></div>`;
+  <div class="sig"><div>ขอแสดงความนับถือ</div><div class="sig-block">${stampImg}${signImg}<div class="sig-line"></div><div class="sig-name">(นายสุพรรณ จงสุวิวัฒน์วงศ์)</div></div></div>`;
   const tableRows=allRows.map(r=>`<tr><td>${he2(r.inv)}</td><td>${he2(r.dest)}</td><td style="text-align:right;font-weight:700;">${fm(r.price)}</td></tr>`).join('');
   const table=`<table><thead><tr><th style="width:42%">เลขอินวอยซ์</th><th style="width:33%">ปลายทาง</th><th style="text-align:right;width:25%">ราคา/ตู้ (฿)</th></tr></thead><tbody>${tableRows}</tbody></table>`;
   let body='';
