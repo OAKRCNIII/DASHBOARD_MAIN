@@ -9096,18 +9096,47 @@ async function _ensureAdvPayment(coKey){
   return newId;
 }
 
-/* 🔒 รหัสยืนยันก่อน เพิ่ม/ลบ รายการเบิกล่วงหน้า (กันคนอื่นทำมั่ว) */
+/* 🔒 รหัสยืนยันก่อน เพิ่ม/ลบ รายการเบิกล่วงหน้า (กันคนอื่นทำมั่ว) — โมดัล popup */
 function _advPin(){
-  const c=prompt('🔒 ใส่รหัสเพื่อยืนยัน (เพิ่ม/ลบ รายการเบิกล่วงหน้า)');
-  if(c===null)return false;                 /* กดยกเลิก */
-  if(String(c).trim()!=='625465'){ alert('❌ รหัสไม่ถูกต้อง'); return false; }
-  return true;
+  return new Promise(resolve=>{
+    let bg=document.getElementById('advPinBg');
+    if(!bg){
+      bg=document.createElement('div'); bg.id='advPinBg';
+      bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9300;align-items:center;justify-content:center;padding:16px;';
+      bg.innerHTML=`<div id="advPinCard" style="background:#fff;border-radius:16px;padding:22px 22px 18px;width:min(340px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.35);text-align:center;">
+        <div style="font-size:34px;line-height:1;">🔒</div>
+        <div style="font-size:16px;font-weight:800;color:#3b0764;margin-top:4px;">ใส่รหัสยืนยัน</div>
+        <div style="font-size:12px;color:#64748b;margin-top:2px;">เพิ่ม / ลบ รายการเบิกล่วงหน้า</div>
+        <input id="advPinInp" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="••••••"
+          style="width:100%;margin-top:14px;padding:11px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:20px;font-weight:800;text-align:center;letter-spacing:8px;outline:none;color:#1e293b;box-sizing:border-box;">
+        <div id="advPinErr" style="height:16px;font-size:11px;font-weight:700;color:#dc2626;margin-top:6px;"></div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button id="advPinCancel" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;color:#64748b;font-weight:700;cursor:pointer;font-size:13px;">ยกเลิก</button>
+          <button id="advPinOk" style="flex:1;padding:10px;border-radius:10px;border:none;background:#7c3aed;color:#fff;font-weight:800;cursor:pointer;font-size:13px;">ยืนยัน</button>
+        </div></div>`;
+      document.body.appendChild(bg);
+    }
+    const inp=bg.querySelector('#advPinInp'), err=bg.querySelector('#advPinErr'), card=bg.querySelector('#advPinCard');
+    inp.value=''; err.textContent=''; bg.style.display='flex'; setTimeout(()=>inp.focus(),50);
+    function cleanup(){ inp.removeEventListener('keydown',onKey); bg.querySelector('#advPinOk').removeEventListener('click',submit); bg.querySelector('#advPinCancel').removeEventListener('click',onCancel); bg.removeEventListener('mousedown',onBg); }
+    function done(v){ bg.style.display='none'; cleanup(); resolve(v); }
+    function submit(){ if(inp.value.trim()==='625465'){ done(true); }
+      else { err.textContent='❌ รหัสไม่ถูกต้อง'; inp.value=''; inp.focus();
+        if(card.animate)card.animate([{transform:'translateX(-7px)'},{transform:'translateX(7px)'},{transform:'translateX(-4px)'},{transform:'translateX(0)'}],{duration:200}); } }
+    function onCancel(){ done(false); }
+    function onKey(e){ if(e.key==='Enter'){e.preventDefault();submit();} else if(e.key==='Escape'){done(false);} }
+    function onBg(e){ if(e.target===bg) done(false); }
+    inp.addEventListener('keydown',onKey);
+    bg.querySelector('#advPinOk').addEventListener('click',submit);
+    bg.querySelector('#advPinCancel').addEventListener('click',onCancel);
+    bg.addEventListener('mousedown',onBg);
+  });
 }
 async function addAdvDeduction(){
   const bill=document.getElementById('advNewBill').value.trim();
   const amt=parseFloat(document.getElementById('advNewAmt').value)||0;
   if(!bill||!amt)return;
-  if(!_advPin())return;
+  if(!(await _advPin()))return;
   try{
     const advId=await _ensureAdvPayment(_advCo);
     const r=await fetch(`${SB_URL}/rest/v1/advance_deductions`,{
@@ -9129,7 +9158,7 @@ async function removeAdvDeduction(idx){
   if(!adv)return;
   const d=adv.deductions[idx];
   if(!d)return;
-  if(!_advPin())return;
+  if(!(await _advPin()))return;
   try{
     if(d._sbId){
       await fetch(`${SB_URL}/rest/v1/advance_deductions?id=eq.${d._sbId}`,{method:'DELETE',headers:_advH});
@@ -9170,7 +9199,7 @@ async function saveAdvModal(){
 }
 
 async function clearAdvModal(){
-  if(!_advPin())return;
+  if(!(await _advPin()))return;
   try{
     if(TR_ADVANCE[_advCo]?._sbId){
       await fetch(`${SB_URL}/rest/v1/advance_payments?id=eq.${TR_ADVANCE[_advCo]._sbId}`,{method:'DELETE',headers:_advH});
