@@ -4287,19 +4287,12 @@ function applyRoleRestrictions(){
     if(dashBtn)dashBtn.style.display='';   /* YAI: เปิดปุ่มสลับ → ดูมุม Dashboard หลัก (manager) ได้ แต่ไม่เห็นราคา (ราคาผูก admin เท่านั้น) */
     if(debtBtn)debtBtn.style.display='none';
     if(setBtn)setBtn.style.display='none';
+    const _syncBtn=document.getElementById('syncNowBtn'); if(_syncBtn)_syncBtn.style.display='none';   /* YAI: ซ่อนปุ่ม SYNC */
     /* มุม Dashboard หลักของ YAI: เห็นแค่แท็บ "รายเดือน" — ซ่อนแท็บอื่นทั้ง desktop + mobile */
     ['htab-pending','htab-stock','htab-factory','htab-vessel','htab-report',
      'mtab-pending','mtab-stock','mtab-factory','mtab-vessel']
       .forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
-    /* force transport view */
-    if(!_showTransport){_showTransport=true;
-      document.getElementById('mainDash').style.display='none';
-      document.getElementById('trDash').style.display='flex';
-      document.getElementById('debtDash').style.display='none';}
-    /* render transport dashboard (prefix bar, bill info bar, etc.) */
-    TR_FILTER='all';TR_PREFIX='all';TR_VIEW='month';TR_OPEN.clear();
-    document.querySelectorAll('#trDash .vtab').forEach(b=>b.classList.toggle('active',b.dataset.v==='month'));
-    renderTransport();
+    /* หน้าแรก = Dashboard หลัก (รายเดือน) ไม่ใช่หน้าขนส่ง — กดปุ่มสลับไปหน้าขนส่งได้เอง */
   } else if(USER_ROLE==='manager'){
     if(dashBtn)dashBtn.style.display='none';
     if(debtBtn)debtBtn.style.display='none';
@@ -4935,7 +4928,7 @@ function renderStatsMain(){
   const notLoadedList=FLAT.filter(d=>!isLoaded(d.inv));
   const plannedVsl=notLoadedList.filter(d=>VESSEL_PLAN[d.inv.toUpperCase()]).length;
   const notPlanned=notLoadedList.filter(d=>!VESSEL_PLAN[d.inv.toUpperCase()]).length;
-  document.getElementById('sBar').innerHTML=kc('📋 อินวอยซ์ทั้งหมด',ti,'รายการ','#6366f1',null)+kc('✅ ปล่อยเอกสารแล้ว',rel,relC+' ตู้','#10b981',null)+kc('⏳ คงค้าง',pCnt,'ตู้ยังไม่ครบ','#f59e0b','pending')+kc('🔖 รอปล่อยเอกสาร',cDone,'อินวอยซ์','#8b5cf6','ctr-done')+kc('🚢 แพลนขึ้นเรือ',plannedVsl,'รายการ','#0ea5e9','planned-vessel')+kc('📭 ยังไม่จัดเรือ',notPlanned,'รายการ','#ef4444','not-loaded');
+  document.getElementById('sBar').innerHTML=kc('📋 อินวอยซ์ทั้งหมด',ti,'รายการ','#6366f1',null)+kc('✅ ปล่อยเอกสารแล้ว',rel,relC+' ตู้','#10b981',null)+kc('⏳ คงค้าง',pCnt,'ตู้ยังไม่ครบ','#f59e0b','pending')+(USER_ROLE==='transport'?'':kc('🔖 รอปล่อยเอกสาร',cDone,'อินวอยซ์','#8b5cf6','ctr-done')+kc('🚢 แพลนขึ้นเรือ',plannedVsl,'รายการ','#0ea5e9','planned-vessel')+kc('📭 ยังไม่จัดเรือ',notPlanned,'รายการ','#ef4444','not-loaded'));   /* YAI (transport): ซ่อน 3 การ์ดนี้ */
   const pb=document.getElementById('pBadge');if(pb)pb.textContent=(pCnt+cDone)||'';
   const mb=document.getElementById('mBadge');if(mb){const t=pCnt+cDone;mb.textContent=t||'';mb.style.display=t?'inline':'none';}
 }
