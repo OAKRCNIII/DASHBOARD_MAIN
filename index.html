@@ -10356,7 +10356,7 @@ function printReport(facMonth){
         const e=exp(d), a=got(d), pt=PORTS[portOf(d.inv)]||PORTS.PADANG;
         const inTxt=a>=e?`<span class="ok">${a} ✔</span>`:`<span class="pd">${a}/${e}</span>`;
         const sp=isWhtExc(d.inv);   /* ใบ SPECIAL หัก 1% (TR_WHT_INV) → ไฮไลท์ */
-        rowsH+=`<tr${sp?' class="sp"':''}><td>${i+1}</td><td class="l b">${esc(d.inv)}${sp?' <span class="spb">⭐ หัก 1%</span>':''}</td><td class="l">${esc(d.destination&&d.destination!=='-'?d.destination:'')}</td><td class="b">${e}</td><td>${inTxt}</td><td><span class="pt" style="background:${pt.bg};color:${pt.tx};border-color:${pt.bd};">${pt.icon} ${pt.th}</span></td></tr>`;
+        rowsH+=`<tr${sp?' class="sp"':''}><td>${i+1}</td><td class="l b">${esc(d.inv)}${sp?' <span class="spb">⭐ หัก 1%</span>':''}</td><td class="l">${esc(d.destination&&d.destination!=='-'?d.destination:'')}</td><td class="b">${e}</td><td><span class="pt" style="background:${pt.bg};color:${pt.tx};border-color:${pt.bd};">${pt.icon} ${pt.th}</span></td></tr>`;
       });
       facPages+=`<div class="facsheet">
         <div class="fh"><div><div class="co">ANTS</div><div class="fn">${esc(p)}${FAC_FULL[p]?' — '+FAC_FULL[p]:''}</div></div>
@@ -10367,9 +10367,9 @@ function printReport(facMonth){
           <div class="cd"><div class="n" style="color:${pend?'#dc2626':'#16a34a'}">${pend||'✔'}</div><div class="k">${pend?'ตู้ยังไม่เข้า':'ตู้เข้าครบ'}</div></div>
           <div class="cd"><div class="n" style="color:${diffCol}">${diffTxt}</div><div class="k">เทียบ ${ML_FULL[pM-1]} (${prev} ตู้)</div></div>
         </div>
-        <table class="ft"><thead><tr><th>ลำดับ</th><th class="l">อินวอยซ์</th><th class="l">ปลายทาง</th><th>ตู้</th><th>เข้าแล้ว</th><th>หมายเหตุ (ออกท่า)</th></tr></thead>
+        <table class="ft"><thead><tr><th>ลำดับ</th><th class="l">อินวอยซ์</th><th class="l">ปลายทาง</th><th>ตู้</th><th>หมายเหตุ (ออกท่า)</th></tr></thead>
           <tbody>${rowsH}</tbody>
-          <tfoot><tr><td></td><td class="l">รวม ${esc(p)}</td><td></td><td>${tot} ตู้</td><td>${act}</td><td style="font-size:11px;">${portSum}</td></tr></tfoot></table>
+          <tfoot><tr><td></td><td class="l">รวม ${esc(p)}</td><td></td><td>${tot} ตู้</td><td style="font-size:11px;">${portSum}</td></tr></tfoot></table>
         <div class="ff">* จำนวนตู้ตามอินวอยซ์ (ALL_INV) · นับตามเดือนของอินวอยซ์ · ออกรีพอร์ต ${new Date().toLocaleDateString('th-TH')}</div>
       </div>`;
     });
