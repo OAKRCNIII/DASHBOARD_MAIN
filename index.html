@@ -4284,7 +4284,7 @@ function applyRoleRestrictions(){
   const debtBtn=document.getElementById('debtDashBtn');
   const setBtn=document.getElementById('settingsBtn');
   if(USER_ROLE==='transport'){
-    if(dashBtn)dashBtn.style.display='none';
+    if(dashBtn)dashBtn.style.display='';   /* YAI: เปิดปุ่มสลับ → ดูมุม Dashboard หลัก (manager) ได้ แต่ไม่เห็นราคา (ราคาผูก admin เท่านั้น) */
     if(debtBtn)debtBtn.style.display='none';
     if(setBtn)setBtn.style.display='none';
     /* force transport view */
