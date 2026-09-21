@@ -10355,7 +10355,8 @@ function printReport(facMonth){
       list.forEach((d,i)=>{
         const e=exp(d), a=got(d), pt=PORTS[portOf(d.inv)]||PORTS.PADANG;
         const inTxt=a>=e?`<span class="ok">${a} ✔</span>`:`<span class="pd">${a}/${e}</span>`;
-        rowsH+=`<tr><td>${i+1}</td><td class="l b">${esc(d.inv)}</td><td class="l">${esc(d.destination&&d.destination!=='-'?d.destination:'')}</td><td class="b">${e}</td><td>${inTxt}</td><td><span class="pt" style="background:${pt.bg};color:${pt.tx};border-color:${pt.bd};">${pt.icon} ${pt.th}</span></td></tr>`;
+        const sp=isWhtExc(d.inv);   /* ใบ SPECIAL หัก 1% (TR_WHT_INV) → ไฮไลท์ */
+        rowsH+=`<tr${sp?' class="sp"':''}><td>${i+1}</td><td class="l b">${esc(d.inv)}${sp?' <span class="spb">⭐ หัก 1%</span>':''}</td><td class="l">${esc(d.destination&&d.destination!=='-'?d.destination:'')}</td><td class="b">${e}</td><td>${inTxt}</td><td><span class="pt" style="background:${pt.bg};color:${pt.tx};border-color:${pt.bd};">${pt.icon} ${pt.th}</span></td></tr>`;
       });
       facPages+=`<div class="facsheet">
         <div class="fh"><div><div class="co">ANTS</div><div class="fn">${esc(p)}${FAC_FULL[p]?' — '+FAC_FULL[p]:''}</div></div>
@@ -10416,8 +10417,9 @@ function printReport(facMonth){
     table.ft tfoot td{font-size:14px;}
     .ok{color:#16a34a;font-weight:700;} .pd{background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 8px;font-weight:700;}
     .pt{border:1px solid;border-radius:6px;padding:1px 8px;font-size:11px;font-weight:700;white-space:nowrap;}
+    table.ft tbody tr.sp td{background:#fef9c3;} .spb{background:#f59e0b;color:#fff;border-radius:5px;padding:1px 7px;font-size:10px;font-weight:800;white-space:nowrap;}
     .ff{margin-top:10px;font-size:9px;color:#94a3b8;text-align:right;}
-    @media print{.pt,.pd,thead tr,tfoot tr,.cd{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
+    @media print{.pt,.pd,.spb,thead tr,tfoot tr,.cd,table.ft tbody tr.sp td{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
   </style>
   </head><body>
   <div class="hdr">
