@@ -10136,7 +10136,7 @@ function renderReport(){
         style="padding:7px 16px;border:2px solid ${_rptHideCurrent?'#f59e0b':'#86efac'};border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:${_rptHideCurrent?'#fffbeb':'#f0fdf4'};color:${_rptHideCurrent?'#92400e':'#166534'};display:flex;align-items:center;gap:6px;transition:all .2s;">
         ${_rptHideCurrent?'🙈 ซ่อนเดือนปัจจุบัน':'👁️ โชว์เดือนปัจจุบัน'}
       </button>
-      <button onclick="printReport()" style="padding:7px 18px;background:linear-gradient(135deg,#dc2626,#ef4444);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(220,38,38,.35);">
+      <button onclick="openReportMonthPicker()" style="padding:7px 18px;background:linear-gradient(135deg,#dc2626,#ef4444);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(220,38,38,.35);">
         🖨️ PRINT PDF
       </button>
     </div>
@@ -10225,7 +10225,39 @@ function renderReport(){
   wrap.innerHTML = out;
 }
 
-function printReport(){
+/* ── เลือกเดือนสำหรับหน้าโรงงาน (หน้าละ 1 โรงงาน) ต่อท้ายหน้าสรุปรวม ── */
+function openReportMonthPicker(){
+  if(!FLAT || !FLAT.length) return;
+  const ML=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  const has={};
+  FLAT.forEach(d=>{const mk=String(d.month||'');if(!mk.includes('_'))return;const [y,m]=mk.split('_').map(x=>parseInt(x));if(y===_rptYear&&(parseInt(d.total_expected)||0)>0)has[m]=1;});
+  const ms=Object.keys(has).map(Number).sort((a,b)=>a-b);
+  const now=new Date();
+  /* ค่าเริ่มต้น = เดือนที่แล้ว (ยอดนิ่งแล้ว) ถ้ามีข้อมูล ไม่งั้นเดือนล่าสุดที่มี */
+  let def=(_rptYear===now.getFullYear())?now.getMonth():12;
+  if(!has[def]) def=ms.length?ms[ms.length-1]:0;
+  const opts=ms.map(m=>`<option value="${m}"${m===def?' selected':''}>${ML[m-1]} ${_rptYear}</option>`).join('');
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:99999;display:flex;align-items:center;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:14px;padding:22px 26px;min-width:320px;box-shadow:0 12px 40px rgba(0,0,0,.25);">
+    <div style="font-size:17px;font-weight:800;color:#0f2a52;margin-bottom:4px;">🖨️ พิมพ์รายงานตู้</div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:14px;">หน้าแรก = สรุปรวมทั้งปี · หน้าถัดไป = หน้าละ 1 โรงงาน ของเดือนที่เลือก</div>
+    <label style="font-size:13px;font-weight:700;color:#475569;">เดือน (หน้าโรงงาน)</label>
+    <select id="rptMonthSel" style="width:100%;margin:6px 0 16px;padding:8px 12px;border:1.5px solid #bfdbfe;border-radius:8px;font-size:15px;font-weight:700;color:#1e40af;">
+      ${opts}<option value="0"${def===0?' selected':''}>— ไม่ต้อง (สรุปรวมอย่างเดียว) —</option>
+    </select>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="rpt-cancel" style="padding:8px 16px;border:1.5px solid #cbd5e1;background:#fff;border-radius:8px;font-weight:700;cursor:pointer;">ยกเลิก</button>
+      <button class="rpt-go" style="padding:8px 18px;border:none;background:linear-gradient(135deg,#dc2626,#ef4444);color:#fff;border-radius:8px;font-weight:700;cursor:pointer;">🖨️ พิมพ์</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  const close=()=>ov.remove();
+  ov.addEventListener('click',e=>{if(e.target===ov)close();});
+  ov.querySelector('.rpt-cancel').onclick=close;
+  ov.querySelector('.rpt-go').onclick=()=>{const m=parseInt(ov.querySelector('#rptMonthSel').value)||0;close();printReport(m);};
+}
+
+function printReport(facMonth){
   /* ── rebuild data from FLAT (same logic as renderReport) ── */
   if(!FLAT || !FLAT.length) return;
   const MONTH_LABELS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
@@ -10290,6 +10322,59 @@ function printReport(){
 
   const hiddenNote = (_rptHideCurrent && isCurYr) ? ` (ไม่รวม ${MONTH_LABELS[nowM-1]} — ยอดยังไม่นิ่ง)` : '';
 
+  /* ── หน้าโรงงาน: หน้าละ 1 prefix ของเดือน facMonth (ใช้ข้อมูลจริง ไม่สนสวิตช์ซ่อนเดือนปัจจุบัน) ── */
+  const ML_FULL=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  const FAC_FULL={BSW:'บ้านส้องเสมอ',SJ:'สวนจันทร์'};
+  const esc=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  let facPages='';
+  if(facMonth){
+    const pY=facMonth===1?_rptYear-1:_rptYear, pM=facMonth===1?12:facMonth-1;
+    const byPfx={}, prevCnt={};
+    FLAT.forEach(d=>{
+      const mk=String(d.month||''); if(!mk.includes('_')) return;
+      const [y,m]=mk.split('_').map(x=>parseInt(x));
+      const p=getPfx(d.inv||''), v=parseInt(d.total_expected)||0;
+      if(y===_rptYear&&m===facMonth&&v>0) (byPfx[p]=byPfx[p]||[]).push(d);
+      if(y===pY&&m===pM) prevCnt[p]=(prevCnt[p]||0)+v;
+    });
+    const exp=d=>parseInt(d.total_expected)||0, got=d=>Math.min(parseInt(d.total_actual)||0,exp(d));
+    const sum=a=>a.reduce((s,d)=>s+exp(d),0);
+    const pfxs=Object.keys(byPfx).sort((a,b)=>(sum(byPfx[b])-sum(byPfx[a]))||a.localeCompare(b));
+    const monTxt=`${ML_FULL[facMonth-1]} ${_rptYear}`;
+    pfxs.forEach(p=>{
+      const list=byPfx[p].slice().sort((a,b)=>String(a.inv).localeCompare(String(b.inv),'th',{numeric:true}));
+      const tot=sum(list), act=list.reduce((s,d)=>s+got(d),0), pend=tot-act;
+      const prev=prevCnt[p]||0, diff=tot-prev;
+      const diffTxt=prev?`${diff>0?'▲ +':diff<0?'▼ ':'= '}${diff}`:'—';
+      const diffCol=diff>0?'#16a34a':diff<0?'#dc2626':'#64748b';
+      /* แยกยอดตามท่าที่ออก */
+      const byPort={};
+      list.forEach(d=>{const k=portOf(d.inv);byPort[k]=(byPort[k]||0)+exp(d);});
+      const portSum=Object.keys(PORTS).filter(k=>byPort[k]).map(k=>`${PORTS[k].icon} ${PORTS[k].th} ${byPort[k]}`).join(' · ');
+      let rowsH='';
+      list.forEach((d,i)=>{
+        const e=exp(d), a=got(d), pt=PORTS[portOf(d.inv)]||PORTS.PADANG;
+        const inTxt=a>=e?`<span class="ok">${a} ✔</span>`:`<span class="pd">${a}/${e}</span>`;
+        rowsH+=`<tr><td>${i+1}</td><td class="l b">${esc(d.inv)}</td><td class="l">${esc(d.destination&&d.destination!=='-'?d.destination:'')}</td><td class="b">${e}</td><td>${inTxt}</td><td><span class="pt" style="background:${pt.bg};color:${pt.tx};border-color:${pt.bd};">${pt.icon} ${pt.th}</span></td></tr>`;
+      });
+      facPages+=`<div class="facsheet">
+        <div class="fh"><div><div class="co">ANTS</div><div class="fn">${esc(p)}${FAC_FULL[p]?' — '+FAC_FULL[p]:''}</div></div>
+          <div class="fm"><div class="t1">รีพอร์ตประจำเดือน</div><div class="t2">${monTxt}</div></div></div>
+        <div class="cards">
+          <div class="cd"><div class="n">${tot}</div><div class="k">ตู้ รวมเดือน</div></div>
+          <div class="cd"><div class="n">${list.length}</div><div class="k">อินวอยซ์</div></div>
+          <div class="cd"><div class="n" style="color:${pend?'#dc2626':'#16a34a'}">${pend||'✔'}</div><div class="k">${pend?'ตู้ยังไม่เข้า':'ตู้เข้าครบ'}</div></div>
+          <div class="cd"><div class="n" style="color:${diffCol}">${diffTxt}</div><div class="k">เทียบ ${ML_FULL[pM-1]} (${prev} ตู้)</div></div>
+        </div>
+        <table class="ft"><thead><tr><th>ลำดับ</th><th class="l">อินวอยซ์</th><th class="l">ปลายทาง</th><th>ตู้</th><th>เข้าแล้ว</th><th>หมายเหตุ (ออกท่า)</th></tr></thead>
+          <tbody>${rowsH}</tbody>
+          <tfoot><tr><td></td><td class="l">รวม ${esc(p)}</td><td></td><td>${tot} ตู้</td><td>${act}</td><td style="font-size:11px;">${portSum}</td></tr></tfoot></table>
+        <div class="ff">* จำนวนตู้ตามอินวอยซ์ (ALL_INV) · นับตามเดือนของอินวอยซ์ · ออกรีพอร์ต ${new Date().toLocaleDateString('th-TH')}</div>
+      </div>`;
+    });
+    if(!pfxs.length) facPages=`<div class="facsheet"><div class="fn">ไม่มีข้อมูลเดือน ${monTxt}</div></div>`;
+  }
+
   const w = window.open('','_blank','width=1100,height=700');
   w.document.write(`<!DOCTYPE html><html><head>
   <meta charset="utf-8">
@@ -10314,6 +10399,25 @@ function printReport(){
     .note{margin-top:8px;font-size:9px;color:#94a3b8;text-align:right;}
     @page{size:A4 landscape;margin:8mm 10mm;}
     @media print{body{padding:0;}}
+    @page fac{size:A4 portrait;margin:12mm 14mm;}
+    .facsheet{page:fac;page-break-before:always;break-before:page;}
+    @media screen{.facsheet{margin-top:28px;padding-top:20px;border-top:3px dashed #cbd5e1;max-width:760px;}}
+    .fh{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #1e3a8a;padding-bottom:10px;margin-bottom:16px;}
+    .co{font-size:13px;font-weight:800;color:#64748b;letter-spacing:1px;}
+    .fn{font-size:24px;font-weight:900;color:#1e3a8a;}
+    .fm{text-align:right;} .fm .t1{font-size:12px;color:#64748b;font-weight:700;} .fm .t2{font-size:20px;font-weight:900;color:#0f2a52;}
+    .cards{display:flex;gap:10px;margin-bottom:18px;}
+    .cd{flex:1;border:1.5px solid #bfdbfe;border-radius:10px;padding:10px;text-align:center;background:#f8fbff;}
+    .cd .n{font-size:24px;font-weight:900;color:#0f2a52;line-height:1.1;} .cd .k{font-size:10px;color:#64748b;margin-top:3px;}
+    table.ft tbody td{font-size:13px;padding:7px 10px;}
+    table.ft tbody td:first-child{text-align:center;font-weight:400;color:#64748b;}
+    table.ft tbody tr:nth-child(even){background:#f8fafc;}
+    table.ft .l{text-align:left;} table.ft .b{font-weight:800;}
+    table.ft tfoot td{font-size:14px;}
+    .ok{color:#16a34a;font-weight:700;} .pd{background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 8px;font-weight:700;}
+    .pt{border:1px solid;border-radius:6px;padding:1px 8px;font-size:11px;font-weight:700;white-space:nowrap;}
+    .ff{margin-top:10px;font-size:9px;color:#94a3b8;text-align:right;}
+    @media print{.pt,.pd,thead tr,tfoot tr,.cd{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
   </style>
   </head><body>
   <div class="hdr">
@@ -10326,6 +10430,7 @@ function printReport(){
     <tfoot>${tFoot}</tfoot>
   </table>
   <div class="note">* ข้อมูลจาก ALL_INV · คำนวณจาก total_expected · แสดงเฉพาะเดือนที่มีข้อมูล</div>
+  ${facPages}
   <script>window.onload=()=>{window.print();}<\/script>
   </body></html>`);
   w.document.close();
