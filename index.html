@@ -9096,10 +9096,18 @@ async function _ensureAdvPayment(coKey){
   return newId;
 }
 
+/* 🔒 รหัสยืนยันก่อน เพิ่ม/ลบ รายการเบิกล่วงหน้า (กันคนอื่นทำมั่ว) */
+function _advPin(){
+  const c=prompt('🔒 ใส่รหัสเพื่อยืนยัน (เพิ่ม/ลบ รายการเบิกล่วงหน้า)');
+  if(c===null)return false;                 /* กดยกเลิก */
+  if(String(c).trim()!=='625465'){ alert('❌ รหัสไม่ถูกต้อง'); return false; }
+  return true;
+}
 async function addAdvDeduction(){
   const bill=document.getElementById('advNewBill').value.trim();
   const amt=parseFloat(document.getElementById('advNewAmt').value)||0;
   if(!bill||!amt)return;
+  if(!_advPin())return;
   try{
     const advId=await _ensureAdvPayment(_advCo);
     const r=await fetch(`${SB_URL}/rest/v1/advance_deductions`,{
@@ -9121,6 +9129,7 @@ async function removeAdvDeduction(idx){
   if(!adv)return;
   const d=adv.deductions[idx];
   if(!d)return;
+  if(!_advPin())return;
   try{
     if(d._sbId){
       await fetch(`${SB_URL}/rest/v1/advance_deductions?id=eq.${d._sbId}`,{method:'DELETE',headers:_advH});
@@ -9161,6 +9170,7 @@ async function saveAdvModal(){
 }
 
 async function clearAdvModal(){
+  if(!_advPin())return;
   try{
     if(TR_ADVANCE[_advCo]?._sbId){
       await fetch(`${SB_URL}/rest/v1/advance_payments?id=eq.${TR_ADVANCE[_advCo]._sbId}`,{method:'DELETE',headers:_advH});
