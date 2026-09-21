@@ -4287,6 +4287,10 @@ function applyRoleRestrictions(){
     if(dashBtn)dashBtn.style.display='';   /* YAI: เปิดปุ่มสลับ → ดูมุม Dashboard หลัก (manager) ได้ แต่ไม่เห็นราคา (ราคาผูก admin เท่านั้น) */
     if(debtBtn)debtBtn.style.display='none';
     if(setBtn)setBtn.style.display='none';
+    /* มุม Dashboard หลักของ YAI: เห็นแค่แท็บ "รายเดือน" — ซ่อนแท็บอื่นทั้ง desktop + mobile */
+    ['htab-pending','htab-stock','htab-factory','htab-vessel','htab-report',
+     'mtab-pending','mtab-stock','mtab-factory','mtab-vessel']
+      .forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
     /* force transport view */
     if(!_showTransport){_showTransport=true;
       document.getElementById('mainDash').style.display='none';
