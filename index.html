@@ -1232,6 +1232,9 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
         style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #d1fae5;border-radius:10px;font-size:16px;font-weight:700;color:#065f46;outline:none;margin-bottom:6px;"
         oninput="document.getElementById('ocfPaidErr').textContent=''"
         onkeydown="if(event.key==='Enter')requirePin(confirmOcfPaid)">
+      <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin:8px 0 5px;">วันที่จ่าย</label>
+      <input id="ocfPaidDate" type="date"
+        style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid #d1fae5;border-radius:10px;font-size:14px;font-weight:700;color:#065f46;outline:none;margin-bottom:6px;">
       <div id="ocfPaidErr" style="font-size:11px;color:#dc2626;min-height:16px;margin-bottom:10px;"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
         <button onclick="closeOcfPaidModal()" style="padding:8px 16px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:12px;font-weight:700;cursor:pointer;">ยกเลิก</button>
@@ -1239,6 +1242,30 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
       </div>
       <div id="ocfUnpaidBtn" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
         <button onclick="requirePin(confirmOcfUnpaid)" style="width:100%;padding:7px;border-radius:8px;border:1.5px solid #fca5a5;background:#fff1f2;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;">🔴 ยกเลิก — ยังไม่ได้ชำระ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRAIN COST MODAL (ค่ารถไฟ + วันที่จ่าย) -->
+  <div id="trainModalBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9100;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:20px;padding:24px 22px;min-width:300px;max-width:360px;width:92vw;box-shadow:0 12px 50px rgba(0,0,0,.3);">
+      <div style="font-size:15px;font-weight:900;color:#b45309;margin-bottom:6px;">🚆 ค่ารถไฟ</div>
+      <div id="trainInvLabel" style="font-size:12px;color:#475569;background:#f1f5f9;border-radius:8px;padding:5px 10px;margin-bottom:14px;font-family:monospace;font-weight:700;"></div>
+      <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">ยอดค่ารถไฟ (บาท) <span style="color:#dc2626;">*</span></label>
+      <input id="trainAmt" type="number" step="100" placeholder="0"
+        style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #fed7aa;border-radius:10px;font-size:16px;font-weight:700;color:#b45309;outline:none;margin-bottom:6px;"
+        oninput="document.getElementById('trainErr').textContent=''"
+        onkeydown="if(event.key==='Enter')confirmTrainSave()">
+      <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin:8px 0 5px;">วันที่จ่าย</label>
+      <input id="trainDate" type="date"
+        style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid #fed7aa;border-radius:10px;font-size:14px;font-weight:700;color:#b45309;outline:none;margin-bottom:6px;">
+      <div id="trainErr" style="font-size:11px;color:#dc2626;min-height:16px;margin-bottom:10px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button onclick="closeTrainModal()" style="padding:8px 16px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:12px;font-weight:700;cursor:pointer;">ยกเลิก</button>
+        <button onclick="confirmTrainSave()" style="padding:8px 18px;border-radius:8px;border:none;background:#b45309;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">✅ บันทึก</button>
+      </div>
+      <div id="trainClearBtn" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
+        <button onclick="confirmTrainClear()" style="width:100%;padding:7px;border-radius:8px;border:1.5px solid #fca5a5;background:#fff1f2;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;">🗑️ ลบค่ารถไฟ (ไม่มี)</button>
       </div>
     </div>
   </div>
@@ -1440,28 +1467,54 @@ let PORT_OF  = new Map();         /* invoice_no → port เก็บเฉพ�
 let _PORT_COL = true;             /* false = ยังไม่รัน migrate_18 → ถอยไปใช้ lcb_invoices แบบเดิม */
 const portOf = inv => PORT_OF.get(String(inv).trim()) || 'PADANG';
 /* ค่ารถไฟ (บาท) ต่ออินวอยซ์ — กรอกมือ เก็บใน invoices.train_thb (มักเป็นตู้แหลมฉบัง) */
-let TRAIN_THB = new Map(); let _TRAIN_COL = true;
+let TRAIN_THB = new Map(); let TRAIN_DATE = new Map(); let _TRAIN_COL = true;
 async function loadTrainThb(){
   try{
-    const rows = await sbFetch('invoices','select=invoice_no,train_thb&train_thb=not.is.null');
-    TRAIN_THB = new Map(rows.map(r => [normInv(r.invoice_no), Number(r.train_thb)||0]));
+    const rows = await sbFetch('invoices','select=invoice_no,train_thb,train_paid_date&train_thb=not.is.null');
+    TRAIN_THB = new Map(); TRAIN_DATE = new Map();
+    rows.forEach(r=>{ const k=normInv(r.invoice_no); TRAIN_THB.set(k, Number(r.train_thb)||0); if(r.train_paid_date) TRAIN_DATE.set(k, String(r.train_paid_date).slice(0,10)); });
     _TRAIN_COL = true;
-  }catch(e){ _TRAIN_COL=false; TRAIN_THB=new Map(); console.warn('train_thb column ยังไม่มี (รัน SQL ก่อน):', e.message); }
+  }catch(e){ _TRAIN_COL=false; TRAIN_THB=new Map(); TRAIN_DATE=new Map(); console.warn('train_thb column ยังไม่มี (รัน SQL ก่อน):', e.message); }
 }
-async function saveTrainThb(inv, valStr){
-  if(!_TRAIN_COL){ alert('ยังเปิดช่องรถไฟไม่ได้ — ต้องรัน SQL เพิ่มคอลัมน์ invoices.train_thb ก่อน'); return; }
+async function saveTrainThb(inv, amt, dateYmd){
+  if(!_TRAIN_COL){ alert('ยังเปิดช่องรถไฟไม่ได้ — ต้องรัน SQL เพิ่มคอลัมน์ invoices.train_thb + train_paid_date ก่อน'); return; }
   const key=normInv(inv);
-  const val=(valStr===''||valStr==null)?null:(parseFloat(valStr)||0);
+  const val=(amt===''||amt==null)?null:(parseFloat(amt)||0);
+  const dt=(val==null||!dateYmd)?null:dateYmd;   /* ไม่มียอด = ล้างวันที่ด้วย */
   const hdr={'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'};
   try{
     const r=await fetch(`${SB_URL}/rest/v1/invoices?invoice_no=eq.${encodeURIComponent(inv)}`,
-      {method:'PATCH',headers:{...hdr,'Prefer':'return=representation'},body:JSON.stringify({train_thb:val})});
+      {method:'PATCH',headers:{...hdr,'Prefer':'return=representation'},body:JSON.stringify({train_thb:val,train_paid_date:dt})});
     if(!r.ok) throw new Error(await r.text());
     const got=await r.json(); if(!got.length) throw new Error('ไม่เจออินวอยซ์นี้ในตาราง invoices');
-    if(val==null) TRAIN_THB.delete(key); else TRAIN_THB.set(key,val);
+    if(val==null){ TRAIN_THB.delete(key); TRAIN_DATE.delete(key); } else { TRAIN_THB.set(key,val); if(dt)TRAIN_DATE.set(key,dt); else TRAIN_DATE.delete(key); }
     renderVessel();
   }catch(e){ alert('บันทึกค่ารถไฟไม่สำเร็จ: '+e.message); }
 }
+/* ── Train Cost Modal (ยอด + วันที่จ่าย) ── */
+let _trainInv=null;
+function openTrainModal(inv){
+  _trainInv=inv;
+  const key=normInv(inv);
+  const amt=TRAIN_THB.get(key)||'';
+  const dt=TRAIN_DATE.get(key)||new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Bangkok'});
+  document.getElementById('trainInvLabel').textContent=inv;
+  document.getElementById('trainAmt').value=amt?amt:'';
+  document.getElementById('trainDate').value=dt;
+  document.getElementById('trainClearBtn').style.display=TRAIN_THB.has(key)?'':'none';
+  document.getElementById('trainModalBg').style.display='flex';
+  setTimeout(()=>document.getElementById('trainAmt').focus(),80);
+}
+function closeTrainModal(){ document.getElementById('trainModalBg').style.display='none'; _trainInv=null; }
+function confirmTrainSave(){
+  if(!_trainInv)return;
+  const amt=parseFloat(document.getElementById('trainAmt').value)||0;
+  const dt=document.getElementById('trainDate').value||'';
+  if(!amt){ document.getElementById('trainErr').textContent='กรุณากรอกยอดค่ารถไฟ'; return; }
+  const inv=_trainInv; closeTrainModal();
+  saveTrainThb(inv, amt, dt);
+}
+function confirmTrainClear(){ const inv=_trainInv; closeTrainModal(); saveTrainThb(inv, null, null); }
 const _syncLcbSet = () => {
   LCB_INV = new Set([...PORT_OF].filter(([, p]) => p === 'LCB').map(([k]) => k));
 };
@@ -4329,6 +4382,11 @@ function applyRoleRestrictions(){
 }
 let MANUAL_PAID=new Set(JSON.parse(localStorage.getItem('manual_paid_ocf')||'[]'));
 let MANUAL_PAID_AMT=new Map(Object.entries(JSON.parse(localStorage.getItem('manual_paid_amt')||'{}')));
+let MANUAL_PAID_DATE=new Map(Object.entries(JSON.parse(localStorage.getItem('manual_paid_date')||'{}')));   /* inv → 'YYYY-MM-DD' วันที่จ่าย OCF */
+/* date helpers: YYYY-MM-DD ↔ ISO(+07 เที่ยง กันวันเลื่อน) ↔ ไทยย่อ D/M/YY */
+const _ymdToIso = ymd => ymd ? ymd+'T12:00:00+07:00' : null;
+const _isoToYmd = iso => { try{ return iso ? new Date(iso).toLocaleDateString('en-CA',{timeZone:'Asia/Bangkok'}) : ''; }catch(e){ return ''; } };
+const _ymdThai = ymd => { if(!ymd)return ''; const p=String(ymd).split('-'); return p.length===3?`${+p[2]}/${+p[1]}/${((+p[0])+543)%100}`:ymd; };
 /* prefix ที่ค่าขนส่งอยู่ใน OS เท่านั้น (ไม่นับซ้ำใน prepaid donut) */
 const OS_TR_PFX=new Set(['TWI','SHL']);
 
@@ -4337,16 +4395,17 @@ const _sbHeaders={
   'apikey':SB_KEY, get Authorization(){return 'Bearer '+SB_TOKEN;},   /* getter: อ่าน token สดหลัง login (กัน 401) */
   'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'
 };
-async function _mpUpsert(invKey, amtThb){
+async function _mpUpsert(invKey, amtThb, paidAt){
   try{
+    const _iso = _ymdToIso(paidAt) || new Date().toISOString();
     // ลอง upsert พร้อม amount_thb ก่อน (ถ้า column มีแล้ว)
-    const body={invoice_no:invKey,paid_at:new Date().toISOString(),amount_thb:amtThb||0};
+    const body={invoice_no:invKey,paid_at:_iso,amount_thb:amtThb||0};
     const r=await fetch(`${SB_URL}/rest/v1/manual_paid`,{method:'POST',headers:_sbHeaders,body:JSON.stringify(body)});
     if(!r.ok){
       // ถ้า fail (column ยังไม่มี) → ส่งแค่ invoice_no + paid_at
       await fetch(`${SB_URL}/rest/v1/manual_paid`,{
         method:'POST',headers:_sbHeaders,
-        body:JSON.stringify({invoice_no:invKey,paid_at:new Date().toISOString()})
+        body:JSON.stringify({invoice_no:invKey,paid_at:_iso})
       });
     }
   }catch(e){console.warn('manual_paid upsert fail',e);}
@@ -4360,7 +4419,7 @@ async function _mpDelete(invKey){
 }
 async function loadManualPaidFromSupabase(){
   try{
-    const r=await fetch(`${SB_URL}/rest/v1/manual_paid?select=invoice_no,amount_thb`,{
+    const r=await fetch(`${SB_URL}/rest/v1/manual_paid?select=invoice_no,amount_thb,paid_at`,{
       headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Accept':'application/json'}
     });
     if(!r.ok)return;
@@ -4369,9 +4428,11 @@ async function loadManualPaidFromSupabase(){
       const k=row.invoice_no.toUpperCase();
       MANUAL_PAID.add(k);
       if(row.amount_thb) MANUAL_PAID_AMT.set(k,row.amount_thb);
+      const _d=_isoToYmd(row.paid_at); if(_d) MANUAL_PAID_DATE.set(k,_d);
     });
     localStorage.setItem('manual_paid_ocf',JSON.stringify([...MANUAL_PAID]));
     localStorage.setItem('manual_paid_amt',JSON.stringify(Object.fromEntries(MANUAL_PAID_AMT)));
+    localStorage.setItem('manual_paid_date',JSON.stringify(Object.fromEntries(MANUAL_PAID_DATE)));
     console.log(`✅ manual_paid loaded: ${MANUAL_PAID.size} รายการ`);
   }catch(e){console.warn('loadManualPaid fail',e);}
 }
@@ -4379,7 +4440,7 @@ async function pushLocalManualPaidToSupabase(){
   /* ดัน localStorage ทั้งหมดขึ้น Supabase ครั้งเดียว (ใช้ตอน init) */
   if(!MANUAL_PAID.size)return;
   try{
-    const payload=[...MANUAL_PAID].map(inv=>({invoice_no:inv,paid_at:new Date().toISOString(),amount_thb:MANUAL_PAID_AMT.get(inv)||0}));
+    const payload=[...MANUAL_PAID].map(inv=>({invoice_no:inv,paid_at:_ymdToIso(MANUAL_PAID_DATE.get(inv))||new Date().toISOString(),amount_thb:MANUAL_PAID_AMT.get(inv)||0}));
     await fetch(`${SB_URL}/rest/v1/manual_paid`,{
       method:'POST',headers:_sbHeaders,body:JSON.stringify(payload)
     });
@@ -4398,6 +4459,7 @@ function openOcfPaidModal(invKey){
   document.getElementById('ocfPaidInvLabel').textContent=invKey;
   const cur=MANUAL_PAID_AMT.get(_ocfInv)||'';
   document.getElementById('ocfPaidAmt').value=cur?cur:'';
+  document.getElementById('ocfPaidDate').value=MANUAL_PAID_DATE.get(_ocfInv)||new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Bangkok'});
   document.getElementById('ocfUnpaidBtn').style.display=already?'':'none';
   document.getElementById('ocfPaidModalBg').style.display='flex';
   setTimeout(()=>document.getElementById('ocfPaidAmt').focus(),100);
@@ -4409,14 +4471,17 @@ function closeOcfPaidModal(){
 function _saveLocalMp(){
   localStorage.setItem('manual_paid_ocf',JSON.stringify([...MANUAL_PAID]));
   localStorage.setItem('manual_paid_amt',JSON.stringify(Object.fromEntries(MANUAL_PAID_AMT)));
+  localStorage.setItem('manual_paid_date',JSON.stringify(Object.fromEntries(MANUAL_PAID_DATE)));
 }
 function confirmOcfPaid(){
   const amt=parseFloat(document.getElementById('ocfPaidAmt').value)||0;
   if(!amt){document.getElementById('ocfPaidErr').textContent='กรุณากรอกยอดเงิน';return;}
   document.getElementById('ocfPaidErr').textContent='';
+  const dt=document.getElementById('ocfPaidDate').value||'';
   MANUAL_PAID.add(_ocfInv);
   MANUAL_PAID_AMT.set(_ocfInv,amt);
-  _mpUpsert(_ocfInv,amt);
+  if(dt)MANUAL_PAID_DATE.set(_ocfInv,dt); else MANUAL_PAID_DATE.delete(_ocfInv);
+  _mpUpsert(_ocfInv,amt,dt);
   _saveLocalMp();
   closeOcfPaidModal();
   renderVessel();
@@ -4424,6 +4489,7 @@ function confirmOcfPaid(){
 function confirmOcfUnpaid(){
   MANUAL_PAID.delete(_ocfInv);
   MANUAL_PAID_AMT.delete(_ocfInv);
+  MANUAL_PAID_DATE.delete(_ocfInv);
   _mpDelete(_ocfInv);
   _saveLocalMp();
   closeOcfPaidModal();
@@ -6109,18 +6175,23 @@ function _vslFeeCells(r, gVessel, hasFees, fm){
   const isManualPaid=MANUAL_PAID.has(mpKey)||MANUAL_PAID.has(r.inv.toUpperCase());
   const mpAmt=MANUAL_PAID_AMT.get(mpKey)||MANUAL_PAID_AMT.get(r.inv.toUpperCase())||0;
   const mpAmtStr=mpAmt?`<br><span style="font-size:9px;color:#059669;font-weight:700;">${mpAmt.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2})} ฿</span>`:'';
+  const mpDate=MANUAL_PAID_DATE.get(mpKey)||MANUAL_PAID_DATE.get(r.inv.toUpperCase())||'';
+  const mpDateStr=mpDate?`<br><span style="font-size:8px;color:#94a3b8;font-weight:600;">📅 ${_ymdThai(mpDate)}</span>`:'';
   const ocfCell=oa>0
     ?`<span style="color:#16a34a;font-weight:700;">${fm(oa)}</span>${!ocfBd&&f.ocfNo?`<br><span style="font-size:9px;color:#94a3b8;">#${h(f.ocfNo)}</span>`:''}${ocfBd}`
     :iP?'<span style="color:#7c3aed;font-size:10px;">✓ จ่ายแล้ว</span>'
-    :isManualPaid?`<span style="color:#059669;font-size:10px;cursor:pointer;" onclick="toggleManualPaid('${r.inv.replace(/'/g,"\\'")}')">✓ จ่ายแล้ว${mpAmtStr}<span style="font-size:8px;opacity:.6;display:block;">(manual) แก้ไข</span></span>`
+    :isManualPaid?`<span style="color:#059669;font-size:10px;cursor:pointer;" onclick="toggleManualPaid('${r.inv.replace(/'/g,"\\'")}')">✓ จ่ายแล้ว${mpAmtStr}${mpDateStr}<span style="font-size:8px;opacity:.6;display:block;">(manual) แก้ไข</span></span>`
     :`<span style="color:#dc2626;font-size:10px;cursor:pointer;text-decoration:underline dotted;" title="คลิกเพื่อบันทึกการชำระ" onclick="toggleManualPaid('${r.inv.replace(/'/g,"\\'")}')">ยังไม่จ่าย</span>`;
   const tlxCell=ta>0
     ?`<span style="color:#2563eb;font-weight:700;">${fm(ta)}</span>${!tlxBd&&f.tlxNo?`<br><span style="font-size:9px;color:#94a3b8;">#${h(f.tlxNo)}</span>`:''}${tlxBd}`
     :iP?'<span style="color:#7c3aed;font-size:10px;">✓</span>':'<span style="color:#94a3b8;font-size:10px;">-</span>';
   const perCtr=oa>0&&r.vol>0?oa/r.vol:0;
   const perCtrCell=perCtr>0?`<span style="color:#7c3aed;font-weight:700;">${fm(perCtr)}</span>`:'<span style="color:#94a3b8;font-size:10px;">-</span>';
-  const trVal=TRAIN_THB.get(normInv(r.inv));
-  const trainCell=`<input type="number" step="100" value="${trVal||''}" placeholder="ไม่มี" onchange="saveTrainThb('${r.inv.replace(/'/g,"\\'")}',this.value)" style="width:72px;text-align:right;padding:3px 5px;border:1px solid transparent;border-radius:6px;font-size:11px;font-weight:700;color:#b45309;background:transparent;cursor:pointer;" onfocus="this.style.borderColor='#f59e0b';this.style.background='#fffdf5';this.style.cursor='text';" onblur="this.style.borderColor='transparent';this.style.background='transparent';this.style.cursor='pointer';" title="ค่ารถไฟ (บาท) — กรอกเอง">`;
+  const _trK=normInv(r.inv), trVal=TRAIN_THB.get(_trK), trDt=TRAIN_DATE.get(_trK);
+  const _trInvEsc=r.inv.replace(/'/g,"\\'");
+  const trainCell=trVal
+    ?`<span onclick="openTrainModal('${_trInvEsc}')" style="cursor:pointer;color:#b45309;font-weight:700;" title="แก้ค่ารถไฟ">${trVal.toLocaleString('th-TH')} ฿${trDt?`<br><span style="font-size:8px;color:#94a3b8;font-weight:600;">📅 ${_ymdThai(trDt)}</span>`:''}</span>`
+    :`<span onclick="openTrainModal('${_trInvEsc}')" style="cursor:pointer;color:#cbd5e1;font-size:10px;text-decoration:underline dotted;" title="กรอกค่ารถไฟ">ไม่มี</span>`;
   return `<td style="text-align:right;">${ocfCell}</td><td style="text-align:right;">${tlxCell}</td><td style="text-align:right;">${trainCell}</td><td style="text-align:right;">${perCtrCell}</td>`;
 }
 function renderVessel(){
