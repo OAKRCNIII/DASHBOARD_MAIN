@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>บันทึกตู้ สงขลา</title>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,"Noto Sans Thai",sans-serif;
+     background:#f1f5f9;color:#0f172a;font-size:15px;padding-bottom:110px}
+.hd{background:linear-gradient(135deg,#1a3a6b,#0ea5e9);color:#fff;padding:16px 18px 20px}
+.hd .n{font-size:30px;font-weight:800;line-height:1.1}
+.hd .s{font-size:12px;opacity:.9;margin-top:4px}
+.chips{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.22)}
+.wrap{padding:13px}
+.card{background:#fff;border-radius:14px;padding:15px;margin-bottom:11px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.card h3{margin:0 0 11px;font-size:12px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.7px}
+label{display:block;font-size:12px;font-weight:700;color:#475569;margin:0 0 5px}
+label .req{color:#e11d48}
+input,select{width:100%;padding:11px 12px;font-size:16px;border:1.5px solid #cbd5e1;
+             border-radius:9px;background:#fff;font-family:inherit;color:#0f172a}
+input:focus,select:focus{outline:none;border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.15)}
+.fld{margin-bottom:12px}.fld:last-child{margin-bottom:0}
+.hl input,.hl select{border-color:#0ea5e9;background:#f0f9ff}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.more{margin-top:10px;font-size:12.5px;font-weight:700;color:#0ea5e9;
+      text-align:center;padding:8px;border:1px dashed #bae6fd;border-radius:9px}
+
+/* แถวตู้ */
+.ct{border:1.5px solid #e2e8f0;border-radius:12px;margin-bottom:9px;background:#fff;overflow:hidden}
+.ct.on{border-color:#0ea5e9}
+.ct.dup{opacity:.55;background:#f8fafc}
+.ct.warn{border-color:#f59e0b}
+.ct .top{display:flex;align-items:center;gap:11px;padding:13px 14px}
+.ct .box{width:23px;height:23px;flex-shrink:0;accent-color:#0ea5e9;margin:0}
+.ct .no{font-size:16px;font-weight:800;letter-spacing:.4px}
+.ct.dup .no{text-decoration:line-through;color:#94a3b8}
+.ct .sub{font-size:11.5px;color:#64748b;margin-top:2px}
+.ct .exp{margin-left:auto;font-size:12px;color:#0ea5e9;font-weight:700;padding:6px;flex-shrink:0}
+/* white-space:pre-line — คำเตือนแยกบรรทัดมาจากเซิร์ฟเวอร์ ต้องไม่ให้ HTML ยุบทิ้ง */
+.ct .why{font-size:11.5px;padding:0 14px 11px 48px;color:#b45309;line-height:1.55;white-space:pre-line}
+.ct.dup .why{color:#64748b}
+.det{display:none;padding:0 14px 14px;border-top:1px solid #f1f5f9;margin-top:2px;padding-top:13px}
+.det.open{display:block}
+.ro{display:flex;justify-content:space-between;gap:12px;padding:6px 0;font-size:12.5px;border-bottom:1px solid #f8fafc}
+.ro .k{color:#64748b}.ro .v{text-align:right;font-weight:600;word-break:break-word}
+.bar{position:fixed;left:0;right:0;bottom:0;padding:11px 14px calc(11px + env(safe-area-inset-bottom));
+     background:#fff;border-top:1px solid #e2e8f0}
+button.save{width:100%;padding:15px;font-size:16px;font-weight:800;color:#fff;border:none;
+       border-radius:11px;background:linear-gradient(135deg,#059669,#10b981);font-family:inherit}
+button.save:disabled{background:#94a3b8}
+.mid{padding:70px 24px;text-align:center;color:#64748b;line-height:1.7}
+.err{color:#b91c1c;font-weight:700}
+.tiny{font-size:11.5px;color:#64748b;margin:-4px 0 9px}
+/* รูปที่ส่งเข้ามา — ดูก่อนกดบันทึก */
+.shots{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+.shots a{display:block;text-decoration:none;border:1.5px solid #e2e8f0;border-radius:10px;
+         overflow:hidden;background:#f8fafc}
+.shots img{width:100%;height:132px;object-fit:cover;display:block}
+.shots span{display:block;text-align:center;font-size:11px;font-weight:700;color:#475569;padding:5px 0}
+</style>
+</head>
+<body>
+<div id="app"><div class="mid">กำลังโหลด…</div></div>
+
+<script>
+const LIFF_ID = '__SKH_LIFF_ID__';   // ตั้งหลังสร้าง LIFF ของสงขลา
+const API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-skh';
+let TOKEN = null, LIST = [];
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const val = v => (v === null || v === undefined || v === '') ? '—' : v;
+const kg = v => v ? Number(v).toLocaleString() + ' kg' : '—';
+
+function fail(msg){
+  $('app').innerHTML = `<div class="mid"><p class="err">${esc(msg)}</p>
+    <p style="font-size:13px">ปิดหน้านี้แล้วลองส่งรูปใหม่ครับ</p></div>`;
+}
+
+function nextDay(iso){
+  if(!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  if(isNaN(d)) return '';
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0,10);
+}
+
+function ctrCard(c, i){
+  const dup = !!c.dup;
+  const warn = !dup && c.needs_review;
+  const cls = dup ? 'dup' : warn ? 'warn' : 'on';
+  return `
+  <div class="ct ${cls}" id="ct${i}">
+    <div class="top">
+      <input type="checkbox" class="box" id="pick${i}" ${dup ? 'disabled' : 'checked'}>
+      <div style="min-width:0">
+        <div class="no">${esc(val(c.container_no))}</div>
+        <div class="sub">ซีล ${esc(val(c.seal_no))} · ${kg(c.weight)} · ${esc(val(c.truck_plate))}</div>
+      </div>
+      <span class="exp" onclick="toggle(${i})">ดู ▾</span>
+    </div>
+    ${c.review_note ? `<div class="why">${esc(c.review_note)}</div>` : ''}
+    <div class="det" id="det${i}">
+      <div class="fld"><label>เบอร์ตู้</label>
+        <input id="f_container_no${i}" value="${esc(c.container_no ?? '')}" autocapitalize="characters"></div>
+      <div class="fld"><label>เบอร์ซีล</label>
+        <input id="f_seal_no${i}" value="${esc(c.seal_no ?? '')}" autocapitalize="characters"></div>
+      <div class="fld"><label>ทะเบียนรถ</label>
+        <input id="f_truck_plate${i}" value="${esc(c.truck_plate ?? '')}"></div>
+      <div class="grid2">
+        <div class="fld"><label>น้ำหนัก (kg)</label>
+          <input type="number" id="f_weight${i}" value="${esc(c.weight ?? '')}"></div>
+        <div class="fld"><label>สายเรือ</label>
+          <input id="f_shipping_line${i}" value="${esc(c.shipping_line ?? '')}"></div>
+      </div>
+      <div class="fld"><label>วันที่รับตู้ (ตามใบ EIR)</label>
+        <input type="date" id="f_pickup_date${i}" value="${esc(c.pickup_date ?? '')}"></div>
+      <!-- โซนอ่านอย่างเดียว — กด "แก้เพิ่มเติม" เพื่อสลับเป็นช่องกรอก -->
+      <div id="ro${i}">
+        <div class="ro"><span class="k">ลูกค้า</span><span class="v">${esc(val(c.customer))}</span></div>
+        <div class="ro"><span class="k">บริษัทรถ</span><span class="v">${esc(val(c.carrier))}</span></div>
+        <div class="ro"><span class="k">ลานตู้</span><span class="v">${esc(val(c.depot))}</span></div>
+        <div class="ro"><span class="k">REF.NO.</span><span class="v">${esc(val(c.eir_ref_no))}</span></div>
+        <div class="ro"><span class="k">ชนิด / ขนาด</span><span class="v">${esc(val([c.ctr_type,c.ctr_size].filter(Boolean).join(' ')))}</span></div>
+        <div class="ro"><span class="k">เจ้าของตู้</span><span class="v">${esc(val(c.ctr_owner))} ${esc(val(c.ctr_type_code))}</span></div>
+        <div class="ro"><span class="k">MAX / TARE / NET</span><span class="v">${kg(c.max_gross_kg)} / ${kg(c.tare_kg)} / ${kg(c.net_kg)}</span></div>
+        <div class="ro"><span class="k">คนขับ</span><span class="v">${esc(val(c.driver_name))}</span></div>
+        <div class="more" onclick="editMore(${i})">✏️ แก้เพิ่มเติม</div>
+      </div>
+
+      <div id="ed${i}" style="display:none">
+        <p class="tiny" style="margin:2px 0 10px">ช่องพวกนี้เก็บลงระบบด้วย — แก้ให้ตรงก่อนบันทึก</p>
+        <div class="fld"><label>ลูกค้า</label><input id="f_customer${i}" value="${esc(c.customer ?? '')}"></div>
+        <div class="fld"><label>บริษัทรถ</label><input id="f_carrier${i}" value="${esc(c.carrier ?? '')}"></div>
+        <div class="fld"><label>ลานตู้</label><input id="f_depot${i}" value="${esc(c.depot ?? '')}"></div>
+        <div class="fld"><label>REF.NO.</label><input id="f_eir_ref_no${i}" value="${esc(c.eir_ref_no ?? '')}"></div>
+        <div class="grid2">
+          <div class="fld"><label>ชนิดตู้</label><input id="f_ctr_type${i}" value="${esc(c.ctr_type ?? '')}"></div>
+          <div class="fld"><label>ขนาด</label><input id="f_ctr_size${i}" value="${esc(c.ctr_size ?? '')}"></div>
+        </div>
+        <div class="grid2">
+          <div class="fld"><label>เจ้าของตู้</label><input id="f_ctr_owner${i}" value="${esc(c.ctr_owner ?? '')}"></div>
+          <div class="fld"><label>รหัส ISO</label><input id="f_ctr_type_code${i}" value="${esc(c.ctr_type_code ?? '')}"></div>
+        </div>
+        <div class="grid3">
+          <div class="fld"><label>MAX GROSS</label><input type="number" id="f_max_gross_kg${i}" value="${esc(c.max_gross_kg ?? '')}"></div>
+          <div class="fld"><label>TARE</label><input type="number" id="f_tare_kg${i}" value="${esc(c.tare_kg ?? '')}"></div>
+          <div class="fld"><label>NET</label><input type="number" id="f_net_kg${i}" value="${esc(c.net_kg ?? '')}"></div>
+        </div>
+        <div class="fld"><label>คนขับ</label><input id="f_driver_name${i}" value="${esc(c.driver_name ?? '')}"></div>
+        <div class="more" onclick="editMore(${i},true)">▴ ย่อกลับ</div>
+      </div>
+      ${(c.eir_url||c.ctr_url) ? `
+      <div class="shots">
+        ${c.eir_url?`<a href="${esc(c.eir_url)}" target="_blank" rel="noopener"><img src="${esc(c.eir_url)}" loading="lazy"><span>ใบ EIR</span></a>`:''}
+        ${c.ctr_url?`<a href="${esc(c.ctr_url)}" target="_blank" rel="noopener"><img src="${esc(c.ctr_url)}" loading="lazy"><span>รูปตู้</span></a>`:''}
+      </div>
+      <p class="tiny" style="margin:6px 0 0">แตะรูปเพื่อดูเต็ม — เทียบซีล/เบอร์ตู้กับของจริงก่อนบันทึก</p>`:''}
+    </div>
+  </div>`;
+}
+
+/* สลับระหว่างโซนอ่านอย่างเดียว กับ โซนแก้ไข */
+function editMore(i, back){
+  document.getElementById('ro'+i).style.display = back ? '' : 'none';
+  document.getElementById('ed'+i).style.display = back ? 'none' : '';
+}
+
+function toggle(i){
+  const d = $('det'+i);
+  d.classList.toggle('open');
+  d.previousElementSibling; // noop
+  document.querySelector(`#ct${i} .exp`).textContent = d.classList.contains('open') ? 'ปิด ▴' : 'ดู ▾';
+}
+
+function render(draft, invoices){
+  LIST = draft.containers || [];
+  const dup = LIST.filter(c => c.dup).length;
+  const warn = LIST.filter(c => !c.dup && c.needs_review).length;
+  const ready = LIST.length - dup - warn;
+
+  const opts = invoices.map(i => {
+    const tail = i.expected ? ` — เหลือ ${i.remaining} ตู้` : '';
+    return `<option value="${esc(i.invoice_no)}">${esc(i.invoice_no)}${tail}</option>`;
+  }).join('');
+
+  // วันที่เข้าโรงงาน default = วันถัดจากวันรับตู้ใบแรกที่อ่านได้
+  const firstPick = (LIST.find(c => c.pickup_date) || {}).pickup_date;
+
+  $('app').innerHTML = `
+  <div class="hd">
+    <div class="s">บันทึกตู้ — ท่าเรือสงขลา</div>
+    <div class="n">${LIST.length} ตู้</div>
+    <div class="chips">
+      ${ready ? `<span class="chip">✅ พร้อม ${ready}</span>` : ''}
+      ${warn ? `<span class="chip">⚠️ ต้องดู ${warn}</span>` : ''}
+      ${dup ? `<span class="chip">⛔ ซ้ำ ${dup}</span>` : ''}
+      ${draft.orphans ? `<span class="chip">📷 จับคู่ไม่ได้ ${draft.orphans}</span>` : ''}
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="card">
+      <h3>★ ใช้กับทุกตู้ที่ติ๊กไว้</h3>
+      <div class="fld hl">
+        <label>อินวอยซ์ <span class="req">*</span></label>
+        <select id="invoice_no"><option value="">— เลือกอินวอยซ์ —</option>${opts}</select>
+      </div>
+      <div class="fld hl">
+        <label>วันที่นำเข้าโรงงาน <span class="req">*</span></label>
+        <input type="date" id="factory_date" value="${esc(nextDay(firstPick))}">
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>รายการตู้</h3>
+      <p class="tiny">ตู้ที่ไม่ใช่อินวอยซ์นี้ ให้เอาติ๊กออก แล้วส่งรอบใหม่ · กด "ดู" เพื่อแก้ค่าที่อ่านผิด</p>
+      ${LIST.map(ctrCard).join('')}
+    </div>
+  </div>
+
+  <div class="bar"><button class="save" id="save">บันทึก</button></div>`;
+
+  $('save').onclick = save;
+  LIST.forEach((_, i) => { const b = $('pick'+i); if(b) b.onchange = count; });
+  count();
+}
+
+function picked(){
+  return LIST.map((c,i) => ({c,i})).filter(({i}) => { const b = $('pick'+i); return b && b.checked; });
+}
+function count(){
+  const n = picked().length;
+  const b = $('save');
+  b.textContent = n ? `บันทึก ${n} ตู้` : 'ยังไม่ได้เลือกตู้';
+  b.disabled = !n;
+}
+
+async function save(){
+  const btn = $('save');
+  const invoice_no = $('invoice_no').value;
+  const factory_date = $('factory_date').value;
+  if(!invoice_no){ alert('เลือกอินวอยซ์ก่อนครับ'); $('invoice_no').focus(); return; }
+  if(!factory_date){ alert('ใส่วันที่นำเข้าโรงงานก่อนครับ'); $('factory_date').focus(); return; }
+
+  const sel = picked();
+  const selected = [], overrides = {};
+  for(const {c,i} of sel){
+    const no = ($('f_container_no'+i).value || '').trim().toUpperCase() || c.container_no;
+    selected.push(c.container_no);
+    const txtOf = k => { const el = $('f_'+k+i); return el && el.value.trim() ? el.value.trim() : null; };
+    const numOf = k => { const el = $('f_'+k+i); return el && el.value !== '' ? Number(el.value) : null; };
+
+    overrides[c.container_no] = {
+      container_no:  no,
+      seal_no:       ($('f_seal_no'+i).value || '').trim().toUpperCase() || null,
+      truck_plate:   txtOf('truck_plate'),
+      weight:        numOf('weight'),
+      shipping_line: txtOf('shipping_line'),
+      pickup_date:   $('f_pickup_date'+i).value || null,
+      /* โซน "แก้เพิ่มเติม" */
+      customer:      txtOf('customer'),
+      carrier:       txtOf('carrier'),
+      depot:         txtOf('depot'),
+      eir_ref_no:    txtOf('eir_ref_no'),
+      ctr_type:      txtOf('ctr_type'),
+      ctr_size:      txtOf('ctr_size'),
+      ctr_owner:     txtOf('ctr_owner'),
+      ctr_type_code: txtOf('ctr_type_code'),
+      max_gross_kg:  numOf('max_gross_kg'),
+      tare_kg:       numOf('tare_kg'),
+      net_kg:        numOf('net_kg'),
+      driver_name:   txtOf('driver_name'),
+    };
+  }
+
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก…';
+  try{
+    const r = await fetch(API + '/submit', {
+      method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({ token: TOKEN, invoice_no, factory_date, selected, overrides }),
+    });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    btn.textContent = `✓ บันทึก ${j.saved.length} ตู้`;
+    setTimeout(() => { if(liff.isInClient()) liff.closeWindow(); }, 900);
+  }catch(e){
+    alert('บันทึกไม่สำเร็จ: ' + e.message);
+    btn.disabled = false; count();
+  }
+}
+
+function readToken(){
+  const q = new URLSearchParams(location.search);
+  const direct = q.get('t'); if(direct) return direct;
+  const state = q.get('liff.state');
+  if(state){
+    const qs = state.includes('?') ? state.slice(state.indexOf('?') + 1) : state;
+    const t = new URLSearchParams(qs).get('t'); if(t) return t;
+  }
+  if(location.hash){
+    const t = new URLSearchParams(location.hash.replace(/^#\/?/, '')).get('t'); if(t) return t;
+  }
+  return null;
+}
+
+(async function(){
+  // ⚠️ ต้อง init ก่อน — liff.init() เป็นตัวคลาย liff.state ให้กลายเป็น ?t=
+  try{
+    await liff.init({ liffId: LIFF_ID });
+    if(!liff.isLoggedIn() && !liff.isInClient()){ liff.login(); return; }
+  }catch(e){ return fail('เปิด LIFF ไม่ได้: ' + e.message); }
+
+  TOKEN = readToken();
+  if(!TOKEN) return fail('ลิงก์ไม่ถูกต้อง (ไม่มี token)');
+
+  try{
+    const [dRes, iRes] = await Promise.all([
+      fetch(`${API}/draft?t=${encodeURIComponent(TOKEN)}`),
+      fetch(`${API}/invoices`),
+    ]);
+    const dJson = await dRes.json();
+    if(!dRes.ok) return fail(dJson.error || 'โหลดข้อมูลไม่ได้');
+    const iJson = await iRes.json();
+    render(dJson.draft, iJson.invoices || []);
+  }catch(e){ fail('โหลดข้อมูลไม่ได้: ' + e.message); }
+})();
+</script>
+</body>
+</html>
