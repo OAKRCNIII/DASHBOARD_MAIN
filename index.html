@@ -4289,9 +4289,9 @@ function applyRoleRestrictions(){
     if(setBtn)setBtn.style.display='none';
     const _syncBtn=document.getElementById('syncNowBtn'); if(_syncBtn)_syncBtn.style.display='none';   /* YAI: ซ่อนปุ่ม SYNC */
     /* มุม Dashboard หลักของ YAI: เห็นแค่แท็บ "รายเดือน" — ซ่อนแท็บอื่นทั้ง desktop + mobile */
-    ['htab-pending','htab-stock','htab-factory','htab-vessel','htab-report',
-     'mtab-pending','mtab-stock','mtab-factory','mtab-vessel']
-      .forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+    ['htab-pending','htab-stock','htab-vessel','htab-report',
+     'mtab-pending','mtab-stock','mtab-vessel']
+      .forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});   /* YAI เห็น รายเดือน + เข้าโรงงาน (htab-factory/mtab-factory ไม่ซ่อนแล้ว) */
     /* หน้าแรก = Dashboard หลัก (รายเดือน) ไม่ใช่หน้าขนส่ง — กดปุ่มสลับไปหน้าขนส่งได้เอง */
   } else if(USER_ROLE==='manager'){
     if(dashBtn)dashBtn.style.display='none';
