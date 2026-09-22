@@ -1255,17 +1255,17 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
       <input id="trainAmt" type="number" step="100" placeholder="0"
         style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #fed7aa;border-radius:10px;font-size:16px;font-weight:700;color:#b45309;outline:none;margin-bottom:6px;"
         oninput="document.getElementById('trainErr').textContent=''"
-        onkeydown="if(event.key==='Enter')confirmTrainSave()">
+        onkeydown="if(event.key==='Enter')requirePin(confirmTrainSave)">
       <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin:8px 0 5px;">วันที่จ่าย</label>
       <input id="trainDate" type="date"
         style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid #fed7aa;border-radius:10px;font-size:14px;font-weight:700;color:#b45309;outline:none;margin-bottom:6px;">
       <div id="trainErr" style="font-size:11px;color:#dc2626;min-height:16px;margin-bottom:10px;"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
         <button onclick="closeTrainModal()" style="padding:8px 16px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:12px;font-weight:700;cursor:pointer;">ยกเลิก</button>
-        <button onclick="confirmTrainSave()" style="padding:8px 18px;border-radius:8px;border:none;background:#b45309;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">✅ บันทึก</button>
+        <button onclick="requirePin(confirmTrainSave)" style="padding:8px 18px;border-radius:8px;border:none;background:#b45309;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">✅ บันทึก</button>
       </div>
       <div id="trainClearBtn" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
-        <button onclick="confirmTrainClear()" style="width:100%;padding:7px;border-radius:8px;border:1.5px solid #fca5a5;background:#fff1f2;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;">🗑️ ลบค่ารถไฟ (ไม่มี)</button>
+        <button onclick="requirePin(confirmTrainClear)" style="width:100%;padding:7px;border-radius:8px;border:1.5px solid #fca5a5;background:#fff1f2;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;">🗑️ ลบค่ารถไฟ (ไม่มี)</button>
       </div>
     </div>
   </div>
