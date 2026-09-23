@@ -6647,9 +6647,9 @@ function showVesselPdfModal(){
   const hasFees=_canSeeFees()&&Object.keys(FEES).length>0;
   const fm=n=>n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
   let html='';
-  const groups=[..._VSL_GROUPS,..._VSL_DRAFT_GROUPS];
+  const groups=[..._VSL_GROUPS.map(g=>({...g,_isDraft:false})),..._VSL_DRAFT_GROUPS.map(g=>({...g,_isDraft:true}))].sort((a,b)=>pDate(b.date)-pDate(a.date));
   groups.forEach((g,i)=>{
-    const isDraft=i>=_VSL_GROUPS.length;
+    const isDraft=g._isDraft;
     let oc=0,tl=0;g.rows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}});
     const tot=oc+tl;
     html+=`<label class="vpdf-item" id="vpi-${i}" for="vpc-${i}">
@@ -6678,7 +6678,7 @@ function printVesselPdf(){
   const cbs=[...document.querySelectorAll('#vPdfBody input[type=checkbox]')];
   const idxs=cbs.map((c,i)=>c.checked?i:-1).filter(i=>i>=0);
   if(!idxs.length)return;
-  const groups=[..._VSL_GROUPS,..._VSL_DRAFT_GROUPS];
+  const groups=[..._VSL_GROUPS.map(g=>({...g,_isDraft:false})),..._VSL_DRAFT_GROUPS.map(g=>({...g,_isDraft:true}))].sort((a,b)=>pDate(b.date)-pDate(a.date));
   const sel=idxs.map(i=>groups[i]);
   const hasFees=_canSeeFees()&&Object.keys(FEES).length>0;
   const fm=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}):'-';
