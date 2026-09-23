@@ -6686,12 +6686,12 @@ function printVesselPdf(){
   const nowDate=()=>{const d=new Date();return d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear();};
   const PC={BSW:{bg:'#dbeafe',tx:'#1e40af',bd:'#bfdbfe'},OGM:{bg:'#dcfce7',tx:'#166534',bd:'#bbf7d0'},TWI:{bg:'#fef3c7',tx:'#92400e',bd:'#fde68a'},INV:{bg:'#f3e8ff',tx:'#6b21a8',bd:'#e9d5ff'},DEF:{bg:'#f1f5f9',tx:'#475569',bd:'#e2e8f0'}};
   const bStyle=p=>{const c=PC[p]||PC.DEF;return `background:${c.bg};color:${c.tx};border:1px solid ${c.bd}`;};
-  const colCount=hasFees?7:5;
+  const colCount=hasFees?8:5;
   let pages='';
   sel.forEach((g,pi)=>{
-    let oc=0,tl=0;g.rows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}});
+    let oc=0,tl=0,trTot=0;g.rows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}trTot+=TRAIN_THB.get(normInv(r.inv))||0;});
     const tot=oc+tl;
-    const fh=hasFees?'<th class="r">OCF (RM)</th><th class="r">TLX (RM)</th>':'';
+    const fh=hasFees?'<th class="r">OCF (RM)</th><th class="r">TLX (RM)</th><th class="r">รถไฟ (฿)</th>':'';
     let trows='';
     g.rows.forEach((r,ri)=>{
       const pfx=getPfx(r.inv);
@@ -6721,24 +6721,27 @@ function printVesselPdf(){
           tlxTd=`<span class="amt b">${fm(ta)}</span>${!bd&&f.tlxNo?`<span class="rno">#${he(f.tlxNo)}</span>`:''}${bd}`;
         } else tlxTd=iP?`<span class="tag pur">✓</span>`:`<span class="tag gr">—</span>`;
       }
+      let trainTd='';
+      if(hasFees){const _t=TRAIN_THB.get(normInv(r.inv)),_d=TRAIN_DATE.get(normInv(r.inv));trainTd=_t?`<span class="amt">${_t.toLocaleString('th-TH')}</span>${_d?`<span class="rno">${_ymdThai(_d)}</span>`:''}`:`<span class="tag gr">-</span>`;}
       trows+=`<tr class="${ri%2===1?'alt':''}">
         <td class="no">${ri+1}</td>
         <td><span class="pbadge" style="${bStyle(pfx)}">${he(pfx)}</span><span class="inv-rest">${he(r.inv.substring(3))}</span></td>
         <td class="des">${he(r.des)}</td>
         <td class="mono">${he(r.bkg)}</td>
         <td class="r"><span class="amt g">${r.vol}</span></td>
-        ${hasFees?`<td class="r">${ocfTd}</td><td class="r">${tlxTd}</td>`:''}
+        ${hasFees?`<td class="r">${ocfTd}</td><td class="r">${tlxTd}</td><td class="r">${trainTd}</td>`:''}
       </tr>`;
     });
     let foot='';
     if(hasFees){
       foot=`<tr class="sr">
-        <td colspan="${colCount-2}" class="rl">รวมเรือลำนี้</td>
+        <td colspan="${colCount-3}" class="rl">รวมเรือลำนี้</td>
         <td class="r"><span class="amt g">${oc>0?fm(oc):'-'}</span></td>
         <td class="r"><span class="amt b">${tl>0?fm(tl):'-'}</span></td>
+        <td class="r"><span class="amt">${trTot>0?trTot.toLocaleString('th-TH')+' ฿':'-'}</span></td>
       </tr><tr class="tr2">
-        <td colspan="${colCount-2}" class="rl">รวม OCF + TLX</td>
-        <td colspan="2" class="r"><span class="amt nv">${fm(tot)} RM</span></td>
+        <td colspan="${colCount-3}" class="rl">รวม OCF + TLX</td>
+        <td colspan="3" class="r"><span class="amt nv">${fm(tot)} RM</span></td>
       </tr>`;
     }
     /* each page = flex column, table grows to fill remaining space */
