@@ -2272,9 +2272,24 @@ async function _checkLockBadge(inv){
       const ents=new Set((j.containers||[]).map(c=>String(c.container_no||'').toUpperCase()));
       const tot=j.locked.containers.length;
       const used=j.locked.containers.filter(c=>c.container_no&&ents.has(String(c.container_no).toUpperCase())).length;
-      s.innerHTML=` <span title="ใบนี้ล็อคตู้ไว้ล่วงหน้าใน BKG (${h(j.locked.tag)})" style="padding:6px 12px;background:#ede9fe;border:1.5px solid #c4b5fd;border-radius:7px;color:#6d28d9;font-size:12px;font-weight:800;letter-spacing:.02em;white-space:nowrap;">🔒 LOCK CONTAINERS · ${used}/${tot}</span>`;
+      const _isPlan=j.locked.source==='plan';
+      const _ie=String(inv).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const _can=_canLockUpload();
+      const _mst=_isPlan?`<span ${_can?`onclick="unlockMasterSet('${_ie}')" `:''}title="${_can?'คลิกเพื่อปลดล็อคใบ MASTER (ลบ lock_plan)':'ใบนี้มีใบ MASTER อัปโหลดไว้'}" style="font-size:9px;color:#7c3aed;font-weight:700;margin-top:1px;${_can?'cursor:pointer;text-decoration:underline dotted;':''}">📋 มีใบ MASTER${_can?' · ปลดล็อค':' แล้ว'}</span>`:'';
+      s.innerHTML=` <span style="display:inline-flex;flex-direction:column;align-items:center;gap:1px;vertical-align:middle;"><span title="ใบนี้ล็อคตู้ไว้ล่วงหน้าใน BKG (${h(j.locked.tag)})" style="padding:6px 12px;background:#ede9fe;border:1.5px solid #c4b5fd;border-radius:7px;color:#6d28d9;font-size:12px;font-weight:800;letter-spacing:.02em;white-space:nowrap;">🔒 LOCK CONTAINERS · ${used}/${tot}</span>${_mst}</span>`;
     }
   }catch(_e){}
+}
+/* ปลดล็อคใบ MASTER (ลบ lock_plan ของอินวอยซ์) — ต้องใส่รหัสก่อน */
+function unlockMasterSet(inv){ requirePin(()=>_doUnlockMaster(inv), `ปลดล็อคใบ MASTER ของ ${inv}`); }
+async function _doUnlockMaster(inv){
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/lock_plan?invoice_no=eq.${encodeURIComponent(inv)}`,
+      {method:'DELETE',headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`}});
+    if(!r.ok) throw new Error(await r.text());
+    alert('✅ ปลดล็อคใบ MASTER แล้ว — ใบแจ้งจะกลับไปโหมดปกติ (heuristic ตาม BKG / เติมทีละตู้)');
+    _checkLockBadge(inv);   /* รีเฟรช badge */
+  }catch(e){ alert('ปลดล็อคไม่สำเร็จ: '+e.message); }
 }
 
 /* ══ อัปโหลดใบล็อคตู้ (master) → Claude vision อ่านลำดับ → lock_plan (OAK/admin) ══ */
