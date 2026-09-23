@@ -6188,7 +6188,7 @@ function showPriceHistory(pfx){
   document.getElementById('priceHistBody').innerHTML=body;
   document.getElementById('priceHistModalBg').style.display='flex';
 }
-let _vslFilter='';let _VSL_GROUPS=[];
+let _vslFilter='';let _VSL_GROUPS=[];let _VSL_DRAFT_GROUPS=[];   /* เรือ DRAFT (ยังไม่ FINAL) สำหรับ PDF picker */
 let _vslViewMode='list'; /* 'list' | 'cal' */
 let _vslCalYear=new Date().getFullYear();
 let _vslCalMonth=new Date().getMonth(); /* 0-indexed */
@@ -6245,6 +6245,7 @@ function renderVessel(){
   const draftByVsl = {};
   draftGroups.forEach(g=>{ draftByVsl[g.vessel.trim().toUpperCase()+'|'+g.date]=g.rows; });
   const draftStandalone = draftGroups.filter(g=>!_finalVslKeys.has(g.vessel.trim().toUpperCase()+'|'+g.date));
+  _VSL_DRAFT_GROUPS=draftStandalone;   /* เก็บไว้ให้ PDF picker เลือกเรือ DRAFT ได้ */
   const draftNames=[...new Set(VESSEL_DRAFT.map(r=>r.vessel))].filter(v=>!all.includes(v)).sort();
 
   let opts=`<option value="">🚢 เรือทั้งหมด (${all.length} ลำ)</option>`;all.forEach(v=>{opts+=`<option value="${h(v)}"${v===_vslFilter?' selected':''}>${h(v)}</option>`;});
@@ -6646,13 +6647,15 @@ function showVesselPdfModal(){
   const hasFees=_canSeeFees()&&Object.keys(FEES).length>0;
   const fm=n=>n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
   let html='';
-  _VSL_GROUPS.forEach((g,i)=>{
+  const groups=[..._VSL_GROUPS,..._VSL_DRAFT_GROUPS];
+  groups.forEach((g,i)=>{
+    const isDraft=i>=_VSL_GROUPS.length;
     let oc=0,tl=0;g.rows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}});
     const tot=oc+tl;
     html+=`<label class="vpdf-item" id="vpi-${i}" for="vpc-${i}">
       <input type="checkbox" id="vpc-${i}" onchange="onVPdfChk()">
       <div style="flex:1;min-width:0;">
-        <div style="font-size:12px;font-weight:700;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">🚢 ${h(g.vessel)}</div>
+        <div style="font-size:12px;font-weight:700;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">🚢 ${h(g.vessel)}${isDraft?` <span style="font-size:8.5px;font-weight:800;color:#c2410c;background:#ffedd5;border:1px solid #fdba74;border-radius:4px;padding:0 4px;">DRAFT</span>`:''}</div>
         <div style="font-size:10.5px;color:#64748b;margin-top:2px;">📅 ${h(g.date)} · ${g.rows.length} INV · ${g.vol} ตู้${hasFees&&tot>0?` · 💰 ${fm(tot)} RM`:''}</div>
       </div></label>`;
   });
@@ -6675,7 +6678,8 @@ function printVesselPdf(){
   const cbs=[...document.querySelectorAll('#vPdfBody input[type=checkbox]')];
   const idxs=cbs.map((c,i)=>c.checked?i:-1).filter(i=>i>=0);
   if(!idxs.length)return;
-  const sel=idxs.map(i=>_VSL_GROUPS[i]);
+  const groups=[..._VSL_GROUPS,..._VSL_DRAFT_GROUPS];
+  const sel=idxs.map(i=>groups[i]);
   const hasFees=_canSeeFees()&&Object.keys(FEES).length>0;
   const fm=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}):'-';
   const he=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
