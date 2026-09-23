@@ -158,33 +158,24 @@ function render(inv, list, kind, locked){
     let ei = 0;
     const blanksGap = COLS.slice(1).map(() => '<td></td>').join('');
     filled = 0; let n = 0;
-    locked.containers.forEach(b => {
-      n++;
-      const cn = b.container_no;
-      if(b.freed || !cn){   // ช่องว่าง (ปลดล็อค) → เติมด้วยตู้เข้ามาแทนตามลำดับ ถ้ามี
-        if(ei < extras.length){
-          const c = extras[ei++]; filled++;
-          const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
-          rows.push(`<tr class="freerow"><td class="seq">${n}</td>${tds}</tr>`);   // ตู้เติม = ดำ
-          ord.push(c);
-        } else {
-          rows.push(`<tr class="pend"><td class="seq">${n}</td>${blanksGap}</tr>`);
-          ord.push(null);
+    const _free = c => { const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join(''); rows.push(`<tr class="freerow"><td class="seq">${n}</td>${tds}</tr>`); ord.push(c); };
+    const _lock = b => { const cn=b.container_no; const e=entMap[_cn(cn)]; if(e)filled++; const c=e||{container_no:cn}; const tds=cellsOf(c).map((v,j)=>`<td class="${COLS[j+1][1]}">${v}</td>`).join(''); rows.push(`<tr class="lockrow${e ? '' : ' wait'}"><td class="seq">${n}</td>${tds}</tr>`); ord.push(c); };
+    const isPlan = locked.source === 'plan';
+    const onTop = new URLSearchParams(location.search).get('locktop') === '1';
+    if(isPlan || onTop){   // มาสเตอร์ (ตามตำแหน่ง) หรือสวิตช์เปิด → ตู้ล็อคขึ้นบน
+      locked.containers.forEach(b => {
+        n++; const cn = b.container_no;
+        if(b.freed || !cn){
+          if(ei < extras.length){ const c = extras[ei++]; filled++; _free(c); }
+          else { rows.push(`<tr class="pend"><td class="seq">${n}</td>${blanksGap}</tr>`); ord.push(null); }
+          return;
         }
-        return;
-      }
-      const e = entMap[_cn(cn)];
-      if(e) filled++;
-      const c = e || { container_no: cn };   // ยังไม่เข้า → มีแค่เบอร์ตู้ (ฟันหลอ)
-      const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
-      rows.push(`<tr class="lockrow${e ? '' : ' wait'}"><td class="seq">${n}</td>${tds}</tr>`);   // ตู้ล็อค = ม่วง
-      ord.push(c);
-    });
-    while(ei < extras.length){   // ตู้เติมที่เกินจำนวนช่องว่าง → ต่อท้าย
-      n++; const c = extras[ei++]; filled++;
-      const tds = cellsOf(c).map((v, j) => `<td class="${COLS[j+1][1]}">${v}</td>`).join('');
-      rows.push(`<tr class="freerow"><td class="seq">${n}</td>${tds}</tr>`);
-      ord.push(c);
+        _lock(b);
+      });
+      while(ei < extras.length){ n++; const c = extras[ei++]; filled++; _free(c); }   // ตู้เติมเกินช่องว่าง → ต่อท้าย
+    } else {   // default (heuristic): ตู้เข้าไม่ล็อคขึ้นบน → ตู้ล็อคต่อท้ายล่างสุด
+      extras.forEach(c => { n++; filled++; _free(c); });
+      locked.containers.forEach(b => { if(!b.container_no) return; n++; _lock(b); });
     }
     total = Math.max(inv.container_count || 0, n);
     for(; n < total; ){ n++; rows.push(`<tr class="pend"><td class="seq">${n}</td>${blanksGap}</tr>`); ord.push(null); }

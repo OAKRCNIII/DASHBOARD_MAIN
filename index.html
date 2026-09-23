@@ -1515,6 +1515,22 @@ function confirmTrainSave(){
   saveTrainThb(inv, amt, dt);
 }
 function confirmTrainClear(){ const inv=_trainInv; closeTrainModal(); saveTrainThb(inv, null, null); }
+/* ── สลับลำดับตู้ล็อคในใบแจ้งเบอร์ตู้ (ต่ออินวอยซ์) — default(false)=ตู้ล็อคอยู่ล่าง · true=ขึ้นบน ── */
+let LOCK_TOP = new Set();
+async function loadLockTop(){
+  try{ const rows=await sbFetch('invoices','select=invoice_no&lock_top=eq.true'); LOCK_TOP=new Set(rows.map(r=>normInv(r.invoice_no))); }
+  catch(e){ LOCK_TOP=new Set(); console.warn('lock_top column ยังไม่มี (รัน SQL ก่อน):',e.message); }
+}
+async function toggleLockTop(inv,on,el){
+  const key=normInv(inv);
+  const hdr={'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'};
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/invoices?invoice_no=eq.${encodeURIComponent(inv)}`,
+      {method:'PATCH',headers:{...hdr,'Prefer':'return=representation'},body:JSON.stringify({lock_top:on})});
+    if(!r.ok) throw new Error(await r.text());
+    if(on) LOCK_TOP.add(key); else LOCK_TOP.delete(key);
+  }catch(e){ alert('สลับโหมดไม่สำเร็จ (รัน SQL เพิ่มคอลัมน์ lock_top ก่อน?): '+e.message); if(el) el.checked=!on; }
+}
 const _syncLcbSet = () => {
   LCB_INV = new Set([...PORT_OF].filter(([, p]) => p === 'LCB').map(([k]) => k));
 };
@@ -1602,7 +1618,7 @@ function _lazyScript(src){
 }
 
 /* ⚠️ v ต้องตรงกับ REPORT_V ใน edge function line-lcb — GitHub Pages แคช 10 นาที */
-const LCB_REPORT_URL='https://oakrcniii.github.io/DASHBOARD_MAIN/lcb_report.html?v=28';
+const LCB_REPORT_URL='https://oakrcniii.github.io/DASHBOARD_MAIN/lcb_report.html?v=29';
 /* ══════════════════════════════════════════════════════════════
    ออกใบ SHIPPING INSTRUCTIONS (SI)
 
@@ -2240,7 +2256,8 @@ async function _vgmMake(){
 }
 
 function openLcbReport(inv){
-  window.open(`${LCB_REPORT_URL}&inv=${encodeURIComponent(inv)}`,'_blank','noopener');
+  const _lt=LOCK_TOP.has(normInv(inv))?'&locktop=1':'';
+  window.open(`${LCB_REPORT_URL}&inv=${encodeURIComponent(inv)}${_lt}`,'_blank','noopener');
 }
 /* badge 🔒 LOCK CONTAINERS — เช็คด้วย Edge (แหล่งเดียวกับใบแจ้ง) ให้ตรงกัน */
 async function _checkLockBadge(inv){
@@ -3922,7 +3939,7 @@ async function loadData(forceRefresh=false){
   }
   /* ป้ายแหลมฉบัง — ดึงแยกจากก้อนหลัก ไม่ให้ไปกระทบลำดับ _rows / cache
      พังก็ไม่เป็นไร แค่ป้ายไม่ขึ้น ข้อมูลอื่นทำงานปกติ */
-  loadLcbInv(); loadTrainThb();
+  loadLcbInv(); loadTrainThb(); loadLockTop();
   if(!_rows){
     setLoad('LOADING...');
     _rows=await Promise.all([
@@ -5251,6 +5268,7 @@ function showInvDetail(id,panelId){
   out+=` <button onclick="openLcbReport('${_invEsc}')" style="padding:6px 14px;background:#1a3a6b;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📄 ใบแจ้งเบอร์ตู้</button>`;
   out+=` <span id="lockBadgeSlot" data-inv="${h(d.inv)}"></span>`;   /* badge 🔒 LOCK เติม async หลังเช็ค Edge */
   if(_canLockUpload()) out+=` <button onclick="openLockUpload('${_invEsc}')" title="อัปโหลดใบล็อคตู้ (master) ให้บอทอ่านลำดับ" style="padding:6px 14px;background:#6d28d9;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📋 อัปโหลดใบล็อค</button>`;
+  if(_canLockUpload()){const _ltOn=LOCK_TOP.has(normInv(d.inv));out+=` <label title="ใบแจ้งเบอร์ตู้: ติ๊ก = ตู้ล็อคขึ้นบน · ไม่ติ๊ก = ตู้ล็อคอยู่ล่างสุด (ค่าเริ่มต้น)" style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:7px;font-size:11px;font-weight:700;color:#6d28d9;cursor:pointer;vertical-align:middle;"><input type="checkbox" ${_ltOn?'checked':''} onchange="toggleLockTop('${_invEsc}',this.checked,this)" style="accent-color:#6d28d9;cursor:pointer;">🔀 ตู้ล็อคขึ้นบน</label>`;}
   /* ── ฝั่งรับข้อมูลเข้า วางไว้ขวาสุดแยกจากปุ่มออกเอกสาร ──
      ปุ่มอื่นคือ "ออก" เอกสาร ปุ่มนี้คือ "รับ" เข้า คนละทิศทางกัน
      ต้องกดปุ่มนี้ก่อน ปุ่มใบ SI ถึงจะใช้ได้ */
@@ -7004,13 +7022,19 @@ async function doFacPrint(dates){
       const extras=list.filter(c=>c.container_no&&!planCnSet.has(_cn(c.container_no)));   // ตู้เข้ามาแทน (ไม่ใช่ตู้ล็อคเดิม)
       let ei=0; const blanksLk=COLS.slice(1).map(()=>'<td></td>').join('');
       filled=0; let n=0;
-      _lk.forEach(b=>{n++;const cn=b.container_no;
-        if(b.freed||!cn){   // ช่องว่าง (ปลดล็อค) → เติมด้วยตู้เข้ามาแทนตามลำดับ ถ้ามี
-          if(ei<extras.length){const c=extras[ei++];filled++;const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr class="freerow"><td class="seq"${st}>${n}</td>${cellsOf(c,bg).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;}
-          else{rows+=`<tr class="pend"><td class="seq">${n}</td>${blanksLk}</tr>`;}
-          return;}
-        const e=entMap[_cn(cn)]; if(e)filled++;const c=e||{container_no:cn};const bg=e?colorOfCtr(c):'';const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr class="lockrow"><td class="seq"${st}>${n}</td>${cellsOf(c,bg).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;});
-      while(ei<extras.length){n++;const c=extras[ei++];filled++;const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';rows+=`<tr class="freerow"><td class="seq"${st}>${n}</td>${cellsOf(c,bg).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;}   // ตู้เติมเกินช่องว่าง → ต่อท้าย
+      const _free=c=>{const bg=colorOfCtr(c);const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';return `<tr class="freerow"><td class="seq"${st}>${n}</td>${cellsOf(c,bg).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;};
+      const _lock=b=>{const cn=b.container_no;const e=entMap[_cn(cn)]; if(e)filled++;const c=e||{container_no:cn};const bg=e?colorOfCtr(c):'';const st=bg?` style="background:${bg};-webkit-print-color-adjust:exact;print-color-adjust:exact;"`:'';return `<tr class="lockrow"><td class="seq"${st}>${n}</td>${cellsOf(c,bg).map(v=>`<td${st}>${v}</td>`).join('')}</tr>`;};
+      const _isPlan=j.locked&&j.locked.source==='plan';
+      const _onTop=LOCK_TOP.has(normInv((j.invoice&&j.invoice.invoice_no)||''));
+      if(_isPlan||_onTop){   // มาสเตอร์ (ตามตำแหน่ง) หรือสวิตช์เปิด → ตู้ล็อคขึ้นบน
+        _lk.forEach(b=>{n++;const cn=b.container_no;
+          if(b.freed||!cn){ if(ei<extras.length){const c=extras[ei++];filled++;rows+=_free(c);} else{rows+=`<tr class="pend"><td class="seq">${n}</td>${blanksLk}</tr>`;} return;}
+          rows+=_lock(b);});
+        while(ei<extras.length){n++;const c=extras[ei++];filled++;rows+=_free(c);}   // ตู้เติมเกินช่องว่าง → ต่อท้าย
+      } else {   // default (heuristic): ตู้เข้าไม่ล็อคขึ้นบน → ตู้ล็อคต่อท้ายล่างสุด
+        extras.forEach(c=>{n++;filled++;rows+=_free(c);});
+        _lk.forEach(b=>{if(!b.container_no)return;n++;rows+=_lock(b);});
+      }
       total2=Math.max(total,n);
       for(;n<total2;){n++;rows+=`<tr class="pend"><td class="seq">${n}</td>${blanksLk}</tr>`;}
     } else {
