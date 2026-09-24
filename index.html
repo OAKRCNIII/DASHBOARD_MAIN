@@ -4392,15 +4392,16 @@ function applyRoleRestrictions(){
   const debtBtn=document.getElementById('debtDashBtn');
   const setBtn=document.getElementById('settingsBtn');
   if(USER_ROLE==='transport'){
-    if(dashBtn)dashBtn.style.display='';   /* YAI: เปิดปุ่มสลับ → ดูมุม Dashboard หลัก (manager) ได้ แต่ไม่เห็นราคา (ราคาผูก admin เท่านั้น) */
+    const _noTr=(LOGGED_USER==='BOW_ANTS'||LOGGED_USER==='TARN_ANTS');   /* BOW/TARN: เข้า Dashboard หลักได้เหมือน YAI แต่ซ่อนหน้าค่าขนส่ง */
+    if(dashBtn)dashBtn.style.display=_noTr?'none':'';   /* YAI: เปิดปุ่มสลับไปหน้าค่าขนส่ง · BOW/TARN: ซ่อนปุ่มนี้ (เข้าค่าขนส่งไม่ได้) */
     if(debtBtn)debtBtn.style.display='none';
     if(setBtn)setBtn.style.display='none';
-    const _syncBtn=document.getElementById('syncNowBtn'); if(_syncBtn)_syncBtn.style.display='none';   /* YAI: ซ่อนปุ่ม SYNC */
-    /* มุม Dashboard หลักของ YAI: เห็นแค่แท็บ "รายเดือน" — ซ่อนแท็บอื่นทั้ง desktop + mobile */
+    const _syncBtn=document.getElementById('syncNowBtn'); if(_syncBtn)_syncBtn.style.display='none';   /* ซ่อนปุ่ม SYNC */
+    /* มุม Dashboard หลัก: เห็นแค่แท็บ "รายเดือน" + "เข้าโรงงาน" — ซ่อนแท็บอื่นทั้ง desktop + mobile; BOW/TARN ซ่อนแท็บขนส่ง (mtr) ด้วย */
     ['htab-pending','htab-stock','htab-vessel','htab-report',
-     'mtab-pending','mtab-stock','mtab-vessel']
-      .forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});   /* YAI เห็น รายเดือน + เข้าโรงงาน (htab-factory/mtab-factory ไม่ซ่อนแล้ว) */
-    /* หน้าแรก = Dashboard หลัก (รายเดือน) ไม่ใช่หน้าขนส่ง — กดปุ่มสลับไปหน้าขนส่งได้เอง */
+     'mtab-pending','mtab-stock','mtab-vessel'].concat(_noTr?['mtab-mtr']:[])
+      .forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+    /* หน้าแรก = Dashboard หลัก (รายเดือน) ไม่ใช่หน้าขนส่ง */
   } else if(USER_ROLE==='manager'){
     if(dashBtn)dashBtn.style.display='none';
     if(debtBtn)debtBtn.style.display='none';
