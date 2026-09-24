@@ -4392,20 +4392,24 @@ function applyRoleRestrictions(){
   const debtBtn=document.getElementById('debtDashBtn');
   const setBtn=document.getElementById('settingsBtn');
   if(USER_ROLE==='transport'){
-    const _noTr=(LOGGED_USER==='BOW_ANTS'||LOGGED_USER==='TARN_ANTS');   /* BOW/TARN: เข้า Dashboard หลักได้เหมือน YAI แต่ซ่อนหน้าค่าขนส่ง */
-    if(dashBtn)dashBtn.style.display=_noTr?'none':'';   /* YAI: เปิดปุ่มสลับไปหน้าค่าขนส่ง · BOW/TARN: ซ่อนปุ่มนี้ (เข้าค่าขนส่งไม่ได้) */
+    if(dashBtn)dashBtn.style.display='';   /* YAI: เปิดปุ่มสลับไปหน้าค่าขนส่ง */
     if(debtBtn)debtBtn.style.display='none';
     if(setBtn)setBtn.style.display='none';
     const _syncBtn=document.getElementById('syncNowBtn'); if(_syncBtn)_syncBtn.style.display='none';   /* ซ่อนปุ่ม SYNC */
-    /* มุม Dashboard หลัก: เห็นแค่แท็บ "รายเดือน" + "เข้าโรงงาน" — ซ่อนแท็บอื่นทั้ง desktop + mobile; BOW/TARN ซ่อนแท็บขนส่ง (mtr) ด้วย */
+    /* มุม Dashboard หลัก: เห็นแค่แท็บ "รายเดือน" + "เข้าโรงงาน" — ซ่อนแท็บอื่นทั้ง desktop + mobile */
     ['htab-pending','htab-stock','htab-vessel','htab-report',
-     'mtab-pending','mtab-stock','mtab-vessel'].concat(_noTr?['mtab-mtr']:[])
+     'mtab-pending','mtab-stock','mtab-vessel']
       .forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
     /* หน้าแรก = Dashboard หลัก (รายเดือน) ไม่ใช่หน้าขนส่ง */
   } else if(USER_ROLE==='manager'){
-    if(dashBtn)dashBtn.style.display='none';
+    if(dashBtn)dashBtn.style.display='none';   /* manager ไม่มีปุ่มค่าขนส่งอยู่แล้ว */
     if(debtBtn)debtBtn.style.display='none';
     if(setBtn)setBtn.style.display='none';
+    if(LOGGED_USER==='BOW_ANTS'||LOGGED_USER==='TARN_ANTS'){   /* BOW/TARN: manager (main dashboard ไม่มีค่าขนส่ง) แต่จำกัดแท็บ + ซ่อน SYNC แบบ YAI; ไม่เห็นราคา/เงิน (ไม่ใช่ admin) */
+      const _sb=document.getElementById('syncNowBtn'); if(_sb)_sb.style.display='none';
+      ['htab-pending','htab-stock','htab-vessel','htab-report',
+       'mtab-pending','mtab-stock','mtab-vessel'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+    }
   }
   /* BILLING tab + FINANCE button: admin only */
   ['htab-billing','mtab-billing','financeBtn','htab-finance','mtab-finance'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=_canSeeBilledPaid()?'':'none';});
@@ -5050,7 +5054,7 @@ function renderStatsMain(){
   const notLoadedList=FLAT.filter(d=>!isLoaded(d.inv));
   const plannedVsl=notLoadedList.filter(d=>VESSEL_PLAN[d.inv.toUpperCase()]).length;
   const notPlanned=notLoadedList.filter(d=>!VESSEL_PLAN[d.inv.toUpperCase()]).length;
-  document.getElementById('sBar').innerHTML=kc('📋 อินวอยซ์ทั้งหมด',ti,'รายการ','#6366f1',null)+kc('✅ ปล่อยเอกสารแล้ว',rel,relC+' ตู้','#10b981',null)+kc('⏳ คงค้าง',pCnt,'ตู้ยังไม่ครบ','#f59e0b','pending')+(USER_ROLE==='transport'?'':kc('🔖 รอปล่อยเอกสาร',cDone,'อินวอยซ์','#8b5cf6','ctr-done')+kc('🚢 แพลนขึ้นเรือ',plannedVsl,'รายการ','#0ea5e9','planned-vessel')+kc('📭 ยังไม่จัดเรือ',notPlanned,'รายการ','#ef4444','not-loaded'));   /* YAI (transport): ซ่อน 3 การ์ดนี้ */
+  document.getElementById('sBar').innerHTML=kc('📋 อินวอยซ์ทั้งหมด',ti,'รายการ','#6366f1',null)+kc('✅ ปล่อยเอกสารแล้ว',rel,relC+' ตู้','#10b981',null)+kc('⏳ คงค้าง',pCnt,'ตู้ยังไม่ครบ','#f59e0b','pending')+((USER_ROLE==='transport'||LOGGED_USER==='BOW_ANTS'||LOGGED_USER==='TARN_ANTS')?'':kc('🔖 รอปล่อยเอกสาร',cDone,'อินวอยซ์','#8b5cf6','ctr-done')+kc('🚢 แพลนขึ้นเรือ',plannedVsl,'รายการ','#0ea5e9','planned-vessel')+kc('📭 ยังไม่จัดเรือ',notPlanned,'รายการ','#ef4444','not-loaded'));   /* YAI (transport) + BOW/TARN: ซ่อน 3 การ์ดนี้ */
   const pb=document.getElementById('pBadge');if(pb)pb.textContent=(pCnt+cDone)||'';
   const mb=document.getElementById('mBadge');if(mb){const t=pCnt+cDone;mb.textContent=t||'';mb.style.display=t?'inline':'none';}
 }
