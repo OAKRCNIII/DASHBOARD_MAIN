@@ -43,7 +43,9 @@ create table if not exists public.invoice_train(
 );
 -- คัดลอกข้อมูลเดิมก่อนลบคอลัมน์
 insert into public.invoice_train(invoice_no, train_thb, train_paid_date)
-  select invoice_no, train_thb, train_paid_date
+  select invoice_no,
+         nullif(train_thb::text,'')::numeric    as train_thb,
+         nullif(train_paid_date::text,'')::date as train_paid_date
   from public.invoices
   where train_thb is not null or train_paid_date is not null
 on conflict (invoice_no) do update

@@ -3966,15 +3966,15 @@ async function loadData(forceRefresh=false){
     _rows=await Promise.all([
       sbFetch('invoices','order=id'),
       sbFetch('containers_all','order=uid'),   /* view รวมตู้ปาดัง + แหลมฉบัง (มีคอลัมน์ source) */
-      sbFetch('transport_bills','order=id'),
-      sbFetch('billing_ants','order=id'),
-      sbFetch('payments_ants','order=id'),
+      sbFetch('transport_bills','order=id').catch(()=>[]),   /* ตารางเงิน — role ที่ไม่มีสิทธิ์ RLS คืน []/deny → กันพังด้วย catch */
+      sbFetch('billing_ants','order=id').catch(()=>[]),
+      sbFetch('payments_ants','order=id').catch(()=>[]),
       sbFetch('vessels','order=id'),
-      sbFetch('su_statement','order=id'),
+      sbFetch('su_statement','order=id').catch(()=>[]),
       sbFetch('bookings','order=id'),
       sbFetch('vessel_plan','order=id'),
-      sbFetch('price_update','order=effective_date'),
-      sbFetch('ogm_prices','order=id'),
+      sbFetch('price_update','order=effective_date').catch(()=>[]),
+      sbFetch('ogm_prices','order=id').catch(()=>[]),
       sbFetch('ship_paid_log','select=prefix,month,paid,paid_date').catch(()=>[]),
       sbFetch('bank_balance','order=bank').catch(()=>[]),
     ]);
