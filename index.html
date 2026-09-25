@@ -11420,7 +11420,7 @@ function showDashboard(data){
   hideLoad();document.getElementById('app').style.display='flex';
   const now=new Date();document.getElementById('lastUpd').textContent='☁️ Supabase · '+pad(now.getHours())+':'+pad(now.getMinutes());
   updateLastSyncLabel();
-  renderTabs();renderStatsMain();const m=Object.keys(BY_MONTH).sort()[0];if(m)selMonth(m);
+  renderTabs();renderStatsMain();const m=_defMonth(Object.keys(BY_MONTH).filter(k=>k!=='-').sort(mSort));if(m)selMonth(m);   /* default = เดือนปัจจุบัน (ไม่ใช่ '-' ไม่ระบุ ที่ string-sort ดันขึ้นก่อน) */
   applyRoleRestrictions();
   /* บนมือถือ/แท็บเล็ต (รวม Z Fold 6 unfolded) ให้เริ่มที่หน้าหลัก */
   updateMobTabsForDevice();
