@@ -1466,27 +1466,33 @@ let LCB_INV  = new Set();         /* invoice_no ที่เป็นแหล�
 let PORT_OF  = new Map();         /* invoice_no → port เก็บเฉพาะที่ไม่ใช่ PADANG */
 let _PORT_COL = true;             /* false = ยังไม่รัน migrate_18 → ถอยไปใช้ lcb_invoices แบบเดิม */
 const portOf = inv => PORT_OF.get(String(inv).trim()) || 'PADANG';
-/* ค่ารถไฟ (บาท) ต่ออินวอยซ์ — กรอกมือ เก็บใน invoices.train_thb (มักเป็นตู้แหลมฉบัง) */
+/* ค่ารถไฟ (บาท) ต่ออินวอยซ์ — กรอกมือ เก็บในตาราง invoice_train (admin เท่านั้น — กันเงินที่ต้นทาง; มักเป็นตู้แหลมฉบัง) */
 let TRAIN_THB = new Map(); let TRAIN_DATE = new Map(); let _TRAIN_COL = true;
 async function loadTrainThb(){
   try{
-    const rows = await sbFetch('invoices','select=invoice_no,train_thb,train_paid_date&train_thb=not.is.null');
+    const rows = await sbFetch('invoice_train','select=invoice_no,train_thb,train_paid_date&train_thb=not.is.null');
     TRAIN_THB = new Map(); TRAIN_DATE = new Map();
     rows.forEach(r=>{ const k=normInv(r.invoice_no); TRAIN_THB.set(k, Number(r.train_thb)||0); if(r.train_paid_date) TRAIN_DATE.set(k, String(r.train_paid_date).slice(0,10)); });
     _TRAIN_COL = true;
-  }catch(e){ _TRAIN_COL=false; TRAIN_THB=new Map(); TRAIN_DATE=new Map(); console.warn('train_thb column ยังไม่มี (รัน SQL ก่อน):', e.message); }
+  }catch(e){ _TRAIN_COL=false; TRAIN_THB=new Map(); TRAIN_DATE=new Map(); console.warn('ตาราง invoice_train ยังไม่มี (รัน SQL migration ก่อน):', e.message); }
 }
 async function saveTrainThb(inv, amt, dateYmd){
-  if(!_TRAIN_COL){ alert('ยังเปิดช่องรถไฟไม่ได้ — ต้องรัน SQL เพิ่มคอลัมน์ invoices.train_thb + train_paid_date ก่อน'); return; }
+  if(!_TRAIN_COL){ alert('ยังเปิดช่องรถไฟไม่ได้ — ต้องรัน SQL สร้างตาราง invoice_train ก่อน'); return; }
   const key=normInv(inv);
   const val=(amt===''||amt==null)?null:(parseFloat(amt)||0);
   const dt=(val==null||!dateYmd)?null:dateYmd;   /* ไม่มียอด = ล้างวันที่ด้วย */
   const hdr={'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'};
   try{
-    const r=await fetch(`${SB_URL}/rest/v1/invoices?invoice_no=eq.${encodeURIComponent(inv)}`,
-      {method:'PATCH',headers:{...hdr,'Prefer':'return=representation'},body:JSON.stringify({train_thb:val,train_paid_date:dt})});
+    let r;
+    if(val==null){   /* ล้างยอด = ลบแถวใน invoice_train */
+      r=await fetch(`${SB_URL}/rest/v1/invoice_train?invoice_no=eq.${encodeURIComponent(inv)}`,
+        {method:'DELETE',headers:{...hdr,'Prefer':'return=minimal'}});
+    }else{           /* upsert ตาม PK invoice_no */
+      r=await fetch(`${SB_URL}/rest/v1/invoice_train?on_conflict=invoice_no`,
+        {method:'POST',headers:{...hdr,'Prefer':'resolution=merge-duplicates,return=minimal'},
+         body:JSON.stringify({invoice_no:inv,train_thb:val,train_paid_date:dt})});
+    }
     if(!r.ok) throw new Error(await r.text());
-    const got=await r.json(); if(!got.length) throw new Error('ไม่เจออินวอยซ์นี้ในตาราง invoices');
     if(val==null){ TRAIN_THB.delete(key); TRAIN_DATE.delete(key); } else { TRAIN_THB.set(key,val); if(dt)TRAIN_DATE.set(key,dt); else TRAIN_DATE.delete(key); }
     renderVessel();
   }catch(e){ alert('บันทึกค่ารถไฟไม่สำเร็จ: '+e.message); }
@@ -4307,6 +4313,7 @@ function _enterApp(u){
     return;
   }
   USER_ROLE=role; LOGGED_USER=uname;
+  try{ sessionStorage.removeItem(_DB_CACHE_KEY); }catch(e){}   /* กันข้อมูลเงินของ user ก่อนหน้าค้างใน cache แล้วโผล่ให้ role ที่ไม่มีสิทธิ์ (RLS จะกรองสดตอน fetch ใหม่) */
   if(_MAINT_ON && LOGGED_USER!=='OAK_THIRA'){ _logLogin(uname); _showMaintScreen(); return; }
   document.getElementById('loginScreen').style.display='none';
   const chip=document.getElementById('userChip');
