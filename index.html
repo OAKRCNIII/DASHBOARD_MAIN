@@ -4545,6 +4545,10 @@ const mNum=k=>{if(!k||k==='-')return 99;const p=k.includes('_')?k.split('_')[1]:
 const mYear=k=>{if(!k||k==='-'||!k.includes('_'))return 0;return parseInt(k.split('_')[0])||0;};
 const mSort=(a,b)=>{const ya=mYear(a),yb=mYear(b);if(ya!==yb)return ya-yb;return mNum(a)-mNum(b);};
 const mLabel=k=>{if(!k||k==='-')return MF['-']||'ไม่ระบุ';const p=k.includes('_')?k.split('_'):[null,k];const m=p[1];const y=p[0]?parseInt(p[0]):0;return(MF[m]||'เดือน '+m)+(y?' '+y:'');};
+/* key เดือนปัจจุบัน (Asia/Bangkok) รูปแบบ 'YYYY_M' เช่น 2026_9 — ใช้เป็น default ตอน load */
+const _curMonthKey=()=>{const b=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Bangkok'});return parseInt(b.slice(0,4))+'_'+parseInt(b.slice(5,7));};
+/* เลือก default: เดือนปัจจุบันถ้ามีข้อมูล ไม่งั้นเดือนล่าสุด (months เรียง mSort น้อย→มาก) */
+const _defMonth=months=>{const ck=_curMonthKey();return months.includes(ck)?ck:(months[months.length-1]||null);};
 /* ดึง prefix จาก invoice number: letters ก่อนตัวเลขแรก (ANTS-JM → "JM" สำหรับแสดงผล) */
 function getPfx(inv){const s=String(inv||'').trim().toUpperCase();if(s.startsWith('ANTS-JM'))return 'JM';if(s.startsWith('OGM')&&!s.includes('(A)')&&s.includes('('))return 'ONE-GOLD';const m=s.match(/^([A-Z]+)/);return m?m[1]:s.substring(0,3);}
 const PFXC={
@@ -4710,7 +4714,7 @@ function renderMobileMonthView(){
   const h2=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   /* month pills */
   const months=Object.keys(BY_MONTH).filter(k=>k!=='-').sort(mSort);
-  if(!_mmonthSel||!BY_MONTH[_mmonthSel])_mmonthSel=months[months.length-1]||null;
+  if(!_mmonthSel||!BY_MONTH[_mmonthSel])_mmonthSel=_defMonth(months);   /* default = เดือนปัจจุบัน (fallback ล่าสุด) */
   pills.innerHTML=months.map(m=>{
     const invs=BY_MONTH[m]||[];
     const done=invs.filter(d=>d.doc_status==='ปล่อยเอกสารแล้ว').length;
@@ -5128,7 +5132,7 @@ function renderTabs(){
       out+=`<div class="mtab${isUA?' active':''}" data-m="__unassigned__" style="border-left-color:#f97316;background:${isUA?'rgba(249,115,22,.3)':'rgba(249,115,22,.1)'};">⚠️ ยังไม่จัดเดือน<br><span style="font-size:10px;font-weight:700;color:#fb923c;">${unassigned.length} INV</span></div>`;
     }
     document.getElementById('mTabs').innerHTML=out;
-    if(!SM&&months.length)selMonth(months[0]);
+    if(!SM&&months.length)selMonth(_defMonth(months));   /* default = เดือนปัจจุบัน (fallback ล่าสุด) */
   }else{
     const pm={};FLAT.forEach(d=>{if(!pm[d.prefix])pm[d.prefix]={cnt:0};pm[d.prefix].cnt++;});
     const pfxs=Object.keys(pm).sort();let out=tog;
