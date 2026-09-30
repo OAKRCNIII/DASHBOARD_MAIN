@@ -143,7 +143,7 @@ function render(inv, list, kind, locked){
 
   const cellsOf = c => IS_RAIL
     ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
-       esc(thaiDate(c.pickup_date ?? c.factory_date))]   /* รถไฟ: วันที่เข้าโหลด = pickup_date (ต่อตู้) */
+       esc(thaiDate(c.factory_date))]   /* รถไฟ: วันที่เข้าโหลด = factory_date (ต่อแถวจากตาราง) */
     : KIND === 'LCB'
     ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
        esc(thaiDate(c.factory_date)), c.weight ? Number(c.weight).toLocaleString() : '']
