@@ -1553,6 +1553,12 @@ async function toggleRailMode(inv,on,el){
     if(on) RAIL_INV.add(key); else RAIL_INV.delete(key);
   }catch(e){ alert('สลับ เรือ/รถไฟ ไม่สำเร็จ (รัน SQL เพิ่มคอลัมน์ lcb_mode ก่อน?): '+e.message); if(el) el.checked=!on; }
 }
+/* ติ๊กสลับ เรือ/รถไฟ ต้องใส่รหัสก่อน — revert checkbox ทันที แล้วตั้งกลับเมื่อรหัสถูก (ยกเลิก=คงเดิม) */
+function askRail(inv, el){
+  const want=el.checked;
+  el.checked=!want;
+  requirePin(()=>{ el.checked=want; toggleRailMode(inv, want, el); }, 'ใส่รหัสเพื่อสลับ เรือ/รถไฟ');
+}
 const _syncLcbSet = () => {
   LCB_INV = new Set([...PORT_OF].filter(([, p]) => p === 'LCB').map(([k]) => k));
 };
@@ -5271,7 +5277,9 @@ function showInvDetail(id,panelId){
               ${k!=='PADANG'?'border-left:1px solid #e2e8f0;':''}${on?`box-shadow:inset 0 0 0 1px ${P.bd};`:''}">
        ${P.icon} ${P.th}</button>`;
    }
-   out+=`</span>`;}
+   out+=`</span>`;
+   /* แหลมฉบัง: สลับ เรือบาร์จ(ท่าเรือสุราษฎร์ default)/รถไฟ — ต่อท้ายท่าเรือ เฉพาะตอนเลือกแหลมฉบัง (ติ๊กต้องใส่รหัส) */
+   if(_cur==='LCB' && _canLockUpload()){const _rOn=RAIL_INV.has(normInv(d.inv));out+=` <label title="ติ๊ก = รถไฟ (หัวใบ 'รถไฟ - แหลมฉบัง' + ตัดน้ำหนัก) · ไม่ติ๊ก = เรือบาร์จ ท่าเรือสุราษฎร์ (ค่าเริ่มต้น) — ติ๊กต้องใส่รหัส" style="display:inline-flex;align-items:center;gap:4px;margin-left:6px;padding:2px 8px;background:${_rOn?'#dbeafe':'#eff6ff'};border:1px solid #bfdbfe;border-radius:8px;font-size:9px;font-weight:700;color:#1d4ed8;cursor:pointer;vertical-align:middle;"><input type="checkbox" ${_rOn?'checked':''} onchange='askRail(${_invJ},this)' style="accent-color:#1d4ed8;cursor:pointer;margin:0;">🚆 รถไฟ</label>`;}}
   out+=`</div>`;
   /* ── Shipment Timeline ── */
   {const _tA=d.total_actual||0,_tE=d.total_expected||0;
@@ -5314,8 +5322,6 @@ function showInvDetail(id,panelId){
     out+=` <button onclick="openVgmModal('${_invEsc}')" style="padding:6px 14px;background:#4d7c0f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">⚖️ ไฟล์ VGM</button>`;
   /* ใบแจ้งเบอร์ตู้ — ทุกอินวอยซ์ หน้ารายงานสลับคอลัมน์ตามท่าเรือให้เอง */
   out+=` <button onclick="openLcbReport('${_invEsc}')" style="padding:6px 14px;background:#1a3a6b;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📄 ใบแจ้งเบอร์ตู้</button>`;
-  /* แหลมฉบัง: สลับ เรือบาร์จ(ท่าเรือสุราษฎร์ default) / รถไฟ — คุมหัวใบแจ้งเบอร์ตู้ */
-  if(LCB_INV.has(String(d.inv).trim()) && _canLockUpload()){const _rOn=RAIL_INV.has(normInv(d.inv));out+=` <label title="แหลมฉบัง: ติ๊ก = รถไฟ (หัวใบ 'รถไฟ - แหลมฉบัง' + ตัดน้ำหนัก) · ไม่ติ๊ก = เรือบาร์จ ท่าเรือสุราษฎร์ (ค่าเริ่มต้น)" style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;font-size:11px;font-weight:700;color:#1d4ed8;cursor:pointer;vertical-align:middle;"><input type="checkbox" ${_rOn?'checked':''} onchange="toggleRailMode('${_invEsc}',this.checked,this)" style="accent-color:#1d4ed8;cursor:pointer;">🚆 รถไฟ</label>`;}
   out+=` <span id="lockBadgeSlot" data-inv="${h(d.inv)}"></span>`;   /* badge 🔒 LOCK เติม async หลังเช็ค Edge */
   if(_canLockUpload()) out+=` <button onclick="openLockUpload('${_invEsc}')" title="อัปโหลดใบล็อคตู้ (master) ให้บอทอ่านลำดับ" style="padding:6px 14px;background:#6d28d9;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📋 อัปโหลดใบล็อค</button>`;
   if(_canLockUpload()){const _ltOn=LOCK_TOP.has(normInv(d.inv));out+=` <label title="ใบแจ้งเบอร์ตู้: ติ๊ก = ตู้ล็อคขึ้นบน · ไม่ติ๊ก = ตู้ล็อคอยู่ล่างสุด (ค่าเริ่มต้น)" style="margin-left:auto;display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:7px;font-size:11px;font-weight:700;color:#6d28d9;cursor:pointer;vertical-align:middle;"><input type="checkbox" ${_ltOn?'checked':''} onchange="toggleLockTop('${_invEsc}',this.checked,this)" style="accent-color:#6d28d9;cursor:pointer;">🔀 ตู้ล็อคขึ้นบน</label>`;}
