@@ -107,7 +107,7 @@ html.shooting body{width:210mm}
 const API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-lcb';
 const DOW = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
 const MON = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-let CUR = null, ROWS = [], KIND = 'LCB', EXPORT = null;
+let CUR = null, ROWS = [], KIND = 'LCB', EXPORT = null, IS_RAIL = false;
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -124,19 +124,30 @@ function todayText(){
 }
 
 function render(inv, list, kind, locked){
-  CUR = inv; ROWS = list; KIND = kind || 'LCB';
+  CUR = inv; ROWS = list;
+  const _q = new URLSearchParams(location.search);
+  IS_RAIL = (kind === 'RAIL') || (_q.get('mode') === 'rail');   /* รถไฟ-แหลมฉบัง = sub-type ของ LCB (ตรรกะล็อค/ซีลเหมือนกัน แต่หัว+คอลัมน์+หัวรองต่าง) */
+  KIND = IS_RAIL ? 'LCB' : (kind || 'LCB');
+  const railBkg = inv.rail_booking || _q.get('bkg') || inv.invoice_no || '';   /* BOOKING no. + ชื่อบริษัทขนส่ง — บอทอ่านจากตารางสรุป (Part B); เทสต์ผ่าน ?bkg=&co= */
+  const railCo  = inv.rail_company || _q.get('co') || '';
   { const vb = document.getElementById('vgm'); if(vb) vb.style.display = (KIND === 'PADANG') ? '' : 'none'; }   /* VGM OOCL = เฉพาะปาดัง */
   const isLocked = !!(locked && locked.containers && locked.containers.length);
   const rows = [];
 
   /* คอลัมน์ต่างกันตามท่าเรือ — ปาดังไม่มีซีล แต่มีโรงงาน */
-  const COLS = KIND === 'LCB'
+  const COLS = IS_RAIL
+    ? [['ลำดับ','c-no'],['เบอร์ตู้','c-ctr'],['SEAL NO.','c-seal'],
+       ['ทะเบียนรถ','c-truck'],['วันที่เข้าโหลด','c-date']]
+    : KIND === 'LCB'
     ? [['ลำดับ','c-no'],['ทะเบียนรถ','c-truck'],['เบอร์ตู้','c-ctr'],
        ['SEAL NO.','c-seal'],['วันที่เข้าโรงงาน','c-date'],['น้ำหนัก (กก.)','c-wt']]
     : [['ลำดับ','c-no'],['ทะเบียนรถ','c-truck'],['เบอร์ตู้','c-ctr'],
        ['วันที่เข้าโรงงาน','c-date'],['โรงงาน','c-fac'],['น้ำหนัก (กก.)','c-wt']];
 
-  const cellsOf = c => KIND === 'LCB'
+  const cellsOf = c => IS_RAIL
+    ? [esc(c.container_no ?? ''), esc(c.seal_no ?? ''), esc(c.truck_plate ?? ''),
+       esc(thaiDate(c.factory_date))]
+    : KIND === 'LCB'
     ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
        esc(thaiDate(c.factory_date)), c.weight ? Number(c.weight).toLocaleString() : '']
     : [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''),
@@ -203,9 +214,10 @@ function render(inv, list, kind, locked){
 
   document.getElementById('out').innerHTML = `
   <div class="sheet${isLocked ? ' lockmode' : ''}" id="sheet">
-    <div class="tbox"><h1>${KIND === 'LCB' ? 'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง' : 'ใบแจ้งเบอร์ตู้'}</h1></div>
-    <p class="l1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p>
-    <p class="l2">${esc(line2)}</p>
+    <div class="tbox"><h1>${IS_RAIL ? 'สถานีรถไฟ - แหลมฉบัง' : (KIND === 'LCB' ? 'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง' : 'ใบแจ้งเบอร์ตู้')}</h1></div>
+    ${IS_RAIL
+      ? `<p class="l1">แจ้งเบอร์ตู้ BOOKING <b>${esc(railBkg)}</b> ${total || ''}</p><p class="l2">${esc(railCo)}</p>`
+      : `<p class="l1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p><p class="l2">${esc(line2)}</p>`}
     <table>
       <thead><tr>${COLS.map(([t,cl])=>`<th class="${cl}">${t}</th>`).join('')}</tr></thead>
       <tbody>${rows.join('')}</tbody>
