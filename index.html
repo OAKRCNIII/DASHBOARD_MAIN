@@ -1537,6 +1537,22 @@ async function toggleLockTop(inv,on,el){
     if(on) LOCK_TOP.add(key); else LOCK_TOP.delete(key);
   }catch(e){ alert('สลับโหมดไม่สำเร็จ (รัน SQL เพิ่มคอลัมน์ lock_top ก่อน?): '+e.message); if(el) el.checked=!on; }
 }
+/* โหมดย่อยแหลมฉบัง: 'port'(ท่าเรือสุราษฎร์ default) / 'rail'(รถไฟ) — คุมหัวใบแจ้งเบอร์ตู้ */
+let RAIL_INV = new Set();   /* invoice_no ที่เป็นรถไฟ (lcb_mode='rail') */
+async function loadRailMode(){
+  try{ const rows=await sbFetch('invoices','select=invoice_no&lcb_mode=eq.rail'); RAIL_INV=new Set(rows.map(r=>normInv(r.invoice_no))); }
+  catch(e){ RAIL_INV=new Set(); console.warn('lcb_mode column ยังไม่มี (รัน SQL ก่อน):',e.message); }
+}
+async function toggleRailMode(inv,on,el){
+  const key=normInv(inv);
+  const hdr={'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'};
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/invoices?invoice_no=eq.${encodeURIComponent(inv)}`,
+      {method:'PATCH',headers:{...hdr,'Prefer':'return=representation'},body:JSON.stringify({lcb_mode:on?'rail':'port'})});
+    if(!r.ok) throw new Error(await r.text());
+    if(on) RAIL_INV.add(key); else RAIL_INV.delete(key);
+  }catch(e){ alert('สลับ เรือ/รถไฟ ไม่สำเร็จ (รัน SQL เพิ่มคอลัมน์ lcb_mode ก่อน?): '+e.message); if(el) el.checked=!on; }
+}
 const _syncLcbSet = () => {
   LCB_INV = new Set([...PORT_OF].filter(([, p]) => p === 'LCB').map(([k]) => k));
 };
@@ -2263,7 +2279,8 @@ async function _vgmMake(){
 
 function openLcbReport(inv){
   const _lt=LOCK_TOP.has(normInv(inv))?'&locktop=1':'';
-  window.open(`${LCB_REPORT_URL}&inv=${encodeURIComponent(inv)}${_lt}`,'_blank','noopener');
+  const _rl=RAIL_INV.has(normInv(inv))?'&mode=rail':'';   /* รถไฟ → หัว 'รถไฟ - แหลมฉบัง' + ตัดน้ำหนัก */
+  window.open(`${LCB_REPORT_URL}&inv=${encodeURIComponent(inv)}${_lt}${_rl}`,'_blank','noopener');
 }
 /* badge 🔒 LOCK CONTAINERS — เช็คด้วย Edge (แหล่งเดียวกับใบแจ้ง) ให้ตรงกัน */
 async function _checkLockBadge(inv){
@@ -3960,7 +3977,7 @@ async function loadData(forceRefresh=false){
   }
   /* ป้ายแหลมฉบัง — ดึงแยกจากก้อนหลัก ไม่ให้ไปกระทบลำดับ _rows / cache
      พังก็ไม่เป็นไร แค่ป้ายไม่ขึ้น ข้อมูลอื่นทำงานปกติ */
-  loadLcbInv(); loadTrainThb(); loadLockTop();
+  loadLcbInv(); loadTrainThb(); loadLockTop(); loadRailMode();
   if(!_rows){
     setLoad('LOADING...');
     _rows=await Promise.all([
@@ -5297,6 +5314,8 @@ function showInvDetail(id,panelId){
     out+=` <button onclick="openVgmModal('${_invEsc}')" style="padding:6px 14px;background:#4d7c0f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">⚖️ ไฟล์ VGM</button>`;
   /* ใบแจ้งเบอร์ตู้ — ทุกอินวอยซ์ หน้ารายงานสลับคอลัมน์ตามท่าเรือให้เอง */
   out+=` <button onclick="openLcbReport('${_invEsc}')" style="padding:6px 14px;background:#1a3a6b;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📄 ใบแจ้งเบอร์ตู้</button>`;
+  /* แหลมฉบัง: สลับ เรือบาร์จ(ท่าเรือสุราษฎร์ default) / รถไฟ — คุมหัวใบแจ้งเบอร์ตู้ */
+  if(LCB_INV.has(String(d.inv).trim()) && _canLockUpload()){const _rOn=RAIL_INV.has(normInv(d.inv));out+=` <label title="แหลมฉบัง: ติ๊ก = รถไฟ (หัวใบ 'รถไฟ - แหลมฉบัง' + ตัดน้ำหนัก) · ไม่ติ๊ก = เรือบาร์จ ท่าเรือสุราษฎร์ (ค่าเริ่มต้น)" style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;font-size:11px;font-weight:700;color:#1d4ed8;cursor:pointer;vertical-align:middle;"><input type="checkbox" ${_rOn?'checked':''} onchange="toggleRailMode('${_invEsc}',this.checked,this)" style="accent-color:#1d4ed8;cursor:pointer;">🚆 รถไฟ</label>`;}
   out+=` <span id="lockBadgeSlot" data-inv="${h(d.inv)}"></span>`;   /* badge 🔒 LOCK เติม async หลังเช็ค Edge */
   if(_canLockUpload()) out+=` <button onclick="openLockUpload('${_invEsc}')" title="อัปโหลดใบล็อคตู้ (master) ให้บอทอ่านลำดับ" style="padding:6px 14px;background:#6d28d9;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📋 อัปโหลดใบล็อค</button>`;
   if(_canLockUpload()){const _ltOn=LOCK_TOP.has(normInv(d.inv));out+=` <label title="ใบแจ้งเบอร์ตู้: ติ๊ก = ตู้ล็อคขึ้นบน · ไม่ติ๊ก = ตู้ล็อคอยู่ล่างสุด (ค่าเริ่มต้น)" style="margin-left:auto;display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:7px;font-size:11px;font-weight:700;color:#6d28d9;cursor:pointer;vertical-align:middle;"><input type="checkbox" ${_ltOn?'checked':''} onchange="toggleLockTop('${_invEsc}',this.checked,this)" style="accent-color:#6d28d9;cursor:pointer;">🔀 ตู้ล็อคขึ้นบน</label>`;}
