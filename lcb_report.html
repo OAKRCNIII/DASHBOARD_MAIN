@@ -125,19 +125,16 @@ function todayText(){
 
 function render(inv, list, kind, locked){
   CUR = inv; ROWS = list;
-  const _q = new URLSearchParams(location.search);
-  IS_RAIL = (kind === 'RAIL') || (_q.get('mode') === 'rail');   /* รถไฟ-แหลมฉบัง = sub-type ของ LCB (ตรรกะล็อค/ซีลเหมือนกัน แต่หัว+คอลัมน์+หัวรองต่าง) */
+  IS_RAIL = (kind === 'RAIL') || (new URLSearchParams(location.search).get('mode') === 'rail');   /* รถไฟ-แหลมฉบัง = เหมือนใบเรือทุกอย่าง ต่างแค่หัว 'รถไฟ - แหลมฉบัง' + ตัดคอลัมน์น้ำหนัก */
   KIND = IS_RAIL ? 'LCB' : (kind || 'LCB');
-  const railBkg = inv.rail_booking || _q.get('bkg') || inv.invoice_no || '';   /* BOOKING no. + ชื่อบริษัทขนส่ง — บอทอ่านจากตารางสรุป (Part B); เทสต์ผ่าน ?bkg=&co= */
-  const railCo  = inv.rail_company || _q.get('co') || '';
   { const vb = document.getElementById('vgm'); if(vb) vb.style.display = (KIND === 'PADANG') ? '' : 'none'; }   /* VGM OOCL = เฉพาะปาดัง */
   const isLocked = !!(locked && locked.containers && locked.containers.length);
   const rows = [];
 
   /* คอลัมน์ต่างกันตามท่าเรือ — ปาดังไม่มีซีล แต่มีโรงงาน */
   const COLS = IS_RAIL
-    ? [['ลำดับ','c-no'],['เบอร์ตู้','c-ctr'],['SEAL NO.','c-seal'],
-       ['ทะเบียนรถ','c-truck'],['วันที่เข้าโหลด','c-date']]
+    ? [['ลำดับ','c-no'],['ทะเบียนรถ','c-truck'],['เบอร์ตู้','c-ctr'],
+       ['SEAL NO.','c-seal'],['วันที่เข้าโรงงาน','c-date']]   /* = ใบเรือ ตัดน้ำหนักออก */
     : KIND === 'LCB'
     ? [['ลำดับ','c-no'],['ทะเบียนรถ','c-truck'],['เบอร์ตู้','c-ctr'],
        ['SEAL NO.','c-seal'],['วันที่เข้าโรงงาน','c-date'],['น้ำหนัก (กก.)','c-wt']]
@@ -145,7 +142,7 @@ function render(inv, list, kind, locked){
        ['วันที่เข้าโรงงาน','c-date'],['โรงงาน','c-fac'],['น้ำหนัก (กก.)','c-wt']];
 
   const cellsOf = c => IS_RAIL
-    ? [esc(c.container_no ?? ''), esc(c.seal_no ?? ''), esc(c.truck_plate ?? ''),
+    ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
        esc(thaiDate(c.factory_date))]
     : KIND === 'LCB'
     ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
@@ -214,10 +211,9 @@ function render(inv, list, kind, locked){
 
   document.getElementById('out').innerHTML = `
   <div class="sheet${isLocked ? ' lockmode' : ''}" id="sheet">
-    <div class="tbox"><h1>${IS_RAIL ? 'สถานีรถไฟ - แหลมฉบัง' : (KIND === 'LCB' ? 'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง' : 'ใบแจ้งเบอร์ตู้')}</h1></div>
-    ${IS_RAIL
-      ? `<p class="l1">แจ้งเบอร์ตู้ BOOKING <b>${esc(railBkg)}</b> ${total || ''}</p><p class="l2">${esc(railCo)}</p>`
-      : `<p class="l1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p><p class="l2">${esc(line2)}</p>`}
+    <div class="tbox"><h1>${IS_RAIL ? 'รถไฟ - แหลมฉบัง' : (KIND === 'LCB' ? 'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง' : 'ใบแจ้งเบอร์ตู้')}</h1></div>
+    <p class="l1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p>
+    <p class="l2">${esc(line2)}</p>
     <table>
       <thead><tr>${COLS.map(([t,cl])=>`<th class="${cl}">${t}</th>`).join('')}</tr></thead>
       <tbody>${rows.join('')}</tbody>
