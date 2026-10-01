@@ -2466,7 +2466,7 @@ function editAlPay(id){
           <input id="aeSDedN" style="${inp}" value="${h(p.sheet_deduct_note||'')}" placeholder="เช่น เบิกล่วงหน้าครั้งที่ 14"></div>
         <div style="grid-column:1/-1;"><label style="${lbl}">รหัสอ้างอิงสลิป</label><input id="aeRef" style="${inp}font-family:monospace;" value="${h(p.slip_ref||'')}"></div>
       </div>
-      <div style="font-size:11px;font-weight:800;color:#78350f;margin-bottom:6px;">รายบรรทัด (${its.length})</div>
+      <div style="font-size:11px;font-weight:800;color:#78350f;margin-bottom:6px;">รายบรรทัด (<span id="aeRowCount">${its.length}</span>)</div>
       <table style="width:100%;border-collapse:collapse;font-size:11px;">
         <thead><tr style="background:#fdf6ec;">
           <th style="padding:5px;text-align:left;font-size:10px;width:70px;">ลำดับ AL</th>
@@ -2475,8 +2475,9 @@ function editAlPay(id){
           <th style="padding:5px;text-align:left;font-size:10px;width:85px;">ยอดโอน</th>
           <th style="padding:5px;text-align:left;font-size:10px;width:75px;background:#fef3c7;">หักไว้</th>
           <th style="padding:5px;text-align:left;font-size:10px;background:#fef3c7;">เหตุผลที่หัก</th>
+          <th style="padding:5px;width:28px;"></th>
         </tr></thead>
-        <tbody>${its.map(it=>`<tr data-iid="${it.id}">
+        <tbody id="aeBody">${its.map(it=>`<tr data-iid="${it.id}">
           <td style="padding:3px;"><input class="aeAl"   style="${inp}font-family:monospace;" value="${it.al_num??''}"></td>
           <td style="padding:3px;"><input class="aeBill" style="${inp}font-family:monospace;" value="${h(it.bill_no||'')}"></td>
           <td style="padding:3px;"><input class="aePayee" style="${inp}" value="${h(it.payee||'')}"></td>
@@ -2489,8 +2490,10 @@ function editAlPay(id){
             ? `<div style="font-size:9.5px;color:#6d28d9;padding:5px 0;">ตัดยอดเบิกล่วงหน้าแล้ว</div>
                <input class="aeDedN" type="hidden" value="">`
             : `<input class="aeDedN" style="${inp}" value="${h(it.deduct_note||'')}" placeholder="เหตุผล">`}</td>
+          <td style="padding:3px;text-align:center;"><button onclick="_aeDelRow(this)" title="ลบบรรทัดนี้" style="background:none;border:none;color:#dc2626;font-size:14px;cursor:pointer;line-height:1;">🗑️</button></td>
         </tr>`).join('')}</tbody>
       </table>
+      <button onclick="_aeAddRow()" style="margin-top:8px;font-family:inherit;font-size:12px;font-weight:700;padding:6px 14px;border-radius:7px;border:1.5px dashed #78350f;background:#fffbeb;color:#78350f;cursor:pointer;">➕ เพิ่มบรรทัด AL</button>
       <div style="font-size:10px;color:#94a3b8;margin-top:8px;line-height:1.6;">
         แก้แล้วระบบจะตรวจยอดใหม่ให้เอง · ลำดับ AL ซ้ำกับรายการโอนอื่นไม่ได้<br>
         <strong style="color:#6d28d9;">💰 สีม่วง</strong> = ตัดยอดเบิกล่วงหน้าไว้แล้ว ระบบดึงมาให้เอง
@@ -2538,6 +2541,25 @@ function _saveAlPay(id){
     }catch(e){ alert('บันทึกไม่สำเร็จ: '+e.message); }
   }, `ยืนยันแก้รายการโอน #${id}`);
 }
+/* เพิ่ม/ลบบรรทัด AL เอง (เผื่อบอทอ่านไม่ออก) — บรรทัดใหม่ data-iid='' → server insert; ลบแถว → server ลบที่ไม่ได้ส่งมา */
+function _aeAddRow(){
+  const body=document.getElementById('aeBody'); if(!body) return;
+  const inp='width:100%;font-family:inherit;font-size:12px;padding:5px 7px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#0f172a;';
+  const tr=document.createElement('tr'); tr.dataset.iid='';
+  tr.innerHTML=`
+    <td style="padding:3px;"><input class="aeAl"   style="${inp}font-family:monospace;" placeholder="เลข AL"></td>
+    <td style="padding:3px;"><input class="aeBill" style="${inp}font-family:monospace;" placeholder="เลขวางบิล"></td>
+    <td style="padding:3px;"><input class="aePayee" style="${inp}" placeholder="ผู้รับเงิน"></td>
+    <td style="padding:3px;"><input class="aeAmt"  style="${inp}text-align:right;" placeholder="ยอด"></td>
+    <td style="padding:3px;"><input class="aeDed"  style="${inp}text-align:right;" placeholder="0"></td>
+    <td style="padding:3px;"><input class="aeDedN" style="${inp}" placeholder="เหตุผล"></td>
+    <td style="padding:3px;text-align:center;"><button onclick="_aeDelRow(this)" title="ลบบรรทัดนี้" style="background:none;border:none;color:#dc2626;font-size:14px;cursor:pointer;line-height:1;">🗑️</button></td>`;
+  body.appendChild(tr);
+  tr.querySelector('.aeAl').focus();
+  _aeUpdCount();
+}
+function _aeDelRow(btn){ const tr=btn.closest('tr'); if(tr){ tr.remove(); _aeUpdCount(); } }
+function _aeUpdCount(){ const el=document.getElementById('aeRowCount'); if(el) el.textContent=document.querySelectorAll('#aeBody tr').length; }
 
 /* ลบรายการโอนที่บันทึกผิด — เฉพาะ OAK_THIRA เหมือนกติกาลบตู้
    จำเป็นต้องมี เพราะฝั่งไลน์ตกลงกันว่ารับข้อมูลอย่างเดียว แก้ไม่ได้
