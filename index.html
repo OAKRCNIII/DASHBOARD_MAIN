@@ -3876,6 +3876,7 @@ function parseBkg(wb){
 }
 function buildFlat(allInv,dbMap){
   const nd={};Object.keys(dbMap).forEach(k=>{nd[normInv(k)]=dbMap[k];});
+  const invSet=new Set(allInv.map(x=>normInv(x.inv)));   /* กัน fallback ยืมตู้จาก prefix ที่เป็นอินวอยซ์จริง (เช่น SHL-260801-1 ไม่ยืมของ SHL-260801) */
   const byMonth={};const flat=[];
   allInv.forEach((inv,idx)=>{
     const nk=normInv(inv.inv);
@@ -3883,7 +3884,7 @@ function buildFlat(allInv,dbMap){
     let details=lookupDb(nd,nk);
     /* fallback: อนุญาตเฉพาะกรณีที่ nk ยาวกว่า/เฉพาะกว่า k เช่น TWI63/060/11/25 → TWI63
        ห้าม k.includes(nk) เพราะทำให้ SHL-250904 ไป match SHL-250904-1 (คนละ invoice) */
-    if(!details.length){const fk=Object.keys(nd).find(k=>{if(nk.length<=k.length||!nk.startsWith(k))return false;const nx=nk[k.length];return nx==='/'||nx==='-';});if(fk)details=nd[fk]||[];}
+    if(!details.length){const fk=Object.keys(nd).find(k=>{if(nk.length<=k.length||!nk.startsWith(k))return false;const nx=nk[k.length];return nx==='/'||nx==='-';});if(fk && !invSet.has(fk))details=nd[fk]||[];}
     const obj={...inv,total_actual:details.length,details:[...details],id:idx};
     flat.push(obj);
     const m=inv.month||'-';if(!byMonth[m])byMonth[m]=[];byMonth[m].push(obj);
@@ -4081,11 +4082,12 @@ async function loadData(forceRefresh=false){
 
   /* ── 3. Build FLAT + BY_MONTH (same logic as buildFlat) ── */
   const nd={};Object.keys(dbMap).forEach(k=>{nd[normInv(k)]=dbMap[k];});
+  const invSet=new Set(allInv.map(x=>normInv(x.inv)));   /* กัน fallback ยืมตู้จาก prefix ที่เป็นอินวอยซ์จริง (เช่น SHL-260801-1 ไม่ยืมของ SHL-260801) */
   const byMonth={};const flat=[];
   allInv.forEach((inv,idx)=>{
     const nk=normInv(inv.inv);
     let details=lookupDb(nd,nk);
-    if(!details.length){const fk=Object.keys(nd).find(k=>{if(nk.length<=k.length||!nk.startsWith(k))return false;const nx=nk[k.length];return nx==='/'||nx==='-';});if(fk)details=nd[fk]||[];}
+    if(!details.length){const fk=Object.keys(nd).find(k=>{if(nk.length<=k.length||!nk.startsWith(k))return false;const nx=nk[k.length];return nx==='/'||nx==='-';});if(fk && !invSet.has(fk))details=nd[fk]||[];}
     const obj={...inv,total_actual:details.length,details:[...details],id:idx};
     flat.push(obj);
     const m=inv.month||'-';if(!byMonth[m])byMonth[m]=[];byMonth[m].push(obj);
