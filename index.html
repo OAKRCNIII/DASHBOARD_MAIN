@@ -941,6 +941,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
             <button class="fqbtn fqsrc fqfac-active" data-facsrc="all">ทั้งหมด</button>
             <button class="fqbtn fqsrc" data-facsrc="PADANG">🚂 ปาดัง</button>
             <button class="fqbtn fqsrc" data-facsrc="LCB">🚢 แหลมฉบัง</button>
+            <button class="fqbtn fqsrc" data-facsrc="SONGKHLA">🏖️ สงขลา</button>
           </div>
           <div class="fdate-bar" style="margin-top:8px;">
             <button id="btnPrintFactory" style="font-size:10px;padding:5px 14px;background:#0f2a52;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;height:28px;letter-spacing:.3px;">🖨️ PRINT PDF</button>
@@ -4095,7 +4096,7 @@ async function loadData(forceRefresh=false){
 
   /* ── 4. Build pendCtrs from containers WHERE status='PENDING' ── */
   const pendCtrs=ctrRows
-    .filter(c=>c.status==='PENDING' && c.source!=='LCB')   /* สต๊อกตู้ = ปาดังอย่างเดียว */
+    .filter(c=>c.status==='PENDING' && c.source!=='LCB' && c.source!=='SONGKHLA')   /* สต๊อกตู้ = ปาดังอย่างเดียว (ไม่นับ LCB/สงขลา) */
     .map(c=>({
       ctr:c.container_no||'',
       truck:c.truck_plate||'',
@@ -6905,7 +6906,7 @@ const todayIso=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth
 const dAgoIso=n=>{const d=new Date();d.setDate(d.getDate()-n);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());};
 const mStartIso=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-01';};
 let FAC_FAC_FILTER='all';
-let FAC_SRC_FILTER='all';   /* all | PADANG | LCB */
+let FAC_SRC_FILTER='all';   /* all | PADANG | LCB | SONGKHLA */
 let FAC_ORDER={};   /* ลำดับที่ลากจัดเอง: FAC_ORDER[วันรับตู้] = [inv,...] (ชั่วคราวในหน้าจอ ไม่ save DB) */
 function facSortIns(dt,ins){
   const ord=FAC_ORDER[dt]; if(!ord||!ord.length) return ins;
@@ -6926,8 +6927,7 @@ function renderFactory(){
     if(!d.details||!d.details.length)return;
     (d.details||[]).forEach(row=>{
     const _src=row._src||'PADANG';
-    if(FAC_SRC_FILTER==='PADANG'&&_src==='LCB')return;   /* กด ปาดัง → ตู้/อินวอยซ์ LCB ไม่ขึ้น */
-    if(FAC_SRC_FILTER==='LCB'&&_src!=='LCB')return;       /* กด แหลมฉบัง → เฉพาะ LCB */
+    if(FAC_SRC_FILTER!=='all'&&_src!==FAC_SRC_FILTER)return;   /* กรองตามท่า: ปาดัง/แหลมฉบัง/สงขลา */
     const fd=row['เข้าโรงงาน']||'-';
     if(FAC_FAC_FILTER==='today'&&fd!==todayFmt)return;
     if(FAC_FAC_FILTER==='tomorrow'&&fd!==tomFmt)return;
@@ -7028,8 +7028,7 @@ function openFacArrange(dates){
     if(!d.details||!d.details.length)return;
     (d.details||[]).forEach(row=>{
       const _src=row._src||'PADANG';
-      if(FAC_SRC_FILTER==='PADANG'&&_src==='LCB')return;
-      if(FAC_SRC_FILTER==='LCB'&&_src!=='LCB')return;
+      if(FAC_SRC_FILTER!=='all'&&_src!==FAC_SRC_FILTER)return;
       const dt=(row.DATE_PICKUP&&row.DATE_PICKUP!=='-')?row.DATE_PICKUP:'-';
       if(dates.indexOf(dt)<0)return;
       if(!dm[dt])dm[dt]={};
@@ -7147,8 +7146,7 @@ async function doFacPrint(dates){
     const im={};const linerByInv={};
     FLAT.forEach(d=>{(d.details||[]).forEach(row=>{
       const _src=row._src||'PADANG';
-      if(FAC_SRC_FILTER==='PADANG'&&_src==='LCB')return;
-      if(FAC_SRC_FILTER==='LCB'&&_src!=='LCB')return;
+      if(FAC_SRC_FILTER!=='all'&&_src!==FAC_SRC_FILTER)return;
       const fd=row['เข้าโรงงาน']||'-';
       const rowDt=(row.DATE_PICKUP&&row.DATE_PICKUP!=='-')?row.DATE_PICKUP:'-';
       if(rowDt!==dt)return;
