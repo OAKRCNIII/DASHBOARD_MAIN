@@ -9634,7 +9634,7 @@ let TR_CO_SEL=new Set(),TR_CO_MODAL_SEL=new Set();
    ไม่งั้นจะแตกเป็น BSW-T/BSW-L/BSW-SF/BSW-SUI (ตัวอักษรของอินวอยซ์) หรือตก (ไม่ระบุ) */
 function _carrierFromBill(bill){
   const b=String(bill||'').trim();
-  if(/^69/.test(b)) return 'MNR (มณีรักษ์)';
+  if(/^(ODD|MNR|69)/i.test(b)) return 'มณีรักษ์';   // มณีรักษ์: เลขวางบิลขึ้นต้น ODD-/MNR หรือ 69 (เลขชุดของมณีรักษ์)
   const m=b.match(/[A-Za-z]+/g);
   return m&&m.length?m.join('-').toUpperCase():'(ไม่ระบุ)';
 }
