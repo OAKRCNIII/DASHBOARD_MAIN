@@ -4851,7 +4851,7 @@ function renderMobileTrView(){
     return `<div onclick="selMtrMonth('${m}')" style="flex-shrink:0;padding:6px 12px;border-radius:20px;border:2px solid ${isActive?'#059669':'#e2e8f0'};background:${isActive?'#059669':'#fff'};color:${isActive?'#fff':'#374151'};font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;">${m==='all'?'ทั้งหมด':mLabel(m)}</div>`;
   }).join('');
   /* build company data (reuse logic from renderTrCoView) */
-  const extractTrCo=bill=>{const mm=(bill||'').match(/[A-Za-z]+/g);return mm&&mm.length?mm.join('-').toUpperCase():'(ไม่ระบุ)';};
+  const extractTrCo=bill=>_carrierFromBill(bill);
   const cos={};
   TR_DATA.forEach(d=>{
     if(_mtrMonthSel!=='all'&&d.month!==_mtrMonthSel)return;
@@ -8412,7 +8412,7 @@ function trPrintByFactoryReport(){
   /* ── split into 2 fixed groups: แก๊งไม่หัก ณ ที่จ่าย (OGM/KNT/KTW/HFI) vs โรงงานอื่นๆ ── */
   /* group by transport company — extract English letters from billNo */
   /* e.g. "2569-PIYA-001"→PIYA, "VT-04/69"→VT, "TWC 04/26"→TWC, "PTC 7/2569"→PTC */
-  const extractTrCo=(bill)=>{const m=bill.match(/[A-Za-z]+/g);return m&&m.length?m.join('-').toUpperCase():'(ไม่ระบุ)';};
+  const extractTrCo=(bill)=>_carrierFromBill(bill);
   const groups={
     ogm: {label:TR_NOWHT.join(' & '),sublabel:'(เลขลำดับ AL)',color:'#065f46',light:'#d1fae5',cos:{},coIns:[],tot:{ctr:0,amount:0}},
     other:{label:'โรงงานอื่นๆ (ไม่รวม '+TR_NOWHT.join('/')+')',sublabel:'(แยกตามบริษัทขนส่ง)',color:'#1e3a5f',light:'#dbeafe',cos:{},coIns:[],tot:{ctr:0,amount:0}}
@@ -9419,7 +9419,7 @@ async function clearAdvModal(){
 
 function renderTrCoView(){
   const wrap=document.getElementById('trCoWrap');
-  const extractTrCo=bill=>{const m=(bill||'').match(/[A-Za-z]+/g);return m&&m.length?m.join('-').toUpperCase():'(ไม่ระบุ)';};
+  const extractTrCo=bill=>_carrierFromBill(bill);
   const fmtAmt=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}):'-';
   const he=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
@@ -9630,7 +9630,15 @@ function trPrintCoDetailRows(sid,coName){
 
 /* ===== REPORT PDF — invoice selection modal ===== */
 let TR_CO_SEL=new Set(),TR_CO_MODAL_SEL=new Set();
-const _trCo=bill=>{const m=(bill||'').match(/[A-Za-z]+/g);return m&&m.length?m.join('-').toUpperCase():'(ไม่ระบุ)';};
+/* ชื่อบริษัทขนส่งจากเลขวางบิล — มณีรักษ์ใช้เลขขึ้นต้น "69" (เลขล้วน) จึงรวบเป็นก้อนเดียว
+   ไม่งั้นจะแตกเป็น BSW-T/BSW-L/BSW-SF/BSW-SUI (ตัวอักษรของอินวอยซ์) หรือตก (ไม่ระบุ) */
+function _carrierFromBill(bill){
+  const b=String(bill||'').trim();
+  if(/^69/.test(b)) return 'MNR (มณีรักษ์)';
+  const m=b.match(/[A-Za-z]+/g);
+  return m&&m.length?m.join('-').toUpperCase():'(ไม่ระบุ)';
+}
+const _trCo=bill=>_carrierFromBill(bill);
 function trCoModalBuildList(src){
   const he2=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const fmtAmt=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}):'-';
