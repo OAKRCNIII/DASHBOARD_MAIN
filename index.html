@@ -8586,9 +8586,13 @@ function trPrintAlMonthXref(){
   };
   /* สร้าง global map: al → month สำหรับทุกเดือน (เพื่อเติมช่องว่าง) */
   const globalAlMonthMap={ogm:{},other:{}};
+  /* prefix ที่ถูกตัดจากแถบ "ยกเว้น" (เช่น PTN) — ให้ขึ้นเป็นแถวจางเพื่อให้เลข AL เรียงต่อกัน แต่ไม่รวมยอด */
+  const _isExclPfx=p=>TR_EXCL.includes(p)&&!TR_NOWHT.includes(p);
   TR_DATA.forEach(d=>{
-    if(!matchTrPrefix(d))return;
     const _p2=(d.prefix||'').trim().toUpperCase();
+    const _inTab=matchTrPrefix(d);
+    const _ghost=!_inTab&&TR_PREFIX==='no-ogm'&&_isExclPfx(_p2);
+    if(!_inTab&&!_ghost)return;
     const fk2=isNoWht(_p2,d.inv)?'ogm':'other';
     d.details.forEach(row=>{
       if(!row.trMatch||row.trMatch._prePaid)return;
@@ -8597,7 +8601,7 @@ function trPrintAlMonthXref(){
         const bill=(row.trMatch.billNo||'').trim()||'(ไม่มีเลข)';
         const xm=bill.match(/[A-Za-z]+/g);
         const co=xm&&xm.length?xm.join('-').toUpperCase():'?';
-        globalAlMonthMap[fk2][al]={month:d.month,co,billNo:bill};
+        globalAlMonthMap[fk2][al]={month:d.month,co,billNo:bill,pfx:_p2,excl:_ghost};
       }
     });
   });
@@ -8719,16 +8723,21 @@ function trPrintAlMonthXref(){
         mergedEntries=inRange.map(al=>{
           if(curSet.has(al))return byAl[al];
           const info=globalAlMonthMap[fk][al]||{};
-          return{al,_ph:true,_fromMonth:mLabel(info.month||''),_co:info.co||'',_billNo:info.billNo||''};
+          return{al,_ph:true,_fromMonth:mLabel(info.month||''),_co:info.co||'',_billNo:info.billNo||'',
+                 _excl:!!info.excl,_pfx:info.pfx||''};
         });
       }
       const flatRows=mergedEntries.map(e=>{
-        if(e._ph)return `<tr style="background:#fafafa;">
+        if(e._ph){
+          /* แถวจาง: AL ของเดือนอื่น หรือ prefix ที่ถูกตัดออกจากแถบนี้ (เช่น PTN) — ไม่รวมยอด */
+          const note=e._excl?`${he2(e._pfx||'ยกเว้น')}.`:`(${he2(e._fromMonth)})`;
+          return `<tr style="background:#fafafa;">
             <td style="color:#94a3b8;font-style:italic;">${he2(e.al)}</td>
             <td style="color:#94a3b8;font-style:italic;">${e._co?`<span class="ph-badge">${he2(e._co)}</span>`:''}${he2(e._billNo)}</td>
-            <td class="r" style="color:#94a3b8;font-style:italic;">(${he2(e._fromMonth)})</td>
+            <td class="r" style="color:#94a3b8;font-style:italic;">${note}</td>
             <td class="r" style="color:#cbd5e0;">—</td>
           </tr>`;
+        }
         return `<tr>
             <td style="color:#334155;font-weight:600;">${he2(e.al)}</td>
             <td><span class="co-badge" style="background:${grp.light};color:${grp.color};">${he2(e.co)}</span>${he2(e.billNo)}</td>
