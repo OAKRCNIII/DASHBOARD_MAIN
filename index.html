@@ -3663,15 +3663,19 @@ function toDateMs(v){
    - ถ้าวันที่เก่ากว่า row แรกในตาราง → return 0 (ไม่ทราบราคา)
    - inv (optional) ใช้ดึง prefix ยาวกว่า 3 ตัว เช่น ANTS-JM → "ANTS-JM" */
 function lookupPriceUpdate(rawDate,prefix,factory,inv){
-  if(!PRICE_UPDATE_TABLE||!PRICE_UPDATE_TABLE.length)return 0;
+  /* เลือกตารางเรตตามท่าของใบ (portOf) — สงขลา/ปาดังเรตคนละชุด; ท่าที่ไม่มีเรตถอยไปปาดัง */
+  const _port=(typeof portOf==='function'?portOf(inv):'PADANG')||'PADANG';
+  let _tbl=PRICE_UPDATE_BY_PORT&&PRICE_UPDATE_BY_PORT[_port];
+  if(!_tbl||!_tbl.length)_tbl=(PRICE_UPDATE_BY_PORT&&PRICE_UPDATE_BY_PORT['PADANG'])||PRICE_UPDATE_TABLE;
+  if(!_tbl||!_tbl.length)return 0;
   const entryMs=toDateMs(rawDate);
   let rates=null;
   if(entryMs){
-    for(const row of PRICE_UPDATE_TABLE){if(row.dateMs<=entryMs)rates=row.rates;else break;}
+    for(const row of _tbl){if(row.dateMs<=entryMs)rates=row.rates;else break;}
     if(!rates)return 0; /* เก่ากว่า row แรก → ไม่มีราคาในตาราง */
   }else{
     /* วันที่ไม่ทราบ/ว่าง → ใช้ rates ล่าสุด (row สุดท้าย) */
-    rates=PRICE_UPDATE_TABLE[PRICE_UPDATE_TABLE.length-1].rates;
+    rates=_tbl[_tbl.length-1].rates;
   }
   /* ดึง prefix ยาว: ตัวอักษร+ขีด ก่อนตัวเลขแรก เช่น "ANTS-JM007" → "ANTS-JM" */
   const pfx3=(prefix||'').trim().toUpperCase().substring(0,3);
@@ -4268,16 +4272,27 @@ async function loadData(forceRefresh=false){
 
   /* ── 12. Build PRICE_UPDATE_TABLE จาก price_update table ── */
   /* format: [{dateMs, rates:{prefix:price,...}}] sorted asc — ตรงกับที่ lookupPriceUpdate ใช้ */
-  const puByDate={};
+  /* per-port: {port:{date:{prefix:price}}} + ต้นทุน THIRA {port:{prefix:{fuel,driver}}} ล่าสุด */
+  const puByPort={},puCost={};
   priceUpdateRows.forEach(r=>{
     const d=r.effective_date;if(!d)return;
-    if(!puByDate[d])puByDate[d]={};
-    puByDate[d][r.prefix]=parseFloat(r.price)||0;
+    const port=(r.port||'PADANG');
+    (puByPort[port]||(puByPort[port]={}));
+    (puByPort[port][d]||(puByPort[port][d]={}));
+    puByPort[port][d][r.prefix]=parseFloat(r.price)||0;
+    if(r.fuel_liters!=null||r.driver_fee!=null){
+      (puCost[port]||(puCost[port]={}));
+      puCost[port][r.prefix]={fuel:parseFloat(r.fuel_liters)||0,driver:parseFloat(r.driver_fee)||0};
+    }
   });
-  const priceUpdateTable=Object.keys(puByDate).sort().map(ds=>({
+  const _mkPuTbl=byDate=>Object.keys(byDate).sort().map(ds=>({
     dateMs:(()=>{const[y,mo,dy]=ds.split('-').map(Number);return new Date(y,mo-1,dy).getTime();})(),
-    rates:puByDate[ds],
+    rates:byDate[ds],
   }));
+  const priceUpdateByPort={};
+  Object.keys(puByPort).forEach(p=>{priceUpdateByPort[p]=_mkPuTbl(puByPort[p]);});
+  const priceUpdateTable=priceUpdateByPort['PADANG']||[];  /* backward-compat: ตารางปาดัง */
+  const priceUpdateCost=puCost;
 
   /* ── 13. Build OGM_PRICE_MAP + OGM_PRICE_LATEST + OGM_PRICE_HISTORY จาก ogm_prices table ── */
   const ogmPriceMap={};const ogmPriceLatest={};const ogmPriceHistory={};
@@ -4304,7 +4319,7 @@ async function loadData(forceRefresh=false){
     trMatched,billInfoTr,dupesTr,
     ogmPriceMap,ogmPriceLatest,ogmPriceHistory,
     vesselPlan,vesselPlanFloat,billedAnts,paidAnts,
-    priceUpdateTable,unpaidTr:[],
+    priceUpdateTable,priceUpdateByPort,priceUpdateCost,unpaidTr:[],
     bankBal:(bankBalRows||[]).map(r=>({bank:r.bank,balance:parseFloat(r.balance)||0,updatedAt:r.updated_at||''}))};
 }
 /* =====================================================
@@ -4330,7 +4345,9 @@ function findPriceEntry(inv){
 }
 let VESSEL_PLAN={}; /* inv.toUpperCase() → {vessel, etd, bkg} เฉพาะ invoice จริง (ไม่รวม LOY) */
 let VESSEL_PLAN_FLOAT={}; /* "vessel||etd" → {vessel,etd,bkgs:[{bkg,vol,notes}]} สำหรับ LOY ล้วน */
-let PRICE_UPDATE_TABLE=[]; /* [{dateMs, rates:{TWI,BSW,INV,SHL,...}}] sorted asc */
+let PRICE_UPDATE_TABLE=[]; /* [{dateMs, rates:{TWI,BSW,INV,SHL,...}}] sorted asc (= ท่าปาดัง) */
+let PRICE_UPDATE_BY_PORT={}; /* {port:[{dateMs,rates}]} เรตแยกท่า (PADANG/SONGKHLA/...) */
+let THIRA_PORT_COST={}; /* {port:{prefix:{fuel,driver}}} ต้นทุน THIRA หัวลากต่อท่า (สงขลา: BSW={fuel:180,driver:900}) */
 let TR_UNPAID=[]; /* [{dateRaw,dateStr,inv,prefix,factory,container,price}] ตู้ค้างจ่าย */
 let BILLED_ANTS=new Map(); /* normInv → amount วางบิลแล้ว จาก DATA_BASE_BILL_ANTS */
 let PAID_ANTS=new Map(); /* normInv → {amount,datePaid} รับเงินแล้ว จาก DATA_BASE_PAID_ANTS */
@@ -11517,7 +11534,7 @@ function showSetup(err){
   updateFolderUI();
 }
 function showDashboard(data){
-  FLAT=data.flat;BY_MONTH=data.byMonth;STOCK=data.stock;VESSEL=data.vessel||[];VESSEL_DRAFT=data.vesselDraft||[];FEES=data.fees||{};STMT=data.stmtInfo||{};TR_DATA=(data.trMatched||[]).filter(d=>d.month!=='-'); /* กรองอินวอยซ์เก่าปี 2025 (ไม่ระบุ) ออกจากทุก transport view */BILL_INFO_TR=data.billInfoTr||{ogm:'-',all:'-'};TR_DUPES=data.dupesTr||[];PEND_CTRS=data.pendCtrs||[];DB_MAP=data.dbMap||{};OGM_PRICE_MAP=data.ogmPriceMap||{};OGM_PRICE_LATEST=data.ogmPriceLatest||{};OGM_PRICE_HISTORY=data.ogmPriceHistory||{};VESSEL_PLAN=data.vesselPlan||{};VESSEL_PLAN_FLOAT=data.vesselPlanFloat||{};BILLED_ANTS=data.billedAnts||new Map();PAID_ANTS=data.paidAnts||new Map();BANK_BAL=data.bankBal||[];BILL_ANTS_META=(BILLED_ANTS._meta)||{week:0,year:0};PRICE_UPDATE_TABLE=data.priceUpdateTable||[];TR_UNPAID=data.unpaidTr||[];
+  FLAT=data.flat;BY_MONTH=data.byMonth;STOCK=data.stock;VESSEL=data.vessel||[];VESSEL_DRAFT=data.vesselDraft||[];FEES=data.fees||{};STMT=data.stmtInfo||{};TR_DATA=(data.trMatched||[]).filter(d=>d.month!=='-'); /* กรองอินวอยซ์เก่าปี 2025 (ไม่ระบุ) ออกจากทุก transport view */BILL_INFO_TR=data.billInfoTr||{ogm:'-',all:'-'};TR_DUPES=data.dupesTr||[];PEND_CTRS=data.pendCtrs||[];DB_MAP=data.dbMap||{};OGM_PRICE_MAP=data.ogmPriceMap||{};OGM_PRICE_LATEST=data.ogmPriceLatest||{};OGM_PRICE_HISTORY=data.ogmPriceHistory||{};VESSEL_PLAN=data.vesselPlan||{};VESSEL_PLAN_FLOAT=data.vesselPlanFloat||{};BILLED_ANTS=data.billedAnts||new Map();PAID_ANTS=data.paidAnts||new Map();BANK_BAL=data.bankBal||[];BILL_ANTS_META=(BILLED_ANTS._meta)||{week:0,year:0};PRICE_UPDATE_TABLE=data.priceUpdateTable||[];PRICE_UPDATE_BY_PORT=data.priceUpdateByPort||{};THIRA_PORT_COST=data.priceUpdateCost||{};TR_UNPAID=data.unpaidTr||[];
   hideLoad();document.getElementById('app').style.display='flex';
   const now=new Date();document.getElementById('lastUpd').textContent='☁️ Supabase · '+pad(now.getHours())+':'+pad(now.getMinutes());
   updateLastSyncLabel();
