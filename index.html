@@ -7618,6 +7618,9 @@ function renderFinance(){
   unbilledAll.forEach(d=>{const k=normInv(d.inv);const tr=TR_DATA.find(t=>normInv(t.inv)===k);unbilledTrTHB+=tr?.totalPaid||0;});
   /* ค่าเรือ RM เฉพาะออกเรือแล้ว */
   if(_canSeeFees())unbilledSailed.forEach(d=>{const fees=FEES[normInv(d.inv)];if(fees)unbilledFeesRM+=(fees.ocf||0)+(fees.tlx||0);});
+  /* ค่าเรือจ่ายมือ (บาท) เฉพาะออกเรือแล้ว + ไม่มี OCF RM */
+  let unbilledMpTHB=0;
+  if(_canSeeFees())unbilledSailed.forEach(d=>{ if(!FEES[normInv(d.inv)]) unbilledMpTHB+=(MANUAL_PAID_AMT.get((d.inv||'').toUpperCase())||0); });
 
   /* store for detail clicks */
   _finData={bankTotal,bankUpd,suRM,suTHB,pfxMap,shipMap,factoryDebt,shipDebt,unbilledSailed,unbilledPend,unbilledFeesRM,fm,fmRM,pst2};
@@ -7626,9 +7629,9 @@ function renderFinance(){
     {v:bankTotal,       c:'#16a34a',label:'🏦 เงินในบัญชี 3 แบงค์',   val:fm(bankTotal)+' ฿',                               id:'bank'},
     {v:suTHB,           c:'#2563eb',label:'💰 เงินฝาก SU',            val:fmRM(suRM)+' = '+fm(suTHB)+' ฿',                  id:'su'},
     {v:outstandingDebt, c:'#f59e0b',label:'📊 ลูกหนี้โรงงาน (OS)',   val:fm(outstandingDebt)+' ฿',sub:'วางบิล '+fm(factoryDebt)+' · ขนส่ง '+fm(shipDebt),id:'debt'},
-    {v:unbilledTrTHB+(unbilledFeesRM*RM_RATE),c:'#7c3aed',label:'📋 จ่ายล่วงหน้า รอวางบิล',
-      val:fm(unbilledTrTHB)+' ฿'+(unbilledFeesRM>0?' + '+fm(unbilledFeesRM)+' RM':''),
-      sub:(unbilledFeesRM>0?'รวมเทียบบาท '+fm(unbilledTrTHB+unbilledFeesRM*RM_RATE)+' ฿ · ':'')+unbilledAll.length+' INV ('+unbilledSailed.length+' ออกเรือ · '+unbilledPend.length+' รอออก)',
+    {v:unbilledTrTHB+unbilledMpTHB+(unbilledFeesRM*RM_RATE),c:'#7c3aed',label:'📋 จ่ายล่วงหน้า รอวางบิล',
+      val:fm(unbilledTrTHB+unbilledMpTHB)+' ฿'+(unbilledFeesRM>0?' + '+fm(unbilledFeesRM)+' RM':''),
+      sub:((unbilledFeesRM>0||unbilledMpTHB>0)?'รวมเทียบบาท '+fm(unbilledTrTHB+unbilledMpTHB+unbilledFeesRM*RM_RATE)+' ฿ · ':'')+unbilledAll.length+' INV ('+unbilledSailed.length+' ออกเรือ · '+unbilledPend.length+' รอออก)',
       id:'unbilled'},
   ].filter(s=>s.v>0);
   _finSegs=segs;
@@ -7753,7 +7756,7 @@ function showFinanceDetail(i){
   else if(seg.id==='unbilled'){
     const renderList=(list,title,icon,showFees)=>{
       if(!list.length)return'';
-      let sumTr=0,sumOcf=0,sumTlx=0;
+      let sumTr=0,sumOcf=0,sumTlx=0,sumMp=0;
       const hdrFees=showFees?`<th style="${thStyle}text-align:right;">ค่าเรือ (RM)</th>`:'';
       let rows=`<div style="font-size:11px;font-weight:800;color:#7c3aed;margin:10px 0 4px;">${icon} ${title} (${list.length} INV)</div>
         <table style="width:100%;border-collapse:collapse;">
@@ -7771,10 +7774,14 @@ function showFinanceDetail(i){
         if(showFees){
           const fees=_canSeeFees()?FEES[k]:null;
           const ocf=fees?.ocf||0,tlx=fees?.tlx||0; sumOcf+=ocf;sumTlx+=tlx;
+          const mp=_canSeeFees()?(MANUAL_PAID_AMT.get((d.inv||'').toUpperCase())||0):0;
+          if((ocf+tlx)===0) sumMp+=mp;   /* ค่าเรือจ่ายมือ (บาท) นับเฉพาะตอนไม่มี OCF RM */
           feesCell=`<td style="${tdStyle}text-align:right;font-size:10px;color:#0369a1;">
             ${(ocf+tlx)>0?`<div style="font-weight:700;">${fm(ocf+tlx)} RM</div>
             <div style="color:#94a3b8;">OCF ${fm(ocf)} · TLX ${fm(tlx)}</div>
-            <div style="color:#0ea5e9;">${fm((ocf+tlx)*RM_RATE)} ฿</div>`:'<span style="color:#94a3b8;">ยังไม่มี</span>'}
+            <div style="color:#0ea5e9;">${fm((ocf+tlx)*RM_RATE)} ฿</div>`
+            :(mp>0?`<div style="font-weight:700;color:#15803d;">${fm(mp)} ฿</div><div style="color:#94a3b8;">ค่าเรือจ่ายมือ</div>`
+            :'<span style="color:#94a3b8;">ยังไม่มี</span>')}
           </td>`;
         }
         rows+=`<tr>
@@ -7785,7 +7792,10 @@ function showFinanceDetail(i){
         </tr>`;
       });
       /* sum row */
-      const sumFeesTd=showFees?`<td style="${tdStyle}text-align:right;font-weight:800;color:#0369a1;">${(sumOcf+sumTlx)>0?fm(sumOcf+sumTlx)+' RM<br><span style="font-size:9px;color:#0ea5e9;">= '+fm((sumOcf+sumTlx)*RM_RATE)+' ฿</span>':'—'}</td>`:'';
+      let _sumFee=(sumOcf+sumTlx)>0?fm(sumOcf+sumTlx)+' RM<br><span style="font-size:9px;color:#0ea5e9;">= '+fm((sumOcf+sumTlx)*RM_RATE)+' ฿</span>':'';
+      if(sumMp>0) _sumFee+=(_sumFee?'<br>':'')+'<span style="font-size:9px;color:#15803d;">+ '+fm(sumMp)+' ฿ (จ่ายมือ)</span>';
+      if(!_sumFee) _sumFee='—';
+      const sumFeesTd=showFees?`<td style="${tdStyle}text-align:right;font-weight:800;color:#0369a1;">${_sumFee}</td>`:'';
       rows+=`<tr style="background:#f5f3ff;">
         <td style="${tdStyle}font-weight:800;" colspan="2">รวม</td>
         <td style="${tdStyle}text-align:right;font-weight:900;color:#7c3aed;">${fm(sumTr)} ฿</td>
