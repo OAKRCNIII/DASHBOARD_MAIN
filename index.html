@@ -1236,6 +1236,9 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
       <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin:8px 0 5px;">วันที่จ่าย</label>
       <input id="ocfPaidDate" type="date"
         style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid #d1fae5;border-radius:10px;font-size:14px;font-weight:700;color:#065f46;outline:none;margin-bottom:6px;">
+      <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin:8px 0 5px;">หมายเหตุ</label>
+      <textarea id="ocfPaidNote" rows="2" placeholder="เช่น โอนจากบัญชี..., เลขอ้างอิง, ธนาคาร"
+        style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid #d1fae5;border-radius:10px;font-size:13px;font-weight:500;color:#334155;outline:none;margin-bottom:6px;resize:vertical;font-family:inherit;"></textarea>
       <div id="ocfPaidErr" style="font-size:11px;color:#dc2626;min-height:16px;margin-bottom:10px;"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
         <button onclick="closeOcfPaidModal()" style="padding:8px 16px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:12px;font-weight:700;cursor:pointer;">ยกเลิก</button>
@@ -4475,6 +4478,7 @@ function applyRoleRestrictions(){
 let MANUAL_PAID=new Set(JSON.parse(localStorage.getItem('manual_paid_ocf')||'[]'));
 let MANUAL_PAID_AMT=new Map(Object.entries(JSON.parse(localStorage.getItem('manual_paid_amt')||'{}')));
 let MANUAL_PAID_DATE=new Map(Object.entries(JSON.parse(localStorage.getItem('manual_paid_date')||'{}')));   /* inv → 'YYYY-MM-DD' วันที่จ่าย OCF */
+let MANUAL_PAID_NOTE=new Map(Object.entries(JSON.parse(localStorage.getItem('manual_paid_note')||'{}')));   /* inv → หมายเหตุ OCF จ่ายมือ */
 /* date helpers: YYYY-MM-DD ↔ ISO(+07 เที่ยง กันวันเลื่อน) ↔ ไทยย่อ D/M/YY */
 const _ymdToIso = ymd => ymd ? ymd+'T12:00:00+07:00' : null;
 const _isoToYmd = iso => { try{ return iso ? new Date(iso).toLocaleDateString('en-CA',{timeZone:'Asia/Bangkok'}) : ''; }catch(e){ return ''; } };
@@ -4487,18 +4491,22 @@ const _sbHeaders={
   'apikey':SB_KEY, get Authorization(){return 'Bearer '+SB_TOKEN;},   /* getter: อ่าน token สดหลัง login (กัน 401) */
   'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'
 };
-async function _mpUpsert(invKey, amtThb, paidAt){
+async function _mpUpsert(invKey, amtThb, paidAt, note){
   try{
     const _iso = _ymdToIso(paidAt) || new Date().toISOString();
-    // ลอง upsert พร้อม amount_thb ก่อน (ถ้า column มีแล้ว)
-    const body={invoice_no:invKey,paid_at:_iso,amount_thb:amtThb||0};
-    const r=await fetch(`${SB_URL}/rest/v1/manual_paid`,{method:'POST',headers:_sbHeaders,body:JSON.stringify(body)});
+    const _n=(note||'').trim();
+    // ลองเต็ม (amount_thb + note) ก่อน
+    let r=await fetch(`${SB_URL}/rest/v1/manual_paid`,{method:'POST',headers:_sbHeaders,
+      body:JSON.stringify({invoice_no:invKey,paid_at:_iso,amount_thb:amtThb||0,note:_n||null})});
     if(!r.ok){
-      // ถ้า fail (column ยังไม่มี) → ส่งแค่ invoice_no + paid_at
-      await fetch(`${SB_URL}/rest/v1/manual_paid`,{
-        method:'POST',headers:_sbHeaders,
-        body:JSON.stringify({invoice_no:invKey,paid_at:_iso})
-      });
+      // note column อาจยังไม่มี → ส่งแค่ amount_thb
+      r=await fetch(`${SB_URL}/rest/v1/manual_paid`,{method:'POST',headers:_sbHeaders,
+        body:JSON.stringify({invoice_no:invKey,paid_at:_iso,amount_thb:amtThb||0})});
+      if(!r.ok){
+        // amount_thb column อาจยังไม่มี → ส่งแค่ invoice_no + paid_at
+        await fetch(`${SB_URL}/rest/v1/manual_paid`,{method:'POST',headers:_sbHeaders,
+          body:JSON.stringify({invoice_no:invKey,paid_at:_iso})});
+      }
     }
   }catch(e){console.warn('manual_paid upsert fail',e);}
 }
@@ -4511,20 +4519,28 @@ async function _mpDelete(invKey){
 }
 async function loadManualPaidFromSupabase(){
   try{
-    const r=await fetch(`${SB_URL}/rest/v1/manual_paid?select=invoice_no,amount_thb,paid_at`,{
+    let r=await fetch(`${SB_URL}/rest/v1/manual_paid?select=invoice_no,amount_thb,paid_at,note`,{
       headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Accept':'application/json'}
     });
-    if(!r.ok)return;
+    if(!r.ok){
+      // note column อาจยังไม่มี → ดึงแบบไม่มี note
+      r=await fetch(`${SB_URL}/rest/v1/manual_paid?select=invoice_no,amount_thb,paid_at`,{
+        headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Accept':'application/json'}
+      });
+      if(!r.ok)return;
+    }
     const data=await r.json();
     data.forEach(row=>{
       const k=row.invoice_no.toUpperCase();
       MANUAL_PAID.add(k);
-      if(row.amount_thb) MANUAL_PAID_AMT.set(k,row.amount_thb);
+      if(row.amount_thb) MANUAL_PAID_AMT.set(k,Number(row.amount_thb)||0);   /* coerce string→number */
       const _d=_isoToYmd(row.paid_at); if(_d) MANUAL_PAID_DATE.set(k,_d);
+      if(row.note!=null && String(row.note).trim()) MANUAL_PAID_NOTE.set(k,String(row.note));
     });
     localStorage.setItem('manual_paid_ocf',JSON.stringify([...MANUAL_PAID]));
     localStorage.setItem('manual_paid_amt',JSON.stringify(Object.fromEntries(MANUAL_PAID_AMT)));
     localStorage.setItem('manual_paid_date',JSON.stringify(Object.fromEntries(MANUAL_PAID_DATE)));
+    localStorage.setItem('manual_paid_note',JSON.stringify(Object.fromEntries(MANUAL_PAID_NOTE)));
     console.log(`✅ manual_paid loaded: ${MANUAL_PAID.size} รายการ`);
   }catch(e){console.warn('loadManualPaid fail',e);}
 }
@@ -4532,11 +4548,14 @@ async function pushLocalManualPaidToSupabase(){
   /* ดัน localStorage ทั้งหมดขึ้น Supabase ครั้งเดียว (ใช้ตอน init) */
   if(!MANUAL_PAID.size)return;
   try{
-    const payload=[...MANUAL_PAID].map(inv=>({invoice_no:inv,paid_at:_ymdToIso(MANUAL_PAID_DATE.get(inv))||new Date().toISOString(),amount_thb:MANUAL_PAID_AMT.get(inv)||0}));
-    await fetch(`${SB_URL}/rest/v1/manual_paid`,{
-      method:'POST',headers:_sbHeaders,body:JSON.stringify(payload)
-    });
-    console.log(`✅ push manual_paid → Supabase: ${payload.length} รายการ`);
+    const _withNote=[...MANUAL_PAID].map(inv=>({invoice_no:inv,paid_at:_ymdToIso(MANUAL_PAID_DATE.get(inv))||new Date().toISOString(),amount_thb:MANUAL_PAID_AMT.get(inv)||0,note:(MANUAL_PAID_NOTE.get(inv)||'').trim()||null}));
+    let r=await fetch(`${SB_URL}/rest/v1/manual_paid`,{method:'POST',headers:_sbHeaders,body:JSON.stringify(_withNote)});
+    if(!r.ok){
+      // note column อาจยังไม่มี → push แบบไม่มี note
+      const _noNote=_withNote.map(({note,...rest})=>rest);
+      await fetch(`${SB_URL}/rest/v1/manual_paid`,{method:'POST',headers:_sbHeaders,body:JSON.stringify(_noNote)});
+    }
+    console.log(`✅ push manual_paid → Supabase: ${_withNote.length} รายการ`);
   }catch(e){console.warn('pushLocalManualPaid fail',e);}
 }
 
@@ -4552,6 +4571,7 @@ function openOcfPaidModal(invKey){
   const cur=MANUAL_PAID_AMT.get(_ocfInv)||'';
   document.getElementById('ocfPaidAmt').value=cur?cur:'';
   document.getElementById('ocfPaidDate').value=MANUAL_PAID_DATE.get(_ocfInv)||new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Bangkok'});
+  document.getElementById('ocfPaidNote').value=MANUAL_PAID_NOTE.get(_ocfInv)||'';
   document.getElementById('ocfUnpaidBtn').style.display=already?'':'none';
   document.getElementById('ocfPaidModalBg').style.display='flex';
   setTimeout(()=>document.getElementById('ocfPaidAmt').focus(),100);
@@ -4564,16 +4584,19 @@ function _saveLocalMp(){
   localStorage.setItem('manual_paid_ocf',JSON.stringify([...MANUAL_PAID]));
   localStorage.setItem('manual_paid_amt',JSON.stringify(Object.fromEntries(MANUAL_PAID_AMT)));
   localStorage.setItem('manual_paid_date',JSON.stringify(Object.fromEntries(MANUAL_PAID_DATE)));
+  localStorage.setItem('manual_paid_note',JSON.stringify(Object.fromEntries(MANUAL_PAID_NOTE)));
 }
 function confirmOcfPaid(){
   const amt=parseFloat(document.getElementById('ocfPaidAmt').value)||0;
   if(!amt){document.getElementById('ocfPaidErr').textContent='กรุณากรอกยอดเงิน';return;}
   document.getElementById('ocfPaidErr').textContent='';
   const dt=document.getElementById('ocfPaidDate').value||'';
+  const note=(document.getElementById('ocfPaidNote').value||'').trim();
   MANUAL_PAID.add(_ocfInv);
   MANUAL_PAID_AMT.set(_ocfInv,amt);
   if(dt)MANUAL_PAID_DATE.set(_ocfInv,dt); else MANUAL_PAID_DATE.delete(_ocfInv);
-  _mpUpsert(_ocfInv,amt,dt);
+  if(note)MANUAL_PAID_NOTE.set(_ocfInv,note); else MANUAL_PAID_NOTE.delete(_ocfInv);
+  _mpUpsert(_ocfInv,amt,dt,note);
   _saveLocalMp();
   closeOcfPaidModal();
   renderVessel();
@@ -4582,6 +4605,7 @@ function confirmOcfUnpaid(){
   MANUAL_PAID.delete(_ocfInv);
   MANUAL_PAID_AMT.delete(_ocfInv);
   MANUAL_PAID_DATE.delete(_ocfInv);
+  MANUAL_PAID_NOTE.delete(_ocfInv);
   _mpDelete(_ocfInv);
   _saveLocalMp();
   closeOcfPaidModal();
@@ -6274,14 +6298,16 @@ function _vslFeeCells(r, gVessel, hasFees, fm){
   const ocfBd=mkBd(f.ocfEntries), tlxBd=mkBd(f.tlxEntries);
   const mpKey=normInv(r.inv).toUpperCase();
   const isManualPaid=MANUAL_PAID.has(mpKey)||MANUAL_PAID.has(r.inv.toUpperCase());
-  const mpAmt=MANUAL_PAID_AMT.get(mpKey)||MANUAL_PAID_AMT.get(r.inv.toUpperCase())||0;
+  const mpAmt=Number(MANUAL_PAID_AMT.get(mpKey))||Number(MANUAL_PAID_AMT.get(r.inv.toUpperCase()))||0;
   const mpAmtStr=mpAmt?`<br><span style="font-size:9px;color:#059669;font-weight:700;">${mpAmt.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2})} ฿</span>`:'';
   const mpDate=MANUAL_PAID_DATE.get(mpKey)||MANUAL_PAID_DATE.get(r.inv.toUpperCase())||'';
   const mpDateStr=mpDate?`<br><span style="font-size:8px;color:#94a3b8;font-weight:600;">📅 ${_ymdThai(mpDate)}</span>`:'';
+  const mpNote=MANUAL_PAID_NOTE.get(mpKey)||MANUAL_PAID_NOTE.get(r.inv.toUpperCase())||'';
+  const mpNoteStr=mpNote?`<br><span style="font-size:8px;color:#b45309;font-weight:600;" title="${h(mpNote)}">📝 ${h(mpNote.length>24?mpNote.slice(0,24)+'…':mpNote)}</span>`:'';
   const ocfCell=oa>0
     ?`<span style="color:#16a34a;font-weight:700;">${fm(oa)}</span>${!ocfBd&&f.ocfNo?`<br><span style="font-size:9px;color:#94a3b8;">#${h(f.ocfNo)}</span>`:''}${ocfBd}`
     :iP?'<span style="color:#7c3aed;font-size:10px;">✓ จ่ายแล้ว</span>'
-    :isManualPaid?`<span style="color:#059669;font-size:10px;cursor:pointer;" onclick="toggleManualPaid('${r.inv.replace(/'/g,"\\'")}')">✓ จ่ายแล้ว${mpAmtStr}${mpDateStr}<span style="font-size:8px;opacity:.6;display:block;">(manual) แก้ไข</span></span>`
+    :isManualPaid?`<span style="color:#059669;font-size:10px;cursor:pointer;" onclick="toggleManualPaid('${r.inv.replace(/'/g,"\\'")}')">✓ จ่ายแล้ว${mpAmtStr}${mpDateStr}${mpNoteStr}<span style="font-size:8px;opacity:.6;display:block;">(manual) แก้ไข</span></span>`
     :`<span style="color:#dc2626;font-size:10px;cursor:pointer;text-decoration:underline dotted;" title="คลิกเพื่อบันทึกการชำระ" onclick="toggleManualPaid('${r.inv.replace(/'/g,"\\'")}')">ยังไม่จ่าย</span>`;
   const tlxCell=ta>0
     ?`<span style="color:#2563eb;font-weight:700;">${fm(ta)}</span>${!tlxBd&&f.tlxNo?`<br><span style="font-size:9px;color:#94a3b8;">#${h(f.tlxNo)}</span>`:''}${tlxBd}`
@@ -7620,7 +7646,7 @@ function renderFinance(){
   if(_canSeeFees())unbilledSailed.forEach(d=>{const fees=FEES[normInv(d.inv)];if(fees)unbilledFeesRM+=(fees.ocf||0)+(fees.tlx||0);});
   /* ค่าเรือจ่ายมือ (บาท) เฉพาะออกเรือแล้ว + ไม่มี OCF RM */
   let unbilledMpTHB=0;
-  if(_canSeeFees())unbilledSailed.forEach(d=>{ if(!FEES[normInv(d.inv)]) unbilledMpTHB+=(MANUAL_PAID_AMT.get((d.inv||'').toUpperCase())||0); });
+  if(_canSeeFees())unbilledSailed.forEach(d=>{ if(!FEES[normInv(d.inv)]) unbilledMpTHB+=(Number(MANUAL_PAID_AMT.get(normInv(d.inv).toUpperCase()))||Number(MANUAL_PAID_AMT.get((d.inv||'').toUpperCase()))||0); });
 
   /* store for detail clicks */
   _finData={bankTotal,bankUpd,suRM,suTHB,pfxMap,shipMap,factoryDebt,shipDebt,unbilledSailed,unbilledPend,unbilledFeesRM,fm,fmRM,pst2};
@@ -7774,13 +7800,14 @@ function showFinanceDetail(i){
         if(showFees){
           const fees=_canSeeFees()?FEES[k]:null;
           const ocf=fees?.ocf||0,tlx=fees?.tlx||0; sumOcf+=ocf;sumTlx+=tlx;
-          const mp=_canSeeFees()?(MANUAL_PAID_AMT.get((d.inv||'').toUpperCase())||0):0;
+          const mp=_canSeeFees()?(Number(MANUAL_PAID_AMT.get(normInv(d.inv).toUpperCase()))||Number(MANUAL_PAID_AMT.get((d.inv||'').toUpperCase()))||0):0;
+          const mpNote=_canSeeFees()?(MANUAL_PAID_NOTE.get(normInv(d.inv).toUpperCase())||MANUAL_PAID_NOTE.get((d.inv||'').toUpperCase())||''):'';
           if((ocf+tlx)===0) sumMp+=mp;   /* ค่าเรือจ่ายมือ (บาท) นับเฉพาะตอนไม่มี OCF RM */
           feesCell=`<td style="${tdStyle}text-align:right;font-size:10px;color:#0369a1;">
             ${(ocf+tlx)>0?`<div style="font-weight:700;">${fm(ocf+tlx)} RM</div>
             <div style="color:#94a3b8;">OCF ${fm(ocf)} · TLX ${fm(tlx)}</div>
             <div style="color:#0ea5e9;">${fm((ocf+tlx)*RM_RATE)} ฿</div>`
-            :(mp>0?`<div style="font-weight:700;color:#15803d;">${fm(mp)} ฿</div><div style="color:#94a3b8;">ค่าเรือจ่ายมือ</div>`
+            :(mp>0?`<div style="font-weight:700;color:#15803d;">${fm(mp)} ฿</div><div style="color:#94a3b8;">ค่าเรือจ่ายมือ</div>${mpNote?`<div style="color:#b45309;font-size:9px;" title="${h(mpNote)}">📝 ${h(mpNote.length>24?mpNote.slice(0,24)+'…':mpNote)}</div>`:''}`
             :'<span style="color:#94a3b8;">ยังไม่มี</span>')}
           </td>`;
         }
