@@ -3359,12 +3359,16 @@ async function exportCticVgm(inv){
     </div>`; return;
   }
   const list=_cticRows.map((r,i)=>{
-    const seal=String(r.seal_no||'').trim();
-    return `<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:9px;cursor:pointer;font-size:13px;">
-      <input type="checkbox" class="cticChk" data-i="${i}" checked style="accent-color:#0f766e;width:16px;height:16px;cursor:pointer;">
-      <span style="font-family:monospace;font-weight:700;color:#0f172a;flex:1;">${h(r.container_no||'—')}</span>
-      <span style="font-size:11px;color:${seal?'#64748b':'#b91c1c'};">ซีล ${seal?h(seal):'— ไม่มี'}</span>
-    </label>`;
+    const raw=String(r.seal_no||'').trim();
+    const dig=raw.replace(/\D/g,'');
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:9px;font-size:13px;">
+      <input type="checkbox" class="cticChk" data-i="${i}" checked style="accent-color:#0f766e;width:16px;height:16px;cursor:pointer;flex-shrink:0;">
+      <span style="font-family:monospace;font-weight:700;color:#0f172a;flex:1;min-width:0;">${h(r.container_no||'—')}</span>
+      <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;">
+        <input class="cticSeal" data-i="${i}" value="${h(dig)}" inputmode="numeric" placeholder="เลขซีล" oninput="this.value=this.value.replace(/\\D/g,'')" style="width:128px;font-family:monospace;font-size:12.5px;text-align:right;padding:4px 7px;border:1px solid #cbd5e1;border-radius:6px;outline:none;">
+        ${raw?`<span style="font-size:9px;color:#94a3b8;">บอทอ่าน: ${h(raw)}</span>`:'<span style="font-size:9px;color:#b91c1c;">บอทไม่มีซีล</span>'}
+      </span>
+    </div>`;
   }).join('');
   bg.innerHTML=`<div style="background:#fff;border-radius:14px;width:min(520px,96vw);max-height:88vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.35);">
     <div style="padding:13px 18px;background:#0f766e;color:#fff;border-radius:14px 14px 0 0;display:flex;align-items:center;">
@@ -3373,7 +3377,8 @@ async function exportCticVgm(inv){
     </div>
     <div style="padding:16px 18px;">
       <div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:9px;padding:9px 12px;font-size:12px;color:#115e59;margin-bottom:12px;">
-        เลือกตู้ที่จะส่ง CTIC · VGM คงที่ <strong>32,000</strong> ทุกตู้ · ${_cticRows.length} ตู้ในอินวอยซ์นี้
+        เลือกตู้ที่จะส่ง CTIC · VGM คงที่ <strong>32,000</strong> ทุกตู้ · ${_cticRows.length} ตู้ในอินวอยซ์นี้<br>
+        <span style="color:#b45309;">✏️ แก้เลขซีลได้ (บอท OCR อาจอ่านไม่ครบ) — ไฟล์เอาเฉพาะตัวเลข</span>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:10px;">
         <button onclick="_cticToggleAll(true)" style="font-family:inherit;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:7px;border:1px solid #99f6e4;background:#f0fdfa;color:#0f766e;cursor:pointer;">เลือกทั้งหมด</button>
@@ -3392,11 +3397,12 @@ async function exportCticVgm(inv){
 function _cticToggleAll(v){ document.querySelectorAll('.cticChk').forEach(c=>{c.checked=v;}); _cticCount(); }
 function _cticCount(){ const n=document.querySelectorAll('.cticChk:checked').length; const el=document.getElementById('cticCount'); if(el)el.textContent=`เลือก ${n} ตู้`; }
 async function _cticMake(){
-  const picked=_cticRows.filter((r,i)=>document.querySelector(`.cticChk[data-i="${i}"]`)?.checked);
+  /* อ่านซีลจากช่องที่แก้ได้ (ตัดเหลือเฉพาะตัวเลข) + เก็บ index เดิมไว้อ้าง input */
+  const sealOf=i=>String(document.querySelector(`.cticSeal[data-i="${i}"]`)?.value||'').replace(/\D/g,'');
+  const picked=[];
+  _cticRows.forEach((r,i)=>{ if(document.querySelector(`.cticChk[data-i="${i}"]`)?.checked) picked.push({r,seal:sealOf(i)}); });
   if(!picked.length){ alert('ยังไม่ได้เลือกตู้'); return; }
-  /* CTIC ต้องการเฉพาะตัวเลขของซีล ตัดตัวอักษรนำหน้าออก (เช่น THSGZ2501016 → 2501016) */
-  const sealDigits=r=>String(r.seal_no||'').replace(/\D/g,'');
-  const noSeal=picked.filter(r=>!sealDigits(r));
+  const noSeal=picked.filter(p=>!p.seal);
   if(noSeal.length && !confirm(`มี ${noSeal.length} ตู้ไม่มีเลขซีล (ตัวเลข) — ช่อง Sealno จะว่าง\nออกไฟล์ CTIC ต่อไหม?`)) return;
   try{
     await _lazyScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
@@ -3407,8 +3413,8 @@ async function _cticMake(){
     const header=(xml.match(/<row r="1"[\s\S]*?<\/row>/)||[''])[0];
     const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     let bodyX='';
-    picked.forEach((r,i)=>{
-      const rn=i+2, seal=sealDigits(r);   /* เฉพาะตัวเลข ตัดตัวอักษรออก */
+    picked.forEach((p,i)=>{
+      const rn=i+2, seal=p.seal, r=p.r;
       const dCell=seal
         ? `<c r="D${rn}" s="4"><v>${seal}</v></c>`
         : `<c r="D${rn}" s="4"/>`;
