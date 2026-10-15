@@ -3327,6 +3327,104 @@ function _lcbDown(blob,name){
   setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
 
+/* ── Export VGM ฟอร์แมต CTIC (ท่าสงขลา) — ต่ออินวอยซ์ ──────────────────
+   modal ให้ติ๊กเลือกตู้ก่อน แล้วออกไฟล์เฉพาะที่เลือก
+   ใช้ ctic_vgm_template.xlsx เป็นเทมเพลตจริง regenerate เฉพาะ <sheetData>
+   (คง header/สไตล์/ฟอร์แมต @/ความกว้าง/สีพื้น ครบทุก byte · เซลล์ตรงกับ CTIC)
+   VGM คงที่ 32000 ทุกตู้ (RCN เคาะ) · container+seal จาก skh_containers */
+let _cticInv=null, _cticRows=[];
+async function exportCticVgm(inv){
+  _cticInv=inv;
+  let bg=document.getElementById('cticBg');
+  if(!bg){
+    bg=document.createElement('div'); bg.id='cticBg';
+    bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9350;align-items:center;justify-content:center;padding:14px;';
+    bg.addEventListener('mousedown',e=>{ bg._d=(e.target===bg); });
+    bg.addEventListener('click',e=>{ if(e.target===bg&&bg._d) bg.style.display='none'; bg._d=false; });
+    document.body.appendChild(bg);
+  }
+  bg.innerHTML='<div style="background:#fff;border-radius:14px;padding:30px 34px;color:#64748b;">กำลังโหลด…</div>';
+  bg.style.display='flex';
+  try{
+    _cticRows=await sbFetch('skh_containers',
+      `select=container_no,seal_no&invoice_no=eq.${encodeURIComponent(inv)}&order=id`);
+  }catch(e){
+    bg.innerHTML=`<div style="background:#fff;border-radius:14px;padding:24px;color:#dc2626;font-weight:700;">โหลดข้อมูลตู้ไม่ได้ — ${h(e.message)}</div>`; return;
+  }
+  if(!_cticRows.length){
+    bg.innerHTML=`<div style="background:#fff;border-radius:14px;width:min(420px,94vw);padding:22px 24px;">
+      <div style="font-size:14px;font-weight:800;color:#b91c1c;margin-bottom:8px;">ไม่พบตู้</div>
+      <div style="font-size:12.5px;color:#475569;line-height:1.6;">อินวอยซ์นี้ยังไม่มีตู้ใน <code>skh_containers</code> (ท่าสงขลา)</div>
+      <button onclick="document.getElementById('cticBg').style.display='none'" style="margin-top:14px;font-family:inherit;font-size:13px;font-weight:700;padding:8px 18px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;cursor:pointer;">ปิด</button>
+    </div>`; return;
+  }
+  const list=_cticRows.map((r,i)=>{
+    const seal=String(r.seal_no||'').trim();
+    return `<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:9px;cursor:pointer;font-size:13px;">
+      <input type="checkbox" class="cticChk" data-i="${i}" checked style="accent-color:#0f766e;width:16px;height:16px;cursor:pointer;">
+      <span style="font-family:monospace;font-weight:700;color:#0f172a;flex:1;">${h(r.container_no||'—')}</span>
+      <span style="font-size:11px;color:${seal?'#64748b':'#b91c1c'};">ซีล ${seal?h(seal):'— ไม่มี'}</span>
+    </label>`;
+  }).join('');
+  bg.innerHTML=`<div style="background:#fff;border-radius:14px;width:min(520px,96vw);max-height:88vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+    <div style="padding:13px 18px;background:#0f766e;color:#fff;border-radius:14px 14px 0 0;display:flex;align-items:center;">
+      <span style="font-size:14px;font-weight:800;">📤 Export CTIC (VGM) — ${h(inv)}</span>
+      <button onclick="document.getElementById('cticBg').style.display='none'" style="margin-left:auto;background:none;border:none;color:#fff;font-size:18px;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:16px 18px;">
+      <div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:9px;padding:9px 12px;font-size:12px;color:#115e59;margin-bottom:12px;">
+        เลือกตู้ที่จะส่ง CTIC · VGM คงที่ <strong>32,000</strong> ทุกตู้ · ${_cticRows.length} ตู้ในอินวอยซ์นี้
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button onclick="_cticToggleAll(true)" style="font-family:inherit;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:7px;border:1px solid #99f6e4;background:#f0fdfa;color:#0f766e;cursor:pointer;">เลือกทั้งหมด</button>
+        <button onclick="_cticToggleAll(false)" style="font-family:inherit;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:7px;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;cursor:pointer;">ไม่เลือก</button>
+        <span id="cticCount" style="margin-left:auto;font-size:11.5px;color:#64748b;align-self:center;"></span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;" onchange="_cticCount()">${list}</div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button onclick="_cticMake()" style="flex:1;font-family:inherit;font-size:13px;font-weight:700;padding:10px;border-radius:8px;border:1px solid #0f766e;background:#0f766e;color:#fff;cursor:pointer;">📊 ออกไฟล์ Excel (CTIC)</button>
+        <button onclick="document.getElementById('cticBg').style.display='none'" style="font-family:inherit;font-size:13px;font-weight:700;padding:10px 18px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;cursor:pointer;">ปิด</button>
+      </div>
+    </div>
+  </div>`;
+  _cticCount();
+}
+function _cticToggleAll(v){ document.querySelectorAll('.cticChk').forEach(c=>{c.checked=v;}); _cticCount(); }
+function _cticCount(){ const n=document.querySelectorAll('.cticChk:checked').length; const el=document.getElementById('cticCount'); if(el)el.textContent=`เลือก ${n} ตู้`; }
+async function _cticMake(){
+  const picked=_cticRows.filter((r,i)=>document.querySelector(`.cticChk[data-i="${i}"]`)?.checked);
+  if(!picked.length){ alert('ยังไม่ได้เลือกตู้'); return; }
+  const noSeal=picked.filter(r=>!String(r.seal_no||'').trim());
+  if(noSeal.length && !confirm(`มี ${noSeal.length} ตู้ไม่มีเลขซีล — ช่อง Sealno จะว่าง\nออกไฟล์ CTIC ต่อไหม?`)) return;
+  try{
+    await _lazyScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+    const buf=await (await fetch('ctic_vgm_template.xlsx',{cache:'no-store'})).arrayBuffer();
+    const zip=await JSZip.loadAsync(buf);
+    const P='xl/worksheets/sheet1.xml';
+    let xml=await zip.file(P).async('string');
+    const header=(xml.match(/<row r="1"[\s\S]*?<\/row>/)||[''])[0];
+    const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    let bodyX='';
+    picked.forEach((r,i)=>{
+      const rn=i+2, seal=String(r.seal_no||'').trim();
+      const dCell=/^\d+$/.test(seal)
+        ? `<c r="D${rn}" s="4"><v>${seal}</v></c>`
+        : (seal?`<c r="D${rn}" s="4" t="inlineStr"><is><t>${esc(seal)}</t></is></c>`:`<c r="D${rn}" s="4"/>`);
+      bodyX+=`<row r="${rn}" spans="1:4" ht="13.5" customHeight="1">`
+        +`<c r="A${rn}" s="4"><v>${i+1}</v></c>`
+        +`<c r="B${rn}" s="4" t="inlineStr"><is><t>${esc(r.container_no)}</t></is></c>`
+        +`<c r="C${rn}" s="5" t="inlineStr"><is><t>32000.00</t></is></c>`
+        +dCell+`</row>`;
+    });
+    xml=xml.replace(/<sheetData>[\s\S]*<\/sheetData>/, `<sheetData>${header}${bodyX}</sheetData>`);
+    xml=xml.replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="A1:D${picked.length+1}"/>`);
+    zip.file(P,xml);
+    const blob=await zip.generateAsync({type:'blob'});
+    _lcbDown(blob, `CTIC VGM ${String(_cticInv).replace(/[\/\\]/g,'-')}.xlsx`);
+    const bg=document.getElementById('cticBg'); if(bg)bg.style.display='none';
+  }catch(e){ alert('ออกไฟล์ CTIC ไม่สำเร็จ: '+(e.message||e)); }
+}
+
 async function _lcbZip(){
   const b=document.getElementById('lcbZip'); b.disabled=true;
   try{
@@ -5386,6 +5484,9 @@ function showInvDetail(id,panelId){
   /* ไฟล์ VGM — เฉพาะแหลมฉบัง เพราะต้องใช้ TARE ที่บอทอ่านจากรูปตู้ */
   if(LCB_INV.has(String(d.inv).trim()))
     out+=` <button onclick="openVgmModal('${_invEsc}')" style="padding:6px 14px;background:#4d7c0f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">⚖️ ไฟล์ VGM</button>`;
+  /* Export VGM ฟอร์แมต CTIC — เฉพาะท่าสงขลา (เลือกตู้ได้) */
+  if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA')
+    out+=` <button onclick="exportCticVgm('${_invEsc}')" style="padding:6px 14px;background:#0f766e;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📤 Export CTIC (VGM)</button>`;
   /* ใบแจ้งเบอร์ตู้ — ทุกอินวอยซ์ หน้ารายงานสลับคอลัมน์ตามท่าเรือให้เอง */
   out+=` <button onclick="openLcbReport('${_invEsc}')" style="padding:6px 14px;background:#1a3a6b;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📄 ใบแจ้งเบอร์ตู้</button>`;
   out+=` <span id="lockBadgeSlot" data-inv="${h(d.inv)}"></span>`;   /* badge 🔒 LOCK เติม async หลังเช็ค Edge */
