@@ -3394,8 +3394,10 @@ function _cticCount(){ const n=document.querySelectorAll('.cticChk:checked').len
 async function _cticMake(){
   const picked=_cticRows.filter((r,i)=>document.querySelector(`.cticChk[data-i="${i}"]`)?.checked);
   if(!picked.length){ alert('ยังไม่ได้เลือกตู้'); return; }
-  const noSeal=picked.filter(r=>!String(r.seal_no||'').trim());
-  if(noSeal.length && !confirm(`มี ${noSeal.length} ตู้ไม่มีเลขซีล — ช่อง Sealno จะว่าง\nออกไฟล์ CTIC ต่อไหม?`)) return;
+  /* CTIC ต้องการเฉพาะตัวเลขของซีล ตัดตัวอักษรนำหน้าออก (เช่น THSGZ2501016 → 2501016) */
+  const sealDigits=r=>String(r.seal_no||'').replace(/\D/g,'');
+  const noSeal=picked.filter(r=>!sealDigits(r));
+  if(noSeal.length && !confirm(`มี ${noSeal.length} ตู้ไม่มีเลขซีล (ตัวเลข) — ช่อง Sealno จะว่าง\nออกไฟล์ CTIC ต่อไหม?`)) return;
   try{
     await _lazyScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
     const buf=await (await fetch('ctic_vgm_template.xlsx',{cache:'no-store'})).arrayBuffer();
@@ -3406,10 +3408,10 @@ async function _cticMake(){
     const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     let bodyX='';
     picked.forEach((r,i)=>{
-      const rn=i+2, seal=String(r.seal_no||'').trim();
-      const dCell=/^\d+$/.test(seal)
+      const rn=i+2, seal=sealDigits(r);   /* เฉพาะตัวเลข ตัดตัวอักษรออก */
+      const dCell=seal
         ? `<c r="D${rn}" s="4"><v>${seal}</v></c>`
-        : (seal?`<c r="D${rn}" s="4" t="inlineStr"><is><t>${esc(seal)}</t></is></c>`:`<c r="D${rn}" s="4"/>`);
+        : `<c r="D${rn}" s="4"/>`;
       bodyX+=`<row r="${rn}" spans="1:4" ht="13.5" customHeight="1">`
         +`<c r="A${rn}" s="4"><v>${i+1}</v></c>`
         +`<c r="B${rn}" s="4" t="inlineStr"><is><t>${esc(r.container_no)}</t></is></c>`
