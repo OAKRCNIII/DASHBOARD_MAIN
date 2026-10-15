@@ -3331,7 +3331,7 @@ function _lcbDown(blob,name){
    modal ให้ติ๊กเลือกตู้ก่อน แล้วออกไฟล์เฉพาะที่เลือก
    ใช้ ctic_vgm_template.xlsx เป็นเทมเพลตจริง regenerate เฉพาะ <sheetData>
    (คง header/สไตล์/ฟอร์แมต @/ความกว้าง/สีพื้น ครบทุก byte · เซลล์ตรงกับ CTIC)
-   VGM คงที่ 32000 ทุกตู้ (RCN เคาะ) · container+seal จาก skh_containers */
+   VGM คงที่ 32500 ทุกตู้ (RCN เคาะ 15 ต.ค. แก้จาก 32000) · container+seal จาก skh_containers */
 let _cticInv=null, _cticRows=[];
 async function exportCticVgm(inv){
   _cticInv=inv;
@@ -3377,7 +3377,7 @@ async function exportCticVgm(inv){
     </div>
     <div style="padding:16px 18px;">
       <div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:9px;padding:9px 12px;font-size:12px;color:#115e59;margin-bottom:12px;">
-        เลือกตู้ที่จะส่ง CTIC · VGM คงที่ <strong>32,000</strong> ทุกตู้ · ${_cticRows.length} ตู้ในอินวอยซ์นี้<br>
+        เลือกตู้ที่จะส่ง CTIC · VGM คงที่ <strong>32,500</strong> ทุกตู้ · ${_cticRows.length} ตู้ในอินวอยซ์นี้<br>
         <span style="color:#b45309;">✏️ แก้เลขซีลได้ (บอท OCR อาจอ่านไม่ครบ) — ไฟล์เอาเฉพาะตัวเลข</span>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:10px;">
@@ -3421,7 +3421,7 @@ async function _cticMake(){
       bodyX+=`<row r="${rn}" spans="1:4" ht="13.5" customHeight="1">`
         +`<c r="A${rn}" s="4"><v>${i+1}</v></c>`
         +`<c r="B${rn}" s="4" t="inlineStr"><is><t>${esc(r.container_no)}</t></is></c>`
-        +`<c r="C${rn}" s="5" t="inlineStr"><is><t>32000.00</t></is></c>`
+        +`<c r="C${rn}" s="5" t="inlineStr"><is><t>32500.00</t></is></c>`
         +dCell+`</row>`;
     });
     xml=xml.replace(/<sheetData>[\s\S]*<\/sheetData>/, `<sheetData>${header}${bodyX}</sheetData>`);
