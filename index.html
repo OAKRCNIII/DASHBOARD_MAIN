@@ -5576,10 +5576,10 @@ function showInvDetail(id,panelId){
   }
   if(d.details&&d.details.length){
     const pendSet=new Set(invPendCtrs.map(c=>(c.ctr||'').trim().toUpperCase()));
-    /* ใบไหนมีตู้ LCB ให้เพิ่มคอลัมน์เบอร์ซีล (ฝั่งปาดังไม่มีซีล จึงไม่ต้องโชว์) */
-    const _hasLcb=(d.details||[]).some(x=>x._src==='LCB');
+    /* มีตู้ที่มีเบอร์ซีลให้เพิ่มคอลัมน์ (LCB + สงขลามีซีล ฝั่งปาดังไม่มี จึงไม่ต้องโชว์) */
+    const _hasSeal=(d.details||[]).some(x=>x._seal&&String(x._seal).trim());
     out+='<table class="det-tbl"><thead><tr><th>ทะเบียนรถ</th><th>เบอร์ตู้</th>'
-       +(_hasLcb?'<th>เบอร์ซีล</th>':'')
+       +(_hasSeal?'<th>เบอร์ซีล</th>':'')
        +'<th>โรงงาน</th><th>เข้าโรงงาน</th><th>DATE PICKUP</th><th>CADO</th></tr></thead><tbody>';
     d.details.forEach(r=>{
       const isPend=pendSet.has((r.เบอร์ตู้||'').trim().toUpperCase());
@@ -5598,7 +5598,7 @@ function showInvDetail(id,panelId){
       const _lcbDel=_lcbCan
         ? `<button onclick="delLcbCtr('${r._uid}','${h(r.เบอร์ตู้)}')" title="ลบตู้ใบนี้ออกจากระบบ" style="margin-left:3px;border:none;background:none;color:#dc2626;font-size:12px;font-weight:900;cursor:pointer;padding:0 3px;font-family:inherit;">✕</button>`
         : '';
-      const _sealTd=_hasLcb?`<td style="font-family:monospace">${h(r._seal||'')}</td>`:'';
+      const _sealTd=_hasSeal?`<td style="font-family:monospace">${h(r._seal||'')}</td>`:'';
       out+=`<tr style="${rowBg}"><td>${h(r.ทะเบียนรถ)}</td><td style="font-family:monospace">${_ctrHtml}${pendBadge}${_lcbTag}${_lcbEdit}${_lcbDel}</td>${_sealTd}<td>${h(r.โรงงาน)}</td><td>${h(r.เข้าโรงงาน)}</td><td>${h(r.DATE_PICKUP)}</td><td>${h(r.CADO)}</td></tr>`;
     });
     out+='</tbody></table>';
