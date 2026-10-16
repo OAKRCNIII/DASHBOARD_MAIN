@@ -107,7 +107,7 @@ html.shooting body{width:210mm}
 const API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-lcb';
 const DOW = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
 const MON = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-let CUR = null, ROWS = [], KIND = 'LCB', EXPORT = null, IS_RAIL = false;
+let CUR = null, ROWS = [], KIND = 'LCB', EXPORT = null, IS_RAIL = false, IS_SKH = false;
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -127,6 +127,7 @@ function render(inv, list, kind, locked){
   CUR = inv; ROWS = list;
   IS_RAIL = (kind === 'RAIL') || (new URLSearchParams(location.search).get('mode') === 'rail');   /* รถไฟ-แหลมฉบัง = เหมือนใบเรือทุกอย่าง ต่างแค่หัว 'รถไฟ - แหลมฉบัง' + ตัดคอลัมน์น้ำหนัก */
   KIND = IS_RAIL ? 'LCB' : (kind || 'LCB');
+  IS_SKH = !IS_RAIL && (list || []).some(c => String(c.source || '').toUpperCase() === 'SONGKHLA');   /* สงขลา: kind คืนมาเป็น PADANG ดูจาก source ของตู้ */
   { const vb = document.getElementById('vgm'); if(vb) vb.style.display = (KIND === 'PADANG') ? '' : 'none'; }   /* VGM OOCL = เฉพาะปาดัง */
   const isLocked = !!(locked && locked.containers && locked.containers.length);
   const rows = [];
@@ -211,7 +212,7 @@ function render(inv, list, kind, locked){
 
   document.getElementById('out').innerHTML = `
   <div class="sheet${isLocked ? ' lockmode' : ''}" id="sheet">
-    <div class="tbox"><h1>${IS_RAIL ? 'รถไฟ - แหลมฉบัง' : (KIND === 'LCB' ? 'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง' : 'ใบแจ้งเบอร์ตู้')}</h1></div>
+    <div class="tbox"><h1>${IS_RAIL ? 'รถไฟ - แหลมฉบัง' : (KIND === 'LCB' ? 'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง' : (IS_SKH ? 'ใบแจ้งเบอร์ตู้ (ท่าเรือสงขลา)' : 'ใบแจ้งเบอร์ตู้'))}</h1></div>
     <p class="l1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p>
     <p class="l2">${esc(line2)}</p>
     <table>
@@ -422,7 +423,7 @@ async function saveXlsx(){
       ? ['ลำดับ','ทะเบียนรถ','เบอร์ตู้','SEAL NO.','วันที่เข้าโรงงาน','น้ำหนัก (กก.)']
       : ['ลำดับ','ทะเบียนรถ','เบอร์ตู้','วันที่เข้าโรงงาน','โรงงาน','น้ำหนัก (กก.)'];
     const aoa = [
-      [KIND === 'LCB' ? 'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง' : 'ใบแจ้งเบอร์ตู้'],
+      [KIND === 'LCB' ? 'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง' : (IS_SKH ? 'ใบแจ้งเบอร์ตู้ (ท่าเรือสงขลา)' : 'ใบแจ้งเบอร์ตู้')],
       [],
       [`ขอแจ้งเบอร์ตู้ ของ ${CUR.invoice_no}`],
       [line2],
