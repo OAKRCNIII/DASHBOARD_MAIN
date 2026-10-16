@@ -1638,6 +1638,7 @@ async function _doSetPort(inv, port, btn){
    รูปมาจากบอท LINE เก็บใน Storage bucket lcb_photos
    ══════════════════════════════════════════════════════════════ */
 const LCB_API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-lcb';
+const SKH_API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-skh';   /* ท่าสงขลา: ctic-read / ctic-save */
 
 /* โหลดไลบรารีตอนกดปุ่มเท่านั้น — ไม่ถ่วงหน้าเว็บตอนเปิดปกติ */
 function _lazyScript(src){
@@ -3431,6 +3432,84 @@ async function _cticMake(){
     _lcbDown(blob, `CTIC VGM ${String(_cticInv).replace(/[\/\\]/g,'-')}.xlsx`);
     const bg=document.getElementById('cticBg'); if(bg)bg.style.display='none';
   }catch(e){ alert('ออกไฟล์ CTIC ไม่สำเร็จ: '+(e.message||e)); }
+}
+
+/* ── อัพโหลดรูปตาราง CTIC → OCR (line-skh/ctic-read) → จับคู่เบอร์ตู้ → ยืนยัน → บันทึก ctic_no ── */
+let _cticUpInv=null,_cticUpRows=[],_cticUpInvCtrs=new Set();
+async function openCticUpload(inv){
+  _cticUpInv=inv; _cticUpRows=[];
+  try{ const cs=await sbFetch('skh_containers',`select=container_no&invoice_no=eq.${encodeURIComponent(inv)}`); _cticUpInvCtrs=new Set((cs||[]).map(c=>String(c.container_no||'').toUpperCase())); }catch(_){ _cticUpInvCtrs=new Set(); }
+  let bg=document.getElementById('cticUpBg');
+  if(!bg){
+    bg=document.createElement('div'); bg.id='cticUpBg';
+    bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9350;align-items:center;justify-content:center;padding:14px;';
+    bg.addEventListener('mousedown',e=>{bg._d=(e.target===bg);});
+    bg.addEventListener('click',e=>{if(e.target===bg&&bg._d)bg.style.display='none';bg._d=false;});
+    document.body.appendChild(bg);
+  }
+  bg.innerHTML=`<div style="background:#fff;border-radius:14px;width:min(560px,96vw);max-height:88vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+    <div style="padding:13px 18px;background:#7c3aed;color:#fff;border-radius:14px 14px 0 0;display:flex;align-items:center;">
+      <span style="font-size:14px;font-weight:800;">🆔 อัพโหลด CTIC NO. — ${h(inv)}</span>
+      <button onclick="document.getElementById('cticUpBg').style.display='none'" style="margin-left:auto;background:none;border:none;color:#fff;font-size:18px;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:16px 18px;">
+      <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:9px;padding:9px 12px;font-size:12px;color:#5b21b6;margin-bottom:12px;">
+        อัพรูปตาราง CTIC (จากระบบท่าเรือสงขลา) → บอทอ่าน Cticno ต่อตู้ → ตรวจแล้วกดยืนยันบันทึก
+      </div>
+      <label style="display:block;padding:16px;border:2px dashed #c4b5fd;border-radius:10px;text-align:center;cursor:pointer;color:#6d28d9;font-weight:700;font-size:13px;">
+        📷 เลือกรูปตาราง CTIC
+        <input type="file" accept="image/*" onchange="_cticUpPick(this)" style="display:none;">
+      </label>
+      <div id="cticUpResult" style="margin-top:14px;"></div>
+    </div>
+  </div>`;
+  bg.style.display='flex';
+}
+function _cticUpPick(input){
+  const f=input.files&&input.files[0]; if(!f)return;
+  const box=document.getElementById('cticUpResult');
+  box.innerHTML='<div style="color:#64748b;font-size:12px;padding:10px;">⏳ กำลังอ่านรูป (AI)…</div>';
+  const rd=new FileReader();
+  rd.onload=async()=>{
+    try{
+      const r=await fetch(`${SKH_API}/ctic-read`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_TOKEN}`},body:JSON.stringify({image:rd.result,mediaType:f.type||'image/jpeg'})});
+      const j=await r.json();
+      if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+      _cticUpRows=(j.rows||[]).map(x=>({container_no:String(x.container_no||'').toUpperCase(),ctic_no:String(x.ctic_no||''),iso_ok:x.iso_ok}));
+      _cticUpRenderRows();
+    }catch(e){ box.innerHTML=`<div style="color:#dc2626;font-size:12px;padding:10px;">⚠️ อ่านไม่สำเร็จ: ${h(e.message||e)}</div>`; }
+  };
+  rd.readAsDataURL(f);
+}
+function _cticUpRenderRows(){
+  const box=document.getElementById('cticUpResult');
+  if(!_cticUpRows.length){ box.innerHTML='<div style="color:#b91c1c;font-size:12px;padding:10px;">อ่านไม่เจอเบอร์ตู้ในรูป ลองรูปที่ชัดขึ้น</div>'; return; }
+  const rows=_cticUpRows.map(x=>{
+    const inInv=_cticUpInvCtrs.has(x.container_no);
+    const badge=!x.ctic_no?'<span style="color:#b91c1c;">ไม่มี CTIC</span>':!inInv?'<span style="color:#b45309;">⚠️ ไม่อยู่ในใบนี้</span>':'<span style="color:#15803d;">✓ ตรงกับตู้ในใบ</span>';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:12.5px;">
+      <span style="font-family:monospace;font-weight:700;flex:1;">${h(x.container_no)}${x.iso_ok?'':' <span style="color:#dc2626;font-size:10px;">(เบอร์ผิด?)</span>'}</span>
+      <span style="font-family:monospace;font-weight:700;color:#7c3aed;">${h(x.ctic_no||'—')}</span>
+      <span style="font-size:10.5px;min-width:100px;text-align:right;">${badge}</span>
+    </div>`;
+  }).join('');
+  const nSave=_cticUpRows.filter(x=>x.ctic_no&&_cticUpInvCtrs.has(x.container_no)).length;
+  box.innerHTML=`<div style="font-size:11.5px;color:#64748b;margin-bottom:8px;">อ่านได้ ${_cticUpRows.length} แถว · จะบันทึกให้ตู้ในใบนี้ ${nSave} ตู้</div>
+    <div style="display:flex;flex-direction:column;gap:6px;">${rows}</div>
+    <button onclick="_cticUpSave()" ${nSave?'':'disabled'} style="margin-top:14px;width:100%;font-family:inherit;font-size:13px;font-weight:700;padding:10px;border-radius:8px;border:1px solid #7c3aed;background:${nSave?'#7c3aed':'#c4b5fd'};color:#fff;cursor:${nSave?'pointer':'not-allowed'};">✅ ยืนยันบันทึก ${nSave} ตู้</button>`;
+}
+async function _cticUpSave(){
+  const items=_cticUpRows.filter(x=>x.ctic_no&&_cticUpInvCtrs.has(x.container_no)).map(x=>({container_no:x.container_no,ctic_no:x.ctic_no}));
+  if(!items.length){ alert('ไม่มีตู้ให้บันทึก (เบอร์ตู้ต้องตรงกับในใบ + มีเลข CTIC)'); return; }
+  const box=document.getElementById('cticUpResult'); const prev=box.innerHTML;
+  box.innerHTML='<div style="color:#64748b;font-size:12px;padding:10px;">⏳ กำลังบันทึก…</div>';
+  try{
+    const r=await fetch(`${SKH_API}/ctic-save`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_TOKEN}`},body:JSON.stringify({items,invoice_no:_cticUpInv})});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+    document.getElementById('cticUpBg').style.display='none';
+    alert(`บันทึก CTIC NO. แล้ว ${j.saved||0} ตู้\n\nกด 🔄 รีเฟรช เพื่ออัปเดตหน้าจอ`);
+  }catch(e){ box.innerHTML=prev; alert('บันทึกไม่สำเร็จ: '+(e.message||e)); }
 }
 
 async function _lcbZip(){
@@ -5496,6 +5575,8 @@ function showInvDetail(id,panelId){
   /* Export VGM ฟอร์แมต CTIC — เฉพาะท่าสงขลา (เลือกตู้ได้) */
   if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA')
     out+=` <button onclick="exportCticVgm('${_invEsc}')" style="padding:6px 14px;background:#0f766e;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📤 Export CTIC (VGM)</button>`;
+  if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA')
+    out+=` <button onclick="openCticUpload('${_invEsc}')" title="อัพรูปตาราง CTIC → อ่าน Cticno → บันทึก" style="padding:6px 14px;background:#7c3aed;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🆔 อัพ CTIC</button>`;
   /* ใบแจ้งเบอร์ตู้ — ทุกอินวอยซ์ หน้ารายงานสลับคอลัมน์ตามท่าเรือให้เอง */
   out+=` <button onclick="openLcbReport('${_invEsc}')" style="padding:6px 14px;background:#1a3a6b;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📄 ใบแจ้งเบอร์ตู้</button>`;
   out+=` <span id="lockBadgeSlot" data-inv="${h(d.inv)}"></span>`;   /* badge 🔒 LOCK เติม async หลังเช็ค Edge */
