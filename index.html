@@ -7243,9 +7243,12 @@ async function doFacPrint(dates){
     const allKeys=(allCols||[]).map(_dkey);
     ctrMap=ctrMap||{};
     const _cn=v=>String(v||'').trim().toUpperCase();
-    /* RCN 16 ต.ค.69: ฟ้า + ป้าย "บ่าย" เฉพาะตู้ที่รับ (pickup) วันเดียวกับเข้าโรงงาน (factory)
-       — รับ 15 เข้า 15 = บ่าย (ฟ้า) · รับ 15 เข้า 16 = ไม่ใช่บ่าย (ขาว ไม่มีป้าย) */
-    const colorOfCtr=c=>{const pk=_dkey(c.pickup_date),fd=_dkey(c.factory_date);return (pk&&fd&&pk===fd)?_HL[0]:'';};
+    /* RCN 16 ต.ค.69: ไฮไลท์ตามจำนวนวันห่าง รับตู้(pickup) → เข้าโรงงาน(factory) = gap
+       — วันเดียวกัน (gap 0) = ฟ้า + ป้าย "บ่าย"
+       — เข้าพรุ่งนี้ (gap 1) = ส้ม · เข้ามะรืน (gap 2) = เขียว · ถัดไปไล่พาเลต _HL อัตโนมัติ
+       — เกินพาเลต / วันที่ย้อน / ไม่มีวันที่ = ขาว ไม่มีป้าย */
+    const _dayGap=(a,b)=>{const pa=String(a).split('-').map(Number),pb=String(b).split('-').map(Number);if(pa.length<3||!pa[0]||!pb[0])return NaN;return Math.round((new Date(pb[0],pb[1]-1,pb[2])-new Date(pa[0],pa[1]-1,pa[2]))/86400000);};
+    const colorOfCtr=c=>{const pk=_dkey(c.pickup_date),fd=_dkey(c.factory_date);if(!pk||!fd)return'';const g=_dayGap(pk,fd);return (g>=0&&g<_HL.length)?_HL[g]:'';};
     const COLS=kind==='LCB'
       ?[['ลำดับ','7%'],['ทะเบียนรถ','19%'],['เบอร์ตู้','21%'],['SEAL NO.','16%'],['วันที่เข้าโรงงาน','21%'],['น้ำหนัก (กก.)','16%']]
       :[['ลำดับ','7%'],['ทะเบียนรถ','19%'],['เบอร์ตู้','21%'],['วันที่เข้าโรงงาน','21%'],['โรงงาน','18%'],['น้ำหนัก (กก.)','14%']];
