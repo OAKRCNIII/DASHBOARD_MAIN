@@ -3457,17 +3457,27 @@ async function openCticUpload(inv){
         อัพรูปตาราง CTIC (จากระบบท่าเรือสงขลา) → บอทอ่าน Cticno ต่อตู้ → ตรวจแล้วกดยืนยันบันทึก
       </div>
       <label style="display:block;padding:16px;border:2px dashed #c4b5fd;border-radius:10px;text-align:center;cursor:pointer;color:#6d28d9;font-weight:700;font-size:13px;">
-        📷 เลือกรูปตาราง CTIC
+        📷 เลือกรูปตาราง CTIC &nbsp;·&nbsp; หรือ วาง (Ctrl+V) รูปได้เลย
         <input type="file" accept="image/*" onchange="_cticUpPick(this)" style="display:none;">
       </label>
       <div id="cticUpResult" style="margin-top:14px;"></div>
     </div>
   </div>`;
   bg.style.display='flex';
+  /* รองรับ paste (Ctrl+V) — ผูก listener ครั้งเดียว ทำงานเฉพาะตอน modal เปิด */
+  if(!window._cticPasteBound){
+    window._cticPasteBound=true;
+    document.addEventListener('paste',e=>{
+      const b=document.getElementById('cticUpBg');
+      if(!b||b.style.display==='none')return;
+      const items=(e.clipboardData&&e.clipboardData.items)||[];
+      for(const it of items){ if(it.type&&it.type.indexOf('image')===0){ const f=it.getAsFile(); if(f){ e.preventDefault(); _cticUpFromBlob(f); } break; } }
+    });
+  }
 }
-function _cticUpPick(input){
-  const f=input.files&&input.files[0]; if(!f)return;
-  const box=document.getElementById('cticUpResult');
+function _cticUpPick(input){ const f=input.files&&input.files[0]; if(f)_cticUpFromBlob(f); }
+function _cticUpFromBlob(f){
+  const box=document.getElementById('cticUpResult'); if(!box)return;
   box.innerHTML='<div style="color:#64748b;font-size:12px;padding:10px;">⏳ กำลังอ่านรูป (AI)…</div>';
   const rd=new FileReader();
   rd.onload=async()=>{
