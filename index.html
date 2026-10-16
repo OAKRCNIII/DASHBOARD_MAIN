@@ -5681,7 +5681,7 @@ function showInvDetail(id,panelId){
     const _hasSkh=(d.details||[]).some(x=>x._src==='SONGKHLA');   /* สงขลา: โชว์คอลัมน์ CTIC NO. เสมอ (ว่างถ้ายังไม่มี) */
     out+='<table class="det-tbl"><thead><tr><th>ทะเบียนรถ</th><th>เบอร์ตู้</th>'
        +(_hasSeal?'<th>เบอร์ซีล</th>':'')
-       +(_hasSkh?'<th>CTIC NO.</th>':'')
+       +(_hasSkh?'<th>CTIC NO.</th><th>รหัสโรงงาน</th>':'')
        +'<th>โรงงาน</th><th>เข้าโรงงาน</th><th>DATE PICKUP</th><th>CADO</th></tr></thead><tbody>';
     d.details.forEach(r=>{
       const isPend=pendSet.has((r.เบอร์ตู้||'').trim().toUpperCase());
@@ -5702,7 +5702,8 @@ function showInvDetail(id,panelId){
         : '';
       const _sealTd=_hasSeal?`<td style="font-family:monospace">${h(r._seal||'')}</td>`:'';
       const _cticTd=_hasSkh?`<td style="font-family:monospace;color:${r._ctic?'#0f172a':'#cbd5e1'};">${r._ctic?h(r._ctic):'—'}</td>`:'';
-      out+=`<tr style="${rowBg}"><td>${h(r.ทะเบียนรถ)}</td><td style="font-family:monospace">${_ctrHtml}${pendBadge}${_lcbTag}${_lcbEdit}${_lcbDel}</td>${_sealTd}${_cticTd}<td>${h(r.โรงงาน)}</td><td>${h(r.เข้าโรงงาน)}</td><td>${h(r.DATE_PICKUP)}</td><td>${h(r.CADO)}</td></tr>`;
+      const _facCodeTd=_hasSkh?`<td style="font-family:monospace;color:#0f172a;">10262</td>`:'';   /* รหัสโรงงาน FIX (ท่าสงขลา) */
+      out+=`<tr style="${rowBg}"><td>${h(r.ทะเบียนรถ)}</td><td style="font-family:monospace">${_ctrHtml}${pendBadge}${_lcbTag}${_lcbEdit}${_lcbDel}</td>${_sealTd}${_cticTd}${_facCodeTd}<td>${h(r.โรงงาน)}</td><td>${h(r.เข้าโรงงาน)}</td><td>${h(r.DATE_PICKUP)}</td><td>${h(r.CADO)}</td></tr>`;
     });
     out+='</tbody></table>';
     if(invPendCtrs.length){
