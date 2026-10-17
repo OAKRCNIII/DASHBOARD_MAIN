@@ -3279,7 +3279,8 @@ async function _doEditLcbCtr(uid){
   const err=document.getElementById('lcbEdErr');
   btn.disabled=true; btn.textContent='กำลังบันทึก…'; err.textContent='';
   try{
-    const r=await fetch(`${LCB_API}/update`,{
+    const _api = String(uid).charAt(0).toUpperCase()==='S' ? SKH_API : LCB_API;   /* uid 'S' = สงขลา (line-skh) */
+    const r=await fetch(`${_api}/update`,{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_TOKEN}`},
       body:JSON.stringify({uid, fields:{
@@ -3309,7 +3310,8 @@ function delLcbCtr(uid, ctrNo){
 
 async function _doDelLcbCtr(uid, ctrNo){
   try{
-    const r = await fetch(`${LCB_API}/delete`, {
+    const _api = String(uid).charAt(0).toUpperCase()==='S' ? SKH_API : LCB_API;   /* uid 'S' = สงขลา (line-skh) */
+    const r = await fetch(`${_api}/delete`, {
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_TOKEN}`},
       body: JSON.stringify({ uid }),
@@ -5692,9 +5694,11 @@ function showInvDetail(id,panelId){
       const _ctrHtml=_ctr?`<span onclick="window.open('https://www.searates.com/container/tracking/?number=${encodeURIComponent(_ctr)}','_blank','noopener,noreferrer')" style="cursor:pointer;color:#1d4ed8;text-decoration:underline dotted;font-weight:600;" title="ติดตามตู้ ${_ctr}">${h(_ctr)}</span>`:'-';
       const _lcbTag=r._src==='LCB'
         ? `<span title="บันทึกจากบอท LINE แหลมฉบัง${r._seal?' · ซีล '+h(r._seal):''}" style="margin-left:5px;font-size:8.5px;padding:1px 5px;border-radius:8px;background:#fdf2f8;color:#9d174d;border:1px solid #f9a8d4;font-weight:700;font-family:inherit;">⚓ LCB</span>`
+        : r._src==='SONGKHLA'
+        ? `<span title="บันทึกจากบอท LINE สงขลา${r._seal?' · ซีล '+h(r._seal):''}" style="margin-left:5px;font-size:8.5px;padding:1px 5px;border-radius:8px;background:#fffbeb;color:#b45309;border:1px solid #fcd34d;font-weight:700;font-family:inherit;">🏖️ สงขลา</span>`
         : '';
-      /* ปุ่มแก้/ลบ — เฉพาะตู้ที่บอท LINE บันทึก และเฉพาะ OAK_THIRA */
-      const _lcbCan=(r._src==='LCB'&&r._uid&&LOGGED_USER==='OAK_THIRA');
+      /* ปุ่มแก้/ลบ — เฉพาะตู้ที่บอท LINE บันทึก (LCB+สงขลา) และเฉพาะ OAK_THIRA */
+      const _lcbCan=((r._src==='LCB'||r._src==='SONGKHLA')&&r._uid&&LOGGED_USER==='OAK_THIRA');
       const _lcbEdit=_lcbCan
         ? `<button onclick="editLcbCtr('${r._uid}')" title="แก้ข้อมูลตู้ใบนี้" style="margin-left:5px;border:none;background:none;color:#0e7490;font-size:12px;cursor:pointer;padding:0 2px;font-family:inherit;">✏️</button>`
         : '';
