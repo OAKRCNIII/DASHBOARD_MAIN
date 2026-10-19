@@ -136,7 +136,7 @@ function render(inv, list, kind, locked){
   const COLS = IS_RAIL
     ? [['ลำดับ','c-no'],['ทะเบียนรถ','c-truck'],['เบอร์ตู้','c-ctr'],
        ['SEAL NO.','c-seal'],['วันที่เข้าโรงงาน','c-date']]   /* = ใบเรือ ตัดน้ำหนักออก */
-    : KIND === 'LCB'
+    : (KIND === 'LCB' || IS_SKH)   /* สงขลา = คอลัมน์เหมือนแหลมฉบัง (มีซีล ไม่มีโรงงาน) */
     ? [['ลำดับ','c-no'],['ทะเบียนรถ','c-truck'],['เบอร์ตู้','c-ctr'],
        ['SEAL NO.','c-seal'],['วันที่เข้าโรงงาน','c-date'],['น้ำหนัก (กก.)','c-wt']]
     : [['ลำดับ','c-no'],['ทะเบียนรถ','c-truck'],['เบอร์ตู้','c-ctr'],
@@ -145,7 +145,7 @@ function render(inv, list, kind, locked){
   const cellsOf = c => IS_RAIL
     ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
        esc(thaiDate(c.factory_date))]   /* รถไฟ: วันที่เข้าโหลด = factory_date (ต่อแถวจากตาราง) */
-    : KIND === 'LCB'
+    : (KIND === 'LCB' || IS_SKH)
     ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
        esc(thaiDate(c.factory_date)), c.weight ? Number(c.weight).toLocaleString() : '']
     : [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''),
@@ -419,7 +419,7 @@ async function saveXlsx(){
       CUR.customer ? `ของ ${CUR.customer}` : '',
     ].filter(Boolean).join(' ');
 
-    const HEAD = KIND === 'LCB'
+    const HEAD = (KIND === 'LCB' || IS_SKH)
       ? ['ลำดับ','ทะเบียนรถ','เบอร์ตู้','SEAL NO.','วันที่เข้าโรงงาน','น้ำหนัก (กก.)']
       : ['ลำดับ','ทะเบียนรถ','เบอร์ตู้','วันที่เข้าโรงงาน','โรงงาน','น้ำหนัก (กก.)'];
     const aoa = [
@@ -432,7 +432,7 @@ async function saveXlsx(){
     ];
     EX.rows.forEach((c,i)=>{
       if(!c){ aoa.push([i+1,'','','','','']); return; }   // ช่องว่าง (ฟันหลอ/รอตู้)
-      aoa.push(KIND === 'LCB'
+      aoa.push((KIND === 'LCB' || IS_SKH)
         ? [i+1, c.truck_plate ?? '', c.container_no ?? '', c.seal_no ?? '',
            thaiDate(c.factory_date), c.weight ? Number(c.weight) : '']
         : [i+1, c.truck_plate ?? '', c.container_no ?? '',
@@ -470,7 +470,7 @@ async function saveXlsx(){
       const zebra = (r - R_FIRST) % 2 === 1
         ? { fill:{ patternType:'solid', fgColor:{rgb:'FAFBFC'} } } : {};
       for(let c=0;c<6;c++){
-        const bold = KIND === 'LCB' ? (c===2||c===3) : (c===2);   /* เน้นเบอร์ตู้ (+ซีลถ้ามี) */
+        const bold = (KIND === 'LCB' || IS_SKH) ? (c===2||c===3) : (c===2);   /* เน้นเบอร์ตู้ (+ซีลถ้ามี) */
         put(r,c,{
           font:{name:XF,sz:c===2?12:11,bold}, alignment:mid, border:boxAll, ...zebra,
           ...(c===5 ? { numFmt:'#,##0' } : {}),
