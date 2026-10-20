@@ -842,6 +842,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <button class="htab" id="htab-billing" onclick="switchTab('billing')" style="display:none;">💼 ยังไม่วางบิล</button>
     <button class="htab" id="htab-price" onclick="switchTab('price')" style="display:none;">💰 PRICE UPDATE</button>
     <button class="htab" id="htab-report" onclick="switchTab('report')">📈 รายงานตู้</button>
+    <button class="htab" id="htab-profit" onclick="switchTab('profit')" style="display:none;">💰 กำไรต่อใบ</button>
   </div>
   <div class="stats-bar" id="sBar"></div>
   <!-- BKG modal -->
@@ -992,6 +993,10 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <div class="view" id="reportView" style="flex-direction:column;overflow-y:auto;background:#f0f4ff;">
       <div id="reportWrap" style="max-width:1800px;margin:0 auto;padding:20px;width:100%;box-sizing:border-box;"></div>
     </div>
+    <!-- กำไรต่อใบ (OAK_THIRA เท่านั้น) -->
+    <div class="view" id="profitView" style="flex-direction:column;overflow-y:auto;background:#f0fdf4;">
+      <div id="trProfitWrap" style="max-width:1400px;margin:0 auto;padding:16px;width:100%;box-sizing:border-box;"></div>
+    </div>
     <!-- MOBILE HOME VIEW (mobile only) -->
     <div class="view" id="mhomeView" style="flex-direction:column;overflow-y:auto;background:#f4f6fb;">
       <div id="mhomeWrap"></div>
@@ -1128,7 +1133,6 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
         <button class="vtab" data-v="transport">🚛 ข้อมูลรายขนส่ง</button>
         <button class="vtab" data-v="unpaid">💸 ค้างจ่าย</button>
         <button class="vtab" data-v="thira"><span style="background:#1e40af;color:#fff;border-radius:4px;padding:1px 5px;font-weight:900;font-size:10px;letter-spacing:.5px;line-height:1.4;display:inline-block;vertical-align:middle;">TR</span> THIRA</button>
-        <button class="vtab" id="vtabProfit" data-v="profit" style="display:none;">💰 กำไรต่อใบ</button>
         <button class="vtab" onclick="openAlPay()" style="background:#78350f;color:#fff;border-color:#78350f;">🧾 ชนยอดโอน</button>
       </div>
     </div>
@@ -1162,8 +1166,6 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <div id="trUnpaidWrap" style="display:none;flex:1;overflow:auto;"></div>
     <!-- THIRA truck view -->
     <div id="trThiraWrap" style="display:none;flex:1;overflow:auto;"></div>
-    <!-- กำไรต่อใบ (OAK_THIRA เท่านั้น) -->
-    <div id="trProfitWrap" style="display:none;flex:1;overflow:auto;"></div>
   </div><!-- end #trDash -->
 
   <!-- DEBT DASHBOARD -->
@@ -4665,7 +4667,7 @@ function _canSeeBilledPaid(){return USER_ROLE==='admin';}
 /* ปุ่มอัปโหลดใบล็อค: admin + PLA (PLA เห็นปุ่มนี้ได้ แต่ไม่เห็นค่าธรรมเนียม/การเงิน) */
 function _canLockUpload(){return _canSeeFees()||LOGGED_USER==='PLA_ANTS';}
 function applyRoleRestrictions(){
-  { const vp=document.getElementById('vtabProfit'); if(vp) vp.style.display=(LOGGED_USER==='OAK_THIRA')?'':'none'; }   /* แท็บกำไร เฉพาะ OAK_THIRA */
+  { const vp=document.getElementById('htab-profit'); if(vp) vp.style.display=(LOGGED_USER==='OAK_THIRA')?'':'none'; }   /* แท็บกำไร เฉพาะ OAK_THIRA */
   const dashBtn=document.getElementById('dashToggleBtn');
   const debtBtn=document.getElementById('debtDashBtn');
   const setBtn=document.getElementById('settingsBtn');
@@ -4875,7 +4877,7 @@ function switchTab(tab){
     document.getElementById('mainDash').style.display='flex';
     document.getElementById('trDash').style.display='none';
   }
-  const allViews=['main','pending','stock','factory','vessel','billing','finance','price','report','mhome','mmonth','mtr','mvessel'];
+  const allViews=['main','pending','stock','factory','vessel','billing','finance','price','report','profit','mhome','mmonth','mtr','mvessel'];
   allViews.forEach(t=>{
     const v=document.getElementById(t+'View');if(v)v.classList.toggle('active',t===tab);
     const h2=document.getElementById('htab-'+t);if(h2)h2.classList.toggle('active',t===tab);
@@ -4890,6 +4892,7 @@ function switchTab(tab){
   if(tab==='finance'){renderFinance();}
   if(tab==='price'){renderPriceLatest();}
   if(tab==='report'){renderReport();}
+  if(tab==='profit'){renderTrProfit();}
   if(tab==='mhome'){renderMobileHome();renderStatsMain();}
   if(tab==='mmonth'){renderMobileMonthView();}
   if(tab==='mvessel'){renderMobileVesselView();}
@@ -10164,23 +10167,20 @@ function renderTrView(){
   const isMonth=TR_VIEW==='month';
   const isUnpaid=TR_VIEW==='unpaid';
   const isThira=TR_VIEW==='thira';
-  const isProfit=TR_VIEW==='profit';
-  const hideTable=isMonth||isTr||isUnpaid||isThira||isProfit;
+  const hideTable=isMonth||isTr||isUnpaid||isThira;
   document.getElementById('trTblWrap').style.display=!hideTable?'block':'none';
   document.getElementById('trMonthWrap').style.display=isMonth?'block':'none';
   document.getElementById('trCoWrap').style.display=isTr?'block':'none';
   document.getElementById('trUnpaidWrap').style.display=isUnpaid?'block':'none';
   document.getElementById('trThiraWrap').style.display=isThira?'flex':'none';
-  document.getElementById('trProfitWrap').style.display=isProfit?'block':'none';
   /* Hide status filter tabs & search in special views */
   document.querySelectorAll('#trFilterBar .ftab[data-f]').forEach(b=>b.style.display=hideTable?'none':'');
   const sw=document.getElementById('trSearchInp');if(sw)sw.parentElement.style.marginLeft=hideTable?'0':'';
-  const pb=document.getElementById('trPrefixBar');if(pb)pb.style.display=(isUnpaid||isThira||isProfit)?'none':'';
+  const pb=document.getElementById('trPrefixBar');if(pb)pb.style.display=(isUnpaid||isThira)?'none':'';
   if(isMonth)renderTrMonthSummary();
   else if(isTr)renderTrCoView();
   else if(isUnpaid)renderTrUnpaid();
   else if(isThira)renderTrThira();
-  else if(isProfit)renderTrProfit();
   else renderTrTable();
 }
 
@@ -10195,6 +10195,9 @@ function renderTrProfit(){
   const fm=n=>Math.round(n).toLocaleString('th-TH');
   const he=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const pb=p=>{try{const s=pst(p);return `<span style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd};border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;">${he(p)}</span>`;}catch(e){return he(p||'');}};
+  /* ค่าขนส่งรถบรรทุกต่อใบ = totalPaid จาก TR_DATA (ตัวเดียวกับคอลัมน์ "ยอดรวม" ที่หน้ารายขนส่งโชว์ — gross, ยกเว้น prePaid/factoryTruck) · FLAT.details ไม่มี trMatch จึงต้องดึงจาก TR_DATA */
+  const truckByInv={};
+  (TR_DATA||[]).forEach(t=>{ truckByInv[normInv(t.inv)]=Number(t.totalPaid)||0; });
   const rows=[];
   FLAT.forEach(d=>{
     const k=normInv(d.inv);
@@ -10206,14 +10209,15 @@ function renderTrProfit(){
     const ocf=(f.ocf>0)?f.ocf*rate:_mp;   /* จ่ายแบงค์=RM×เรต · จ่ายมือ=บาท (manual_paid) */
     const tlx=(Number(f.tlx)||0)*rate;
     const train=Number(TRAIN_THB.get(k))||0;
-    const truck=(d.details||[]).reduce((s,r)=>s+((r.trMatch&&r.trMatch.price)||0),0);
+    const truck=truckByInv[k]||0;
     const antsFee=1000*ctr;
-    const cost=ocf+tlx+train+truck+antsFee;
-    rows.push({inv:d.inv,prefix:d.prefix,month:d.month,ctr,rev,ocf,tlx,train,truck,antsFee,cost,profit:rev-cost});
+    const fwd=((typeof portOf==='function'?portOf(d.inv):'PADANG')==='PADANG')?200*ctr*rate:0;  /* FORWARDING ปาดัง 200 RM/ตู้ */
+    const cost=ocf+tlx+train+truck+antsFee+fwd;
+    rows.push({inv:d.inv,prefix:d.prefix,month:d.month,ctr,rev,ocf,tlx,train,truck,antsFee,fwd,cost,profit:rev-cost});
   });
   rows.sort((a,b)=> (mSort?mSort(b.month,a.month):0) || String(a.inv).localeCompare(String(b.inv)));
   if(!rows.length){ wrap.innerHTML='<div style="padding:40px;text-align:center;color:#94a3b8;">ยังไม่มีใบที่วางบิลแล้ว</div>'; return; }
-  const T={rev:0,ocf:0,tlx:0,train:0,truck:0,antsFee:0,cost:0,profit:0,ctr:0};
+  const T={rev:0,ocf:0,tlx:0,train:0,truck:0,antsFee:0,fwd:0,cost:0,profit:0,ctr:0};
   rows.forEach(r=>{for(const kk in T)T[kk]+=r[kk]||0;});
   _PROFIT_ROWS=rows; _PROFIT_TOT=T;
   const th='padding:7px 9px;font-size:10.5px;font-weight:800;color:#fff;background:#065f46;text-align:right;white-space:nowrap;position:sticky;top:0;';
@@ -10221,7 +10225,7 @@ function renderTrProfit(){
   const marg=T.rev>0?(T.profit/T.rev*100):0;
   let html=`<div style="padding:10px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
       <div style="font-size:14px;font-weight:900;color:#065f46;">💰 กำไรต่อใบ (วางบิลแล้ว)</div>
-      <div style="font-size:11px;color:#64748b;">${rows.length} ใบ · ${T.ctr} ตู้ · เรต RM ${rate} · ANTS FEE 1,000/ตู้ · รถบรรทุก gross</div>
+      <div style="font-size:11px;color:#64748b;">${rows.length} ใบ · ${T.ctr} ตู้ · เรต RM ${rate} · ANTS FEE 1,000/ตู้ · รถบรรทุก gross · FWD ปาดัง 200 RM/ตู้</div>
       <span style="font-size:12px;font-weight:800;color:${T.profit>=0?'#15803d':'#dc2626'};">กำไรรวม ${fm(T.profit)} ฿ (${marg.toFixed(1)}%)</span>
       <button onclick="_profitExcel()" style="margin-left:auto;padding:5px 13px;border:1px solid #065f46;background:#065f46;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">📊 Excel</button>
     </div>
@@ -10229,7 +10233,7 @@ function renderTrProfit(){
     <thead><tr>
       <th style="${th}text-align:left;">อินวอยซ์</th><th style="${th}text-align:center;">เดือน</th><th style="${th}text-align:center;">ตู้</th>
       <th style="${th}">รายได้</th><th style="${th}">OCF</th><th style="${th}">TLX</th><th style="${th}">รถไฟ</th>
-      <th style="${th}">รถบรรทุก</th><th style="${th}">ANTS FEE</th><th style="${th}">ต้นทุนรวม</th><th style="${th}">กำไร</th><th style="${th}">กำไร/ตู้</th>
+      <th style="${th}">รถบรรทุก</th><th style="${th}">ANTS FEE</th><th style="${th}">FWD</th><th style="${th}">ต้นทุนรวม</th><th style="${th}">กำไร</th><th style="${th}">กำไร/ตู้</th>
     </tr></thead><tbody>`;
   rows.forEach(r=>{
     const pc=r.profit>=0?'#15803d':'#dc2626';
@@ -10243,6 +10247,7 @@ function renderTrProfit(){
       <td style="${td}color:#64748b;">${r.train?fm(r.train):'-'}</td>
       <td style="${td}color:#64748b;">${fm(r.truck)}</td>
       <td style="${td}color:#64748b;">${fm(r.antsFee)}</td>
+      <td style="${td}color:#64748b;">${r.fwd?fm(r.fwd):'-'}</td>
       <td style="${td}font-weight:700;color:#b45309;">${fm(r.cost)}</td>
       <td style="${td}font-weight:800;color:${pc};">${fm(r.profit)}</td>
       <td style="${td}font-weight:700;color:${pc};">${r.ctr?fm(r.profit/r.ctr):'-'}</td>
@@ -10254,7 +10259,7 @@ function renderTrProfit(){
       <td style="${td}text-align:center;">${T.ctr}</td>
       <td style="${td}color:#0f172a;">${fm(T.rev)}</td>
       <td style="${td}">${fm(T.ocf)}</td><td style="${td}">${fm(T.tlx)}</td><td style="${td}">${fm(T.train)}</td>
-      <td style="${td}">${fm(T.truck)}</td><td style="${td}">${fm(T.antsFee)}</td>
+      <td style="${td}">${fm(T.truck)}</td><td style="${td}">${fm(T.antsFee)}</td><td style="${td}">${fm(T.fwd)}</td>
       <td style="${td}color:#b45309;">${fm(T.cost)}</td>
       <td style="${td}color:${tp};">${fm(T.profit)}</td>
       <td style="${td}color:${tp};">${T.ctr?fm(T.profit/T.ctr):'-'}</td>
@@ -10265,10 +10270,10 @@ async function _profitExcel(){
   if(!_PROFIT_ROWS.length){ alert('ยังไม่มีข้อมูล'); return; }
   await _lazyScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
   const r2=n=>Math.round(n||0);
-  const aoa=[['อินวอยซ์','เดือน','ตู้','รายได้','OCF','TLX','รถไฟ','รถบรรทุก','ANTS FEE','ต้นทุนรวม','กำไร','กำไร/ตู้']];
-  _PROFIT_ROWS.forEach(r=>aoa.push([r.inv,mLabel(r.month),r.ctr,r2(r.rev),r2(r.ocf),r2(r.tlx),r2(r.train),r2(r.truck),r2(r.antsFee),r2(r.cost),r2(r.profit),r.ctr?r2(r.profit/r.ctr):0]));
+  const aoa=[['อินวอยซ์','เดือน','ตู้','รายได้','OCF','TLX','รถไฟ','รถบรรทุก','ANTS FEE','FWD','ต้นทุนรวม','กำไร','กำไร/ตู้']];
+  _PROFIT_ROWS.forEach(r=>aoa.push([r.inv,mLabel(r.month),r.ctr,r2(r.rev),r2(r.ocf),r2(r.tlx),r2(r.train),r2(r.truck),r2(r.antsFee),r2(r.fwd),r2(r.cost),r2(r.profit),r.ctr?r2(r.profit/r.ctr):0]));
   const T=_PROFIT_TOT;
-  aoa.push(['รวม','',T.ctr,r2(T.rev),r2(T.ocf),r2(T.tlx),r2(T.train),r2(T.truck),r2(T.antsFee),r2(T.cost),r2(T.profit),T.ctr?r2(T.profit/T.ctr):0]);
+  aoa.push(['รวม','',T.ctr,r2(T.rev),r2(T.ocf),r2(T.tlx),r2(T.train),r2(T.truck),r2(T.antsFee),r2(T.fwd),r2(T.cost),r2(T.profit),T.ctr?r2(T.profit/T.ctr):0]);
   const XLSX=window.XLSX; const ws=XLSX.utils.aoa_to_sheet(aoa); const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'กำไรต่อใบ'); XLSX.writeFile(wb,'กำไรต่อใบ.xlsx');
 }
