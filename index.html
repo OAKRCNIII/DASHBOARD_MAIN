@@ -3044,7 +3044,10 @@ function _lcbSay(msg){
   if(el) el.textContent=msg||'';
 }
 
-async function openLcbPhotos(inv){
+/* openSkhPhotos: ท่าสงขลา ใช้ modal/viewer เดียวกับ LCB แค่เปลี่ยน endpoint เป็น SKH_API (/photos เหมือนกัน เพราะ line-skh โคลนมาจาก line-lcb) */
+function openSkhPhotos(inv){ return openLcbPhotos(inv, SKH_API); }
+async function openLcbPhotos(inv, api){
+  const API = api || LCB_API;
   _lcbInvNo=inv;
   let bg=document.getElementById('lcbPhotoBg');
   if(!bg){
@@ -3073,7 +3076,7 @@ async function openLcbPhotos(inv){
   bg.style.display='flex';
 
   try{
-    const r=await fetch(`${LCB_API}/photos?inv=${encodeURIComponent(inv)}`);
+    const r=await fetch(`${API}/photos?inv=${encodeURIComponent(inv)}`);
     const j=await r.json();
     if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
     _lcbFiles=j.files||[];
@@ -5592,6 +5595,9 @@ function showInvDetail(id,panelId){
   /* ไฟล์ VGM — เฉพาะแหลมฉบัง เพราะต้องใช้ TARE ที่บอทอ่านจากรูปตู้ */
   if(LCB_INV.has(String(d.inv).trim()))
     out+=` <button onclick="openVgmModal('${_invEsc}')" style="padding:6px 14px;background:#4d7c0f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">⚖️ ไฟล์ VGM</button>`;
+  /* รูปตู้ — ท่าสงขลา (รูปส่งผ่าน LINE OA สงขลา → line-skh) ใช้ gallery เดียวกับแหลมฉบัง */
+  if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA')
+    out+=` <button onclick="openSkhPhotos('${_invEsc}')" style="padding:6px 14px;background:#9d174d;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📷 รูปตู้</button>`;
   /* Export VGM ฟอร์แมต CTIC — เฉพาะท่าสงขลา (เลือกตู้ได้) */
   if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA')
     out+=` <button onclick="exportCticVgm('${_invEsc}')" style="padding:6px 14px;background:#0f766e;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📤 Export CTIC (VGM)</button>`;
