@@ -10209,7 +10209,8 @@ function renderTrProfit(){
     const ocf=(f.ocf>0)?f.ocf*rate:_mp;   /* จ่ายแบงค์=RM×เรต · จ่ายมือ=บาท (manual_paid) */
     const tlx=(Number(f.tlx)||0)*rate;
     const train=Number(TRAIN_THB.get(k))||0;
-    const truck=truckByInv[k]||0;
+    const _isTWI=String(d.prefix||'').trim().toUpperCase()==='TWI';
+    const truck=_isTWI?0:(truckByInv[k]||0);   /* TWI วางบิลค่าขนส่งแยกตามจริง → ไม่คิดเป็นต้นทุนในกำไร */
     const antsFee=1000*ctr;
     const fwd=((typeof portOf==='function'?portOf(d.inv):'PADANG')==='PADANG')?200*ctr*rate:0;  /* FORWARDING ปาดัง 200 RM/ตู้ */
     const cost=ocf+tlx+train+truck+antsFee+fwd;
