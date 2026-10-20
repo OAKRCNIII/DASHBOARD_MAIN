@@ -7746,13 +7746,22 @@ function renderBilling(){
     /* ค่าเรือ */
     const fees=_canSeeFees()?FEES[k]:null;
     const ocf=fees?.ocf||0, tlx=fees?.tlx||0;
+    /* OCF จ่ายมือ (manual_paid) — เป็นบาท ไม่ได้อยู่ใน FEES/RM ต้องโชว์ด้วย ไม่งั้นขึ้น "ยังไม่มีข้อมูล" ทั้งที่จ่ายแล้ว */
+    const _mpK=normInv(d.inv).toUpperCase(), _upK=(d.inv||'').toUpperCase();
+    const _isMp=_canSeeFees()&&(MANUAL_PAID.has(_mpK)||MANUAL_PAID.has(_upK));
+    const _mpAmt=_isMp?(Number(MANUAL_PAID_AMT.get(_mpK))||Number(MANUAL_PAID_AMT.get(_upK))||0):0;
+    const _mpNote=_isMp?(MANUAL_PAID_NOTE.get(_mpK)||MANUAL_PAID_NOTE.get(_upK)||''):'';
+    const _mpAmtStr=_mpAmt?`<br><span style="font-size:10px;color:#059669;font-weight:700;">${_mpAmt.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2})} ฿</span>`:'';
+    const _mpNoteStr=_mpNote?`<br><span style="font-size:8.5px;color:#b45309;font-weight:600;" title="${h(_mpNote)}">📝 ${h(_mpNote.length>22?_mpNote.slice(0,22)+'…':_mpNote)}</span>`:'';
     const feesCell=isPendTrFilter
       ?`<span style="color:#94a3b8;font-size:11px;">🚢 ยังไม่ออกเรือ</span>`
       :_canSeeFees()
         ?(ocf+tlx>0
           ?`<div style="color:#16a34a;font-weight:700;font-size:11px;">✔ จ่ายแล้ว</div>
              <div style="font-size:10px;color:#475569;line-height:1.6;">OCF ${fmRM(ocf)||'—'}<br>TLX ${fmRM(tlx)||'—'}</div>`
-          :`<span style="color:#94a3b8;font-size:11px;">ยังไม่มีข้อมูล</span>`)
+          :_isMp
+            ?`<div style="color:#16a34a;font-weight:700;font-size:11px;">✔ จ่ายแล้ว${_mpAmtStr}${_mpNoteStr}<span style="font-size:8.5px;color:#94a3b8;font-weight:600;display:block;">(จ่ายมือ)</span></div>`
+            :`<span style="color:#94a3b8;font-size:11px;">ยังไม่มีข้อมูล</span>`)
         :`<span style="color:#cbd5e1;font-size:10px;">—</span>`;
 
     /* ค่าขนส่ง */
