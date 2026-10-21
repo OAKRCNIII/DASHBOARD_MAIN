@@ -2124,7 +2124,7 @@ const VGM_SIGNER = {          /* ผู้ลงนามประจำแต�
   BSW: { name:'CHUREERATH MEEPAT', email:'ants.star1@gmail.com' },
 };
 const VGM_DEFAULT_CARGO = 28500;   /* น้ำหนักสินค้าต่อตู้ที่ใช้ประจำ */
-let _vgmRows=[], _vgmInv='';
+let _vgmRows=[], _vgmInv='', _vgmIsSkh=false;
 
 async function openVgmModal(inv){
   _vgmInv=inv;
@@ -2142,8 +2142,11 @@ async function openVgmModal(inv){
   bg.innerHTML='<div style="background:#fff;border-radius:14px;padding:30px 34px;color:#64748b;">กำลังโหลด…</div>';
   bg.style.display='flex';
 
+  /* ท่าสงขลาเก็บตู้ใน skh_containers (คอลัมน์เดียวกับ lcb_containers) — VGM ใช้ TARE จริงเหมือนแหลมฉบัง */
+  _vgmIsSkh = (typeof portOf==='function' && portOf(inv)==='SONGKHLA');
+  const _vgmTbl = _vgmIsSkh ? 'skh_containers' : 'lcb_containers';
   try{
-    _vgmRows=await sbFetch('lcb_containers',
+    _vgmRows=await sbFetch(_vgmTbl,
       `select=container_no,tare_kg,max_gross_kg,seal_no&invoice_no=eq.${encodeURIComponent(inv)}&order=id`);
   }catch(e){
     bg.innerHTML=`<div style="background:#fff;border-radius:14px;padding:24px;color:#dc2626;font-weight:700;">โหลดข้อมูลตู้ไม่ได้ — ${h(e.message)}</div>`;
@@ -2155,9 +2158,8 @@ async function openVgmModal(inv){
     bg.innerHTML=`<div style="background:#fff;border-radius:14px;width:min(460px,94vw);padding:22px 24px;">
       <div style="font-size:14px;font-weight:800;color:#b91c1c;margin-bottom:8px;">ดึงข้อมูลตู้ไม่ได้</div>
       <div style="font-size:12.5px;color:#475569;line-height:1.7;">
-        อ่านตาราง <code>lcb_containers</code> ได้ 0 แถว ทั้งที่อินวอยซ์นี้มีตู้อยู่<br>
-        สาเหตุที่พบบ่อยคือ<strong>ยังไม่ได้เปิดสิทธิ์อ่านตาราง</strong> — รัน
-        <code>migrate_10_lcb_read.sql</code> แล้วลองใหม่<br>
+        อ่านตาราง <code>${_vgmTbl}</code> ได้ 0 แถว ทั้งที่อินวอยซ์นี้มีตู้อยู่<br>
+        สาเหตุที่พบบ่อยคือ<strong>ยังไม่ได้เปิดสิทธิ์อ่านตาราง</strong> (RLS) แล้วลองใหม่<br>
         ถ้ารันแล้วยังไม่ได้ ให้ล็อกอินใหม่อีกครั้ง
       </div>
       <button onclick="document.getElementById('vgmBg').style.display='none'"
@@ -2289,7 +2291,7 @@ async function _vgmMake(){
   }
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'VGM container list');
-  const name=`VGM ${String(_vgmInv).replace(/\//g,'_')} (แหลมฉบัง).xlsx`;
+  const name=`VGM ${String(_vgmInv).replace(/\//g,'_')} (${_vgmIsSkh?'สงขลา':'แหลมฉบัง'}).xlsx`;
   XLSX.writeFile(wb,name);
   document.getElementById('vgmBg').style.display='none';
 }
@@ -5598,6 +5600,9 @@ function showInvDetail(id,panelId){
   /* รูปตู้ — ท่าสงขลา (รูปส่งผ่าน LINE OA สงขลา → line-skh) ใช้ gallery เดียวกับแหลมฉบัง */
   if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA')
     out+=` <button onclick="openSkhPhotos('${_invEsc}')" style="padding:6px 14px;background:#9d174d;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📷 รูปตู้</button>`;
+  /* ไฟล์ VGM แบบแหลมฉบัง — ท่าสงขลาก็ออกได้ (skh_containers มี TARE จริงจากบอท) */
+  if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA')
+    out+=` <button onclick="openVgmModal('${_invEsc}')" style="padding:6px 14px;background:#4d7c0f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">⚖️ ไฟล์ VGM</button>`;
   /* Export VGM ฟอร์แมต CTIC — เฉพาะท่าสงขลา (เลือกตู้ได้) */
   if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA')
     out+=` <button onclick="exportCticVgm('${_invEsc}')" style="padding:6px 14px;background:#0f766e;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📤 Export CTIC (VGM)</button>`;
