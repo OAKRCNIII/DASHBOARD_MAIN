@@ -2172,9 +2172,14 @@ async function openVgmModal(inv){
   const sg=VGM_SIGNER[pfx]||{name:'',email:''};
 
   /* booking ของสายเรือมาจากตอนจัดเรือ (ตาราง vessels) ไม่ใช่ใบ EIR
-     eir_ref_no บนใบ EIR เป็นเลขของลานตู้ คนละตัว ใช้แทนกันไม่ได้ */
+     eir_ref_no บนใบ EIR เป็นเลขของลานตู้ คนละตัว ใช้แทนกันไม่ได้
+     ⚠️ ท่าสงขลา/เว็บจัดเรือ booking อยู่ใน vessel_plan (VESSEL_PLAN) ไม่ใช่ Excel VESSEL → fallback */
   const vr=(typeof VESSEL!=='undefined'?VESSEL:[]).find(r=>normInv(r.inv)===normInv(inv));
-  const bkg=(vr&&vr.bkg&&vr.bkg!=='-')?vr.bkg:'';
+  const _vpPlan=(typeof VESSEL_PLAN!=='undefined'?VESSEL_PLAN:{})[(inv||'').toUpperCase()];
+  let bkg=(vr&&vr.bkg&&vr.bkg!=='-')?vr.bkg:'';
+  if(!bkg && _vpPlan && _vpPlan.bkg && _vpPlan.bkg!=='-') bkg=_vpPlan.bkg;
+  /* ข้อมูลเรือ/ETD แสดงผล — ใช้ Excel VESSEL ก่อน ไม่มีค่อย VESSEL_PLAN */
+  const vr2 = vr || (_vpPlan?{vessel:_vpPlan.vessel,date:_vpPlan.etd,vol:0}:null);
   /* จำนวนตู้ที่จัดเรือไว้ ควรเท่ากับที่บันทึกรูปไว้ ไม่งั้นไฟล์ VGM จะขาด/เกิน */
   const planN=vr?Number(vr.vol||0):0;
   const inp='width:100%;font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;';
@@ -2189,7 +2194,7 @@ async function openVgmModal(inv){
     <div style="padding:16px 18px;">
       <div style="background:#f7fee7;border:1px solid #d9f99d;border-radius:9px;padding:9px 12px;font-size:12px;color:#3f6212;margin-bottom:14px;">
         ดึงเบอร์ตู้ ${_vgmRows.length} ใบ พร้อม TARE จากรูปตู้ที่บันทึกไว้
-        ${vr?`<br>เรือ ${h(vr.vessel||'—')} · ออก ${h(vr.date||'—')}`:''}
+        ${vr2?`<br>เรือ ${h(vr2.vessel||'—')} · ออก ${h(vr2.date||'—')}`:''}
         ${noTare.length?`<br><strong style="color:#b91c1c;">⚠️ ${noTare.length} ใบไม่มี TARE — ต้องแก้ก่อนออกไฟล์</strong>`:''}
         ${planN&&planN!==_vgmRows.length?`<br><strong style="color:#b91c1c;">⚠️ จัดเรือไว้ ${planN} ตู้ แต่มีรูปในระบบ ${_vgmRows.length} ตู้ — ไฟล์จะไม่ครบ</strong>`:''}
       </div>
