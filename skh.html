@@ -177,6 +177,19 @@ function toggle(i){
   document.querySelector(`#ct${i} .exp`).textContent = d.classList.contains('open') ? 'ปิด ▴' : 'ดู ▾';
 }
 
+/* โรงงานที่เลือกได้ มาจาก Edge (/invoices) แยกตาม prefix ของอินวอยซ์
+   ใบที่มีโรงงานเดียวจะถูกเลือกให้เลย ไม่ต้องกดซ้ำ */
+let FAC_BY_PFX = {}, FAC_ALL = [];
+function fillFactory(){
+  const inv = ($('invoice_no').value || '').toUpperCase();
+  const pfx = (inv.match(/^[A-Z]+/) || [''])[0];
+  const list = FAC_BY_PFX[pfx] || FAC_ALL;
+  const sel = $('factory');
+  sel.innerHTML = (list.length === 1 ? '' : '<option value="">— เลือกโรงงาน —</option>')
+    + list.map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('');
+  if (!inv) sel.innerHTML = '<option value="">— เลือกอินวอยซ์ก่อน —</option>';
+}
+
 function render(draft, invoices){
   LIST = draft.containers || [];
   const dup = LIST.filter(c => c.dup).length;
@@ -211,6 +224,10 @@ function render(draft, invoices){
         <select id="invoice_no"><option value="">— เลือกอินวอยซ์ —</option>${opts}</select>
       </div>
       <div class="fld hl">
+        <label>โรงงาน <span class="req">*</span></label>
+        <select id="factory"><option value="">— เลือกอินวอยซ์ก่อน —</option></select>
+      </div>
+      <div class="fld hl">
         <label>วันที่นำเข้าโรงงาน <span class="req">*</span></label>
         <input type="date" id="factory_date" value="${esc(nextDay(firstPick))}">
       </div>
@@ -243,8 +260,10 @@ function count(){
 async function save(){
   const btn = $('save');
   const invoice_no = $('invoice_no').value;
+  const factory = $('factory').value;
   const factory_date = $('factory_date').value;
   if(!invoice_no){ alert('เลือกอินวอยซ์ก่อนครับ'); $('invoice_no').focus(); return; }
+  if(!factory){ alert('เลือกโรงงานก่อนครับ'); $('factory').focus(); return; }
   if(!factory_date){ alert('ใส่วันที่นำเข้าโรงงานก่อนครับ'); $('factory_date').focus(); return; }
 
   const sel = picked();
@@ -282,7 +301,7 @@ async function save(){
   try{
     const r = await fetch(API + '/submit', {
       method:'POST', headers:{'content-type':'application/json'},
-      body: JSON.stringify({ token: TOKEN, invoice_no, factory_date, selected, overrides }),
+      body: JSON.stringify({ token: TOKEN, invoice_no, factory, factory_date, selected, overrides }),
     });
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
@@ -326,7 +345,11 @@ function readToken(){
     const dJson = await dRes.json();
     if(!dRes.ok) return fail(dJson.error || 'โหลดข้อมูลไม่ได้');
     const iJson = await iRes.json();
+    FAC_BY_PFX = iJson.factories || {};
+    FAC_ALL = iJson.factories_all || [];
     render(dJson.draft, iJson.invoices || []);
+    $('invoice_no').addEventListener('change', fillFactory);
+    fillFactory();
   }catch(e){ fail('โหลดข้อมูลไม่ได้: ' + e.message); }
 })();
 </script>
