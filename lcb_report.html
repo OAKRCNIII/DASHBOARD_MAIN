@@ -136,7 +136,10 @@ function render(inv, list, kind, locked){
   const COLS = IS_RAIL
     ? [['ลำดับ','c-no'],['ทะเบียนรถ','c-truck'],['เบอร์ตู้','c-ctr'],
        ['SEAL NO.','c-seal'],['วันที่เข้าโรงงาน','c-date']]   /* = ใบเรือ ตัดน้ำหนักออก */
-    : (KIND === 'LCB' || IS_SKH)   /* สงขลา = คอลัมน์เหมือนแหลมฉบัง (มีซีล ไม่มีโรงงาน) */
+    : IS_SKH   /* สงขลา = มีทั้งซีล และโรงงาน (OGM 3 โรงงานย่อย กนกทอง/นาเมืองเพชร/นาวาพารา ต้องเห็นชื่อ) */
+    ? [['ลำดับ','c-no'],['ทะเบียนรถ','c-truck'],['เบอร์ตู้','c-ctr'],
+       ['SEAL NO.','c-seal'],['วันที่เข้าโรงงาน','c-date'],['โรงงาน','c-fac'],['น้ำหนัก (กก.)','c-wt']]
+    : (KIND === 'LCB')   /* แหลมฉบัง = มีซีล ไม่มีโรงงาน */
     ? [['ลำดับ','c-no'],['ทะเบียนรถ','c-truck'],['เบอร์ตู้','c-ctr'],
        ['SEAL NO.','c-seal'],['วันที่เข้าโรงงาน','c-date'],['น้ำหนัก (กก.)','c-wt']]
     : [['ลำดับ','c-no'],['ทะเบียนรถ','c-truck'],['เบอร์ตู้','c-ctr'],
@@ -145,7 +148,10 @@ function render(inv, list, kind, locked){
   const cellsOf = c => IS_RAIL
     ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
        esc(thaiDate(c.factory_date))]   /* รถไฟ: วันที่เข้าโหลด = factory_date (ต่อแถวจากตาราง) */
-    : (KIND === 'LCB' || IS_SKH)
+    : IS_SKH   /* สงขลา: ซีล + วันที่ + โรงงาน + น้ำหนัก */
+    ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
+       esc(thaiDate(c.factory_date)), esc(c.factory ?? ''), c.weight ? Number(c.weight).toLocaleString() : '']
+    : (KIND === 'LCB')
     ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
        esc(thaiDate(c.factory_date)), c.weight ? Number(c.weight).toLocaleString() : '']
     : [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''),
@@ -419,9 +425,12 @@ async function saveXlsx(){
       CUR.customer ? `ของ ${CUR.customer}` : '',
     ].filter(Boolean).join(' ');
 
-    const HEAD = (KIND === 'LCB' || IS_SKH)
+    const HEAD = IS_SKH
+      ? ['ลำดับ','ทะเบียนรถ','เบอร์ตู้','SEAL NO.','วันที่เข้าโรงงาน','โรงงาน','น้ำหนัก (กก.)']
+      : (KIND === 'LCB')
       ? ['ลำดับ','ทะเบียนรถ','เบอร์ตู้','SEAL NO.','วันที่เข้าโรงงาน','น้ำหนัก (กก.)']
       : ['ลำดับ','ทะเบียนรถ','เบอร์ตู้','วันที่เข้าโรงงาน','โรงงาน','น้ำหนัก (กก.)'];
+    const _blank = i => [i+1, ...Array(HEAD.length-1).fill('')];
     const aoa = [
       [KIND === 'LCB' ? 'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง' : (IS_SKH ? 'ใบแจ้งเบอร์ตู้ (ท่าเรือสงขลา)' : 'ใบแจ้งเบอร์ตู้')],
       [],
@@ -431,14 +440,17 @@ async function saveXlsx(){
       HEAD,
     ];
     EX.rows.forEach((c,i)=>{
-      if(!c){ aoa.push([i+1,'','','','','']); return; }   // ช่องว่าง (ฟันหลอ/รอตู้)
-      aoa.push((KIND === 'LCB' || IS_SKH)
+      if(!c){ aoa.push(_blank(i)); return; }   // ช่องว่าง (ฟันหลอ/รอตู้)
+      aoa.push(IS_SKH
+        ? [i+1, c.truck_plate ?? '', c.container_no ?? '', c.seal_no ?? '',
+           thaiDate(c.factory_date), c.factory ?? '', c.weight ? Number(c.weight) : '']
+        : (KIND === 'LCB')
         ? [i+1, c.truck_plate ?? '', c.container_no ?? '', c.seal_no ?? '',
            thaiDate(c.factory_date), c.weight ? Number(c.weight) : '']
         : [i+1, c.truck_plate ?? '', c.container_no ?? '',
            thaiDate(c.factory_date), c.factory ?? '', c.weight ? Number(c.weight) : '']);
     });
-    for(let i=EX.rows.length;i<total;i++) aoa.push([i+1,'','','','','']);
+    for(let i=EX.rows.length;i<total;i++) aoa.push(_blank(i));
     const R_FOOT = aoa.length + 1;
     aoa.push([], [`${EX.isLocked ? '🔒 ล็อคตู้ · เข้าแล้ว' : 'กรอกแล้ว'} ${EX.filled} / ${total} ตู้`, '', '', '', '', `พิมพ์เมื่อ ${todayText()}`]);
 
