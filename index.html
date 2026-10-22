@@ -5600,13 +5600,16 @@ function showInvDetail(id,panelId){
   });
   out+=`</div>`;}
   {const _invEsc=d.inv.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  /* BOW/TARN (manager): เห็นแค่ 3 ปุ่ม 📷 รูปตู้ · ⚖️ ไฟล์ VGM · 📄 ใบแจ้งเบอร์ตู้ (RCN 22 ต.ค.69) */
+  const _mgrView=(LOGGED_USER==='BOW_ANTS'||LOGGED_USER==='TARN_ANTS');
   out+=`<div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">`;
-  out+=`<button onclick="openDocsModal('${_invEsc}')" style="padding:6px 14px;background:#0e7490;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📎 เอกสาร</button>`;
+  if(!_mgrView)
+    out+=`<button onclick="openDocsModal('${_invEsc}')" style="padding:6px 14px;background:#0e7490;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📎 เอกสาร</button>`;
   /* รูปตู้ — เฉพาะแหลมฉบัง (ปาดังไม่มีรูปในระบบ) */
   if(LCB_INV.has(String(d.inv).trim()))
     out+=` <button onclick="openLcbPhotos('${_invEsc}')" style="padding:6px 14px;background:#9d174d;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📷 รูปตู้</button>`;
   /* ใบ SI — ต้องรับใบโรงงานเข้ามาก่อนถึงจะออกได้ */
-  if(LCB_INV.has(String(d.inv).trim()))
+  if(LCB_INV.has(String(d.inv).trim()) && !_mgrView)
     out+=` <button onclick="openSiModal('${_invEsc}')" style="padding:6px 14px;background:#1e3a5f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📋 ใบ SI</button>`;
   /* ไฟล์ VGM — เฉพาะแหลมฉบัง เพราะต้องใช้ TARE ที่บอทอ่านจากรูปตู้ */
   if(LCB_INV.has(String(d.inv).trim()))
@@ -5621,7 +5624,7 @@ function showInvDetail(id,panelId){
   if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA')
     out+=` <button onclick="exportCticVgm('${_invEsc}')" style="padding:6px 14px;background:#0f766e;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📤 Export CTIC (VGM)</button>`;
   */
-  if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA')
+  if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA' && !_mgrView)
     out+=` <button onclick="openCticUpload('${_invEsc}')" title="อัพรูปตาราง CTIC → อ่าน Cticno → บันทึก" style="padding:6px 14px;background:#7c3aed;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🆔 อัพ CTIC</button>`;
   /* ใบแจ้งเบอร์ตู้ — ทุกอินวอยซ์ หน้ารายงานสลับคอลัมน์ตามท่าเรือให้เอง */
   out+=` <button onclick="openLcbReport('${_invEsc}')" style="padding:6px 14px;background:#1a3a6b;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📄 ใบแจ้งเบอร์ตู้</button>`;
@@ -5631,7 +5634,7 @@ function showInvDetail(id,panelId){
   /* ── ฝั่งรับข้อมูลเข้า วางไว้ขวาสุดแยกจากปุ่มออกเอกสาร ──
      ปุ่มอื่นคือ "ออก" เอกสาร ปุ่มนี้คือ "รับ" เข้า คนละทิศทางกัน
      ต้องกดปุ่มนี้ก่อน ปุ่มใบ SI ถึงจะใช้ได้ */
-  if(LCB_INV.has(String(d.inv).trim()))
+  if(LCB_INV.has(String(d.inv).trim()) && !_mgrView)
     out+=` <span style="display:inline-block;width:1px;height:22px;background:#e2e8f0;margin:0 6px;vertical-align:middle;"></span>`
       + ` <button onclick="openFactoryModal('${_invEsc}')" title="อัปโหลดใบ PROFORMA ของโรงงาน — ต้องทำก่อนออกใบ SI" style="padding:6px 14px;background:#fff;border:1.5px solid #7c2d12;border-radius:7px;color:#7c2d12;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">⬇️ รับใบโรงงาน</button>`;
   if(_canSeeFees()&&(d.prefix==='INV'||d.prefix==='SHL'))out+=`<button onclick="openQuotationModal('${_invEsc}')" style="padding:6px 14px;background:#1e3a5f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🖨️ ใบเสนอราคา</button>`;
