@@ -1645,6 +1645,9 @@ async function _doSetPort(inv, port, btn){
 const LCB_API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-lcb';
 const SKH_API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-skh';   /* ท่าสงขลา: ctic-read / ctic-save */
 const SKH_FAC_CODE = {BSW:'10262', 'ONE-GOLD':'11581'};   /* รหัสโรงงาน CTIC ต่อ prefix (ท่าสงขลา) — เพิ่มโรงงานใหม่ที่นี่ · ONE-GOLD=OGM(ไม่ใช่(A)) ท่าสงขลา หัก 1% เสมอ */
+/* โรงงานย่อยต่อ prefix — ใช้ในดรอปดาวน์แก้ชื่อโรงงาน (sync กับ line-skh SKH_FACTORY_BY_PREFIX) */
+const OGM_SUBFAC=['กนกทอง','นาเมืองเพชร','นาวาพารา'];
+const FAC_OPTS_BY_PFX={OGM:OGM_SUBFAC,'ONE-GOLD':OGM_SUBFAC,BSW:['บ้านส้อง']};
 
 /* โหลดไลบรารีตอนกดปุ่มเท่านั้น — ไม่ถ่วงหน้าเว็บตอนเปิดปกติ */
 function _lazyScript(src){
@@ -3253,8 +3256,8 @@ function lcbViewClose(){
 function editLcbCtr(uid){
   if(LOGGED_USER!=='OAK_THIRA'){ alert('เฉพาะ OAK_THIRA เท่านั้นที่แก้ได้'); return; }
   /* หาแถวจาก FLAT ที่โหลดไว้แล้ว ไม่ต้องยิงเซิร์ฟเวอร์ */
-  let row=null;
-  for(const d of FLAT){ const f=(d.details||[]).find(x=>x._uid===uid); if(f){row=f;break;} }
+  let row=null, _parentPfx='';
+  for(const d of FLAT){ const f=(d.details||[]).find(x=>x._uid===uid); if(f){row=f;_parentPfx=d.prefix||'';break;} }
   if(!row){ alert('ไม่เจอตู้ใบนี้ — กด 🔄 รีเฟรชแล้วลองใหม่'); return; }
 
   let bg=document.getElementById('lcbEditBg');
@@ -3276,8 +3279,10 @@ function editLcbCtr(uid){
           <input id="lcbEdTruck" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:15px;font-family:inherit;"></div>
         <div style="margin-bottom:11px"><label style="font-size:11px;font-weight:800;color:#475569;display:block;margin-bottom:4px;">น้ำหนัก (kg)</label>
           <input id="lcbEdWt" type="number" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:15px;font-family:inherit;"></div>
-        <div><label style="font-size:11px;font-weight:800;color:#475569;display:block;margin-bottom:4px;">วันเข้าโรงงาน</label>
+        <div style="margin-bottom:11px"><label style="font-size:11px;font-weight:800;color:#475569;display:block;margin-bottom:4px;">วันเข้าโรงงาน</label>
           <input id="lcbEdDate" type="date" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:15px;font-family:inherit;"></div>
+        <div id="lcbEdFacWrap"><label style="font-size:11px;font-weight:800;color:#475569;display:block;margin-bottom:4px;">โรงงาน</label>
+          <select id="lcbEdFac" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:15px;font-family:inherit;background:#fff;cursor:pointer;"></select></div>
         <div id="lcbEdErr" style="color:#b91c1c;font-size:11.5px;font-weight:700;margin-top:9px;min-height:15px;"></div>
         <div style="display:flex;gap:8px;margin-top:6px;">
           <button onclick="document.getElementById('lcbEditBg').style.display='none'" style="flex:1;padding:10px;border-radius:9px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">ยกเลิก</button>
@@ -3292,6 +3297,12 @@ function editLcbCtr(uid){
   document.getElementById('lcbEdTruck').value=row.ทะเบียนรถ||'';
   document.getElementById('lcbEdWt').value=row._wt||'';
   document.getElementById('lcbEdDate').value=row._fdISO||'';
+  /* ดรอปดาวน์โรงงาน — ตัวเลือกตาม prefix (OGM/ONE-GOLD = 3 โรงงานย่อย) + คงค่าปัจจุบันไว้เสมอ */
+  { const cur=row.โรงงาน||''; let opts=(FAC_OPTS_BY_PFX[(_parentPfx||'').toUpperCase()]||[]).slice();
+    if(cur && !opts.includes(cur)) opts.unshift(cur);
+    if(!opts.length) opts=cur?[cur]:[''];
+    const sel=document.getElementById('lcbEdFac');
+    sel.innerHTML=opts.map(o=>`<option value="${h(o)}"${o===cur?' selected':''}>${h(o||'— ไม่ระบุ —')}</option>`).join(''); }
   document.getElementById('lcbEdErr').textContent='';
   document.getElementById('lcbEdSave').onclick=()=>
     requirePin(()=>_doEditLcbCtr(uid), `ยืนยันแก้ข้อมูลตู้ ${row.เบอร์ตู้}`);
@@ -3313,6 +3324,7 @@ async function _doEditLcbCtr(uid){
         truck_plate:  document.getElementById('lcbEdTruck').value,
         weight:       document.getElementById('lcbEdWt').value,
         factory_date: document.getElementById('lcbEdDate').value,
+        factory:      document.getElementById('lcbEdFac').value,
       }}),
     });
     const j=await r.json();
