@@ -37,6 +37,14 @@ thead th{font-size:14px;font-weight:700;line-height:1.2;padding:5px 4px;height:a
 .c-date {width:19%;font-weight:500}
 .c-wt   {width:15%;font-weight:600}
 .c-fac  {width:19%;font-weight:500}
+/* สงขลา 7 คอลัมน์ (มีทั้ง SEAL + โรงงาน) — ความกว้างรวม 100% กันเบียด */
+.skh-rpt .c-no   {width:6%}
+.skh-rpt .c-truck{width:13%}
+.skh-rpt .c-ctr  {width:19%;font-size:15px;letter-spacing:.2px}
+.skh-rpt .c-seal {width:17%}
+.skh-rpt .c-date {width:16%}
+.skh-rpt .c-fac  {width:15%}
+.skh-rpt .c-wt   {width:14%}
 tbody tr:nth-child(even){background:#fafbfc}
 td.seq{font-weight:600;color:#000}          /* ← ลำดับต้องเห็นทุกแถว รวมแถวว่าง */
 
@@ -128,6 +136,7 @@ function render(inv, list, kind, locked){
   IS_RAIL = (kind === 'RAIL') || (new URLSearchParams(location.search).get('mode') === 'rail');   /* รถไฟ-แหลมฉบัง = เหมือนใบเรือทุกอย่าง ต่างแค่หัว 'รถไฟ - แหลมฉบัง' + ตัดคอลัมน์น้ำหนัก */
   KIND = IS_RAIL ? 'LCB' : (kind || 'LCB');
   IS_SKH = !IS_RAIL && (list || []).some(c => String(c.source || '').toUpperCase() === 'SONGKHLA');   /* สงขลา: kind คืนมาเป็น PADANG ดูจาก source ของตู้ */
+  document.body.classList.toggle('skh-rpt', IS_SKH);   /* สงขลา 7 คอลัมน์ → ใช้ความกว้างเฉพาะ (กัน SEAL/วันที่เบียดกัน) */
   { const vb = document.getElementById('vgm'); if(vb) vb.style.display = (KIND === 'PADANG') ? '' : 'none'; }   /* VGM OOCL = เฉพาะปาดัง */
   const isLocked = !!(locked && locked.containers && locked.containers.length);
   const rows = [];
