@@ -2253,26 +2253,35 @@ async function _vgmMake(){
   if(over.length && !confirm(`⛔ มี ${over.length} ใบที่ VGM เกินพิกัดตู้\n\n${over.map(r=>r.container_no).join(', ')}\n\nยังจะออกไฟล์ต่อไหม?`)) return;
 
   await _lazyScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
-  const HEAD=['BOOKING REFERENCE*','CONTAINER NUMBER*','SOC  (Y if SOC)','TARE WEIGHT',
-              'VGM* (including tare)','UOM*','SIGNATURE*','WEIGHING METHOD (SM1 / SM2)',
-              'CERTIFICATE','CONTACT EMAIL*'];
+  /* สงขลา (RCN ขอ 22 ต.ค.69): แทรกคอลัมน์ G.W. (น้ำหนักสินค้า/gross) หลัง TARE ก่อน VGM → VGM = TARE + G.W. */
+  const GW=_vgmIsSkh;
+  const HEAD=GW
+    ? ['BOOKING REFERENCE*','CONTAINER NUMBER*','SOC  (Y if SOC)','TARE WEIGHT','G.W.',
+       'VGM* (including tare)','UOM*','SIGNATURE*','WEIGHING METHOD (SM1 / SM2)','CERTIFICATE','CONTACT EMAIL*']
+    : ['BOOKING REFERENCE*','CONTAINER NUMBER*','SOC  (Y if SOC)','TARE WEIGHT',
+       'VGM* (including tare)','UOM*','SIGNATURE*','WEIGHING METHOD (SM1 / SM2)','CERTIFICATE','CONTACT EMAIL*'];
   /* วิธีชั่งในไฟล์ต้นฉบับเก็บเป็นตัวเลข ไม่ใช่ข้อความ — ส่งให้ตรงชนิดกัน */
   const mRaw=g('vgmMethod');
   const method = /^\d+$/.test(mRaw) ? Number(mRaw) : mRaw;
   const aoa=[HEAD];
   _vgmRows.forEach(r=>{
     const t=Number(r.tare_kg);
-    aoa.push([bk, r.container_no, '', t, t+cargo, '', g('vgmSign'), method, '', g('vgmMail')]);
+    aoa.push(GW
+      ? [bk, r.container_no, '', t, cargo, t+cargo, '', g('vgmSign'), method, '', g('vgmMail')]
+      : [bk, r.container_no, '', t, t+cargo, '', g('vgmSign'), method, '', g('vgmMail')]);
   });
 
   /* ── จัดหน้าให้ตรงกับไฟล์ต้นฉบับที่ส่งสายเรือทุกอย่าง ──
      ตัวหนังสือหนาทั้งแผ่น · เส้นขอบบางทุกช่อง · แถวสูง 75
      หัวตารางจัดกลางทั้งแนวตั้งแนวนอนและตัดคำ
-     คอลัมน์ H (วิธีชั่ง) จัดกลาง · คอลัมน์ J (อีเมล) ใช้ Arial 14 จัดกลาง
-     คอลัมน์ C (SOC) เป็นช่องเดียวที่ไม่หนา                            */
+     คอลัมน์วิธีชั่งจัดกลาง · คอลัมน์อีเมลใช้ Arial 14 จัดกลาง
+     คอลัมน์ C (SOC) เป็นช่องเดียวที่ไม่หนา · index ขยับ +1 เมื่อมี G.W. */
   const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols']=[21,28.4,14.1,13.1,19.5,10.6,26.4,32.9,16.6,29.8].map(w=>({wch:w}));
+  ws['!cols']=(GW
+    ? [21,28.4,14.1,13.1,13.1,19.5,10.6,26.4,32.9,16.6,29.8]
+    : [21,28.4,14.1,13.1,19.5,10.6,26.4,32.9,16.6,29.8]).map(w=>({wch:w}));
   ws['!rows']=Array.from({length:aoa.length},()=>({hpt:75}));
+  const mailC=GW?10:9, methC=GW?8:7;   /* อีเมล/วิธีชั่ง ขยับ +1 เมื่อมี G.W. */
   const thin={style:'thin',color:{rgb:'FF000000'}};
   const border={top:thin,bottom:thin,left:thin,right:thin};
   const range=XLSX.utils.decode_range(ws['!ref']);
@@ -2282,12 +2291,12 @@ async function _vgmMake(){
       if(!ws[ref]) ws[ref]={t:'s',v:''};        /* ช่องว่างก็ต้องมีเส้นขอบ */
       const head=(R===0);
       /* หัวตารางต้นฉบับใช้ Tahoma 13 ทั้งแถว — Arial 14 มีเฉพาะช่องอีเมลแถวข้อมูล */
-      const isMail=(C===9 && !head), isSoc=(C===2);
+      const isMail=(C===mailC && !head), isSoc=(C===2);
       ws[ref].s={
         font:{ name:isMail?'Arial':'Tahoma', sz:isMail?14:13, bold:head||!isSoc },
         alignment:{
           vertical:'center',
-          horizontal:(head||isMail||C===7)?'center':undefined,
+          horizontal:(head||isMail||C===methC)?'center':undefined,
           wrapText:head||undefined,
         },
         border,
