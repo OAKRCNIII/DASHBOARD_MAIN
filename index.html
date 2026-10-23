@@ -5447,9 +5447,11 @@ function renderTabs(){
     }
     /* กรอง '-' (ไม่ระบุ = อินวอยซ์เก่าปี 2025) ออกจาก sidebar */
     const months=Object.keys(BY_MONTH).filter(k=>k!=='-'&&(YEAR_FILTER===null||mYear(k)===YEAR_FILTER)).sort(mSort);
-    let out=tog+yearBar;months.forEach(m=>{
-      const cnt=BY_MONTH[m].reduce((a,d)=>a+d.total_actual,0);
-      const tot=BY_MONTH[m].reduce((a,d)=>a+d.total_expected,0);
+    const _pf=d=>PORT_FILTER==='all'||_portOf(d.inv)===PORT_FILTER;   /* กรองตามท่าเรือที่เลือก */
+    let out=tog+portBarSide()+yearBar;months.forEach(m=>{
+      const _rows=BY_MONTH[m].filter(_pf);
+      const cnt=_rows.reduce((a,d)=>a+d.total_actual,0);
+      const tot=_rows.reduce((a,d)=>a+d.total_expected,0);
       const pct=tot>0?Math.round(cnt/tot*100):null;
       const clr=pct===null?'rgba(255,255,255,.5)':pct>=100?'#34d399':pct>=50?'#fbbf24':'#f87171';
       const sub=tot>0?`${cnt}/${tot}`:`${cnt}`;
@@ -5472,9 +5474,9 @@ function renderTabs(){
 }
 const midToggle=()=>{const b=(m,l)=>`<button onclick="setMidMode('${m}')" style="padding:2px 7px;border-radius:4px;border:none;font-size:9px;font-weight:700;cursor:pointer;${midMode===m?'background:#1e40af;color:#fff;':'background:#e2e8f0;color:#475569;'}">${l}</button>`;return `<div style="margin-left:auto;display:flex;gap:2px;">${b('group','🏭 กลุ่ม')}${b('list','📋 ลิสต์')}</div>`;};
 function setMidMode(m){midMode=m;if(SM)selMonth(SM);}
-/* ฟิลเตอร์ท่าเรือ (ALL/ปาดัง/แหลมฉบัง/สงขลา) — portOf(inv) */
-const portToggle=()=>{const b=(p,l)=>`<button onclick="setPortFilter('${p}')" style="padding:2px 8px;border-radius:4px;border:none;font-size:9px;font-weight:700;cursor:pointer;${PORT_FILTER===p?'background:#0f766e;color:#fff;':'background:#e2e8f0;color:#475569;'}">${l}</button>`;return `<div style="display:flex;gap:2px;flex-wrap:wrap;">${b('all','ทั้งหมด')}${b('PADANG','ปาดัง')}${b('LCB','แหลมฉบัง')}${b('SONGKHLA','สงขลา')}</div>`;};
-function setPortFilter(p){PORT_FILTER=p;if(SM)selMonth(SM);}
+/* ฟิลเตอร์ท่าเรือ (ALL/ปาดัง/แหลมฉบัง/สงขลา) — portOf(inv) · แถบบนสุด sidebar (ธีมมืด) */
+const portBarSide=()=>{const b=(p,l)=>`<button onclick="setPortFilter('${p}')" style="padding:4px 2px;border-radius:4px;border:none;font-size:9px;font-weight:700;cursor:pointer;${PORT_FILTER===p?'background:#2dd4bf;color:#0f2a52;':'background:rgba(255,255,255,.1);color:rgba(255,255,255,.65);'}">${l}</button>`;return `<div style="padding:4px;display:grid;grid-template-columns:1fr 1fr;gap:2px;border-bottom:1px solid rgba(255,255,255,.15);margin-bottom:2px;">${b('all','ทั้งหมด')}${b('PADANG','ปาดัง')}${b('LCB','แหลมฉบัง')}${b('SONGKHLA','สงขลา')}</div>`;};
+function setPortFilter(p){PORT_FILTER=p;renderTabs();if(SM)selMonth(SM);}
 const _portOf=inv=>(typeof portOf==='function'?portOf(inv):'PADANG');
 function setMainMode(m){mainMode=m;SM=null;SP=null;SF=null;SI=null;YEAR_FILTER=null;document.getElementById('mHead').innerHTML=`<span class="bc-cur">${m==='month'?'เลือกเดือน':'เลือก Prefix'}</span>`;document.getElementById('mBody').innerHTML='';document.getElementById('dPanel').innerHTML='<div class="placeholder"><div class="ico">📦</div><p>เลือกเดือน → Prefix → อินวอยซ์</p></div>';renderTabs();}
 function setYearFilter(y){YEAR_FILTER=y;SM=null;SP=null;SI=null;document.getElementById('mHead').innerHTML='<span class="bc-cur">เลือกเดือน</span>';document.getElementById('mBody').innerHTML='';document.getElementById('dPanel').innerHTML='<div class="placeholder"><div class="ico">📦</div><p>เลือกเดือน → Prefix → อินวอยซ์</p></div>';renderTabs();}
@@ -5499,7 +5501,7 @@ function selMonth(m){
     document.getElementById('midPanel').classList.add('open');
     return;
   }
-  document.getElementById('mHead').innerHTML=`<div style="display:flex;align-items:center;width:100%;gap:6px;flex-wrap:wrap;"><span class="bc-cur">${mLabel(m)}</span>${portToggle()}${midToggle()}</div>`;
+  document.getElementById('mHead').innerHTML=`<div style="display:flex;align-items:center;width:100%;gap:4px;"><span class="bc-cur">${mLabel(m)}</span>${midToggle()}</div>`;
   let invs=BY_MONTH[m]||[];
   if(PORT_FILTER!=='all') invs=invs.filter(d=>_portOf(d.inv)===PORT_FILTER);
   let out='';
