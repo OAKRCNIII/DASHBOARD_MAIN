@@ -5524,7 +5524,7 @@ function selMonth(m){
 function selPrefix(m,pfx){
   SM=m;SP=pfx;SI=null;
   document.getElementById('mHead').innerHTML=`<div class="bc"><span class="bc-item" data-back-m="${m}">${mLabel(m)}</span><span class="bc-sep">›</span><span class="bc-cur">${h(pfx)}</span></div>`;
-  const invs=(BY_MONTH[m]||[]).filter(d=>d.prefix===pfx);let out='';
+  const invs=(BY_MONTH[m]||[]).filter(d=>d.prefix===pfx && (PORT_FILTER==='all'||_portOf(d.inv)===PORT_FILTER));let out='';
   invs.forEach(d=>{
     const cOk=d.total_expected>0&&d.total_actual>=d.total_expected,dOk=d.doc_status==='ปล่อยเอกสารแล้ว';
     const badge=dOk?'<span class="ir-badge" style="background:#dcfce7;color:#166534">✔</span>':(cOk?'<span class="ir-badge" style="background:#ede9fe;color:#7c3aed">~</span>':`<span class="ir-badge" style="background:#fee2e2;color:#991b1b">${d.total_actual}/${d.total_expected}</span>`);
