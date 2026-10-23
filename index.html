@@ -4867,7 +4867,7 @@ function confirmOcfUnpaid(){
   closeOcfPaidModal();
   renderVessel();
 }
-let curTab='main',SM=null,SP=null,SI=null,activePV=null,midMode='group',mainMode='month',SF=null,YEAR_FILTER=null;
+let curTab='main',SM=null,SP=null,SI=null,activePV=null,midMode='group',mainMode='month',SF=null,YEAR_FILTER=null,PORT_FILTER='all';
 const MF={'1':'ม.ค.','2':'ก.พ.','3':'มี.ค.','4':'เม.ย.','5':'พ.ค.','6':'มิ.ย.','7':'ก.ค.','8':'ส.ค.','9':'ก.ย.','10':'ต.ค.','11':'พ.ย.','12':'ธ.ค.','-':'ไม่ระบุ'};
 const mNum=k=>{if(!k||k==='-')return 99;const p=k.includes('_')?k.split('_')[1]:k;return parseInt(p)||99;};
 const mYear=k=>{if(!k||k==='-'||!k.includes('_'))return 0;return parseInt(k.split('_')[0])||0;};
@@ -5472,6 +5472,10 @@ function renderTabs(){
 }
 const midToggle=()=>{const b=(m,l)=>`<button onclick="setMidMode('${m}')" style="padding:2px 7px;border-radius:4px;border:none;font-size:9px;font-weight:700;cursor:pointer;${midMode===m?'background:#1e40af;color:#fff;':'background:#e2e8f0;color:#475569;'}">${l}</button>`;return `<div style="margin-left:auto;display:flex;gap:2px;">${b('group','🏭 กลุ่ม')}${b('list','📋 ลิสต์')}</div>`;};
 function setMidMode(m){midMode=m;if(SM)selMonth(SM);}
+/* ฟิลเตอร์ท่าเรือ (ALL/ปาดัง/แหลมฉบัง/สงขลา) — portOf(inv) */
+const portToggle=()=>{const b=(p,l)=>`<button onclick="setPortFilter('${p}')" style="padding:2px 8px;border-radius:4px;border:none;font-size:9px;font-weight:700;cursor:pointer;${PORT_FILTER===p?'background:#0f766e;color:#fff;':'background:#e2e8f0;color:#475569;'}">${l}</button>`;return `<div style="display:flex;gap:2px;flex-wrap:wrap;">${b('all','ทั้งหมด')}${b('PADANG','ปาดัง')}${b('LCB','แหลมฉบัง')}${b('SONGKHLA','สงขลา')}</div>`;};
+function setPortFilter(p){PORT_FILTER=p;if(SM)selMonth(SM);}
+const _portOf=inv=>(typeof portOf==='function'?portOf(inv):'PADANG');
 function setMainMode(m){mainMode=m;SM=null;SP=null;SF=null;SI=null;YEAR_FILTER=null;document.getElementById('mHead').innerHTML=`<span class="bc-cur">${m==='month'?'เลือกเดือน':'เลือก Prefix'}</span>`;document.getElementById('mBody').innerHTML='';document.getElementById('dPanel').innerHTML='<div class="placeholder"><div class="ico">📦</div><p>เลือกเดือน → Prefix → อินวอยซ์</p></div>';renderTabs();}
 function setYearFilter(y){YEAR_FILTER=y;SM=null;SP=null;SI=null;document.getElementById('mHead').innerHTML='<span class="bc-cur">เลือกเดือน</span>';document.getElementById('mBody').innerHTML='';document.getElementById('dPanel').innerHTML='<div class="placeholder"><div class="ico">📦</div><p>เลือกเดือน → Prefix → อินวอยซ์</p></div>';renderTabs();}
 function selMonth(m){
@@ -5495,8 +5499,10 @@ function selMonth(m){
     document.getElementById('midPanel').classList.add('open');
     return;
   }
-  document.getElementById('mHead').innerHTML=`<div style="display:flex;align-items:center;width:100%;gap:4px;"><span class="bc-cur">${mLabel(m)}</span>${midToggle()}</div>`;
-  const invs=BY_MONTH[m]||[];let out='';
+  document.getElementById('mHead').innerHTML=`<div style="display:flex;align-items:center;width:100%;gap:6px;flex-wrap:wrap;"><span class="bc-cur">${mLabel(m)}</span>${portToggle()}${midToggle()}</div>`;
+  let invs=BY_MONTH[m]||[];
+  if(PORT_FILTER!=='all') invs=invs.filter(d=>_portOf(d.inv)===PORT_FILTER);
+  let out='';
   if(midMode==='group'){
     const pm={};invs.forEach(d=>{if(!pm[d.prefix])pm[d.prefix]={cnt:0,ctr:0};pm[d.prefix].cnt++;pm[d.prefix].ctr+=d.total_actual;});
     Object.keys(pm).sort().forEach(pfx=>{const s=pst(pfx);out+=`<div class="pfx-row" data-pfx="${pfx}"><span class="pfx-name" style="color:${s.tx}">${h(pfx)}</span> <span class="pfx-cnt">${pm[pfx].cnt} INV · ${pm[pfx].ctr} ตู้</span></div>`;});
