@@ -10740,6 +10740,8 @@ let _showFinance=false;
    ══════════════════════════════════════════════════════ */
 let _rptYear = new Date().getFullYear();
 let _rptHideCurrent = true;   /* ซ่อนเดือนปัจจุบัน (ยอดยังไม่นิ่ง) */
+let _rptDetailMonth = null;   /* เดือนที่เลือกดูรายอินวอยซ์ต่อ prefix (1-12) */
+function setRptDetailMonth(m){ _rptDetailMonth = (_rptDetailMonth===m)?null:m; renderReport(); }
 function renderReport(){
   const wrap = document.getElementById('reportWrap');
   if(!wrap) return;
@@ -10914,6 +10916,55 @@ function renderReport(){
 
   /* footnote */
   out += `<div style="margin-top:12px;font-size:11px;color:#94a3b8;text-align:right;">* ข้อมูลจาก ALL_INV · คำนวณจาก total_expected (จำนวนตู้ต่ออินวอยซ์)</div>`;
+
+  /* ── 8. ตารางรายอินวอยซ์ต่อเดือน (เลือกเดือน → คอลัมน์ prefix, ลิสต์เลขอินวอยซ์) ── */
+  const monthsWithData=[...new Set(rows.map(d=>{
+    if(d.month&&String(d.month).includes('_'))return parseInt(String(d.month).split('_')[1]);
+    if(d.month)return parseInt(d.month); return 0;
+  }).filter(m=>m>=1&&m<=12))].sort((a,b)=>a-b);
+  out += `<div style="margin-top:34px;border-top:2px dashed #cbd5e1;padding-top:20px;">
+    <div style="font-size:18px;font-weight:800;color:#0f2a52;margin-bottom:10px;">📋 รายอินวอยซ์ต่อเดือน <span style="font-size:12px;font-weight:500;color:#64748b;">— เลือกเดือนเพื่อดูเลขอินวอยซ์แยกตาม prefix</span></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">`;
+  monthsWithData.forEach(m=>{
+    const on=_rptDetailMonth===m;
+    out += `<button onclick="setRptDetailMonth(${m})" style="padding:6px 14px;border-radius:8px;border:1.5px solid ${on?'#1e40af':'#cbd5e1'};background:${on?'#1e40af':'#fff'};color:${on?'#fff':'#475569'};font-size:13px;font-weight:700;cursor:pointer;">${MONTH_LABELS[m-1]}</button>`;
+  });
+  out += `</div>`;
+  if(_rptDetailMonth){
+    const det={};
+    rows.forEach(d=>{
+      let mn; if(d.month&&String(d.month).includes('_'))mn=parseInt(String(d.month).split('_')[1]); else if(d.month)mn=parseInt(d.month); else return;
+      if(mn!==_rptDetailMonth)return;
+      const p=getPfx(d.inv||''); if(!det[p])det[p]=[];
+      det[p].push({inv:d.inv||'',vol:parseInt(d.total_expected)||0});
+    });
+    const cols=Object.keys(det).sort((a,b)=>(allPfx.indexOf(a)-allPfx.indexOf(b)));
+    cols.forEach(p=>det[p].sort((a,b)=>String(a.inv).localeCompare(String(b.inv))));
+    if(!cols.length){
+      out += `<div style="padding:30px;text-align:center;color:#94a3b8;">ไม่มีอินวอยซ์ในเดือน ${MONTH_LABELS[_rptDetailMonth-1]}</div>`;
+    }else{
+      const maxRows=Math.max(...cols.map(p=>det[p].length));
+      out += `<div style="overflow-x:auto;border-radius:12px;border:1px solid #e2e8f0;"><table style="width:100%;border-collapse:collapse;min-width:${cols.length*180}px;">
+        <thead><tr style="background:#0f2a52;">`;
+      cols.forEach(p=>{const c=pst(p);out+=`<th style="padding:9px 12px;text-align:left;white-space:nowrap;"><span style="background:${c.bg};color:${c.tx};border:1px solid ${c.bd};border-radius:6px;padding:2px 10px;font-size:12px;font-weight:800;">${h(p)}</span> <span style="color:#cbd5e1;font-size:11px;">${det[p].length} ใบ</span></th>`;});
+      out += `</tr></thead><tbody>`;
+      for(let i=0;i<maxRows;i++){
+        out += `<tr style="background:${i%2?'#f8fafc':'#fff'};">`;
+        cols.forEach(p=>{
+          const it=det[p][i];
+          out += `<td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;white-space:nowrap;font-size:12.5px;">${it?`${h(it.inv)} <span style="color:#94a3b8;font-size:10.5px;">(${it.vol})</span>`:''}</td>`;
+        });
+        out += `</tr>`;
+      }
+      /* footer: รวมตู้ต่อ prefix */
+      out += `<tr style="background:#ecfeff;border-top:2px solid #a5f3fc;font-weight:800;">`;
+      cols.forEach(p=>{const tot=det[p].reduce((s,x)=>s+x.vol,0);out+=`<td style="padding:8px 12px;font-size:12px;color:#0e7490;">รวม ${det[p].length} ใบ · ${tot} ตู้</td>`;});
+      out += `</tr></tbody></table></div>`;
+    }
+  }else{
+    out += `<div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px;">👆 เลือกเดือนด้านบน</div>`;
+  }
+  out += `</div>`;
 
   wrap.innerHTML = out;
 }
