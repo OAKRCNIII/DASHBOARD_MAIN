@@ -10742,6 +10742,56 @@ let _rptYear = new Date().getFullYear();
 let _rptHideCurrent = true;   /* ซ่อนเดือนปัจจุบัน (ยอดยังไม่นิ่ง) */
 let _rptDetailMonth = null;   /* เดือนที่เลือกดูรายอินวอยซ์ต่อ prefix (1-12) */
 function setRptDetailMonth(m){ _rptDetailMonth = (_rptDetailMonth===m)?null:m; renderReport(); }
+/* label ท่าเรือ (ใส่วงเล็บเฉพาะแหลมฉบัง/สงขลา · ปาดัง=ค่าปริยายไม่ใส่) */
+const _portTag = inv => { const p=(typeof portOf==='function'?portOf(inv):'PADANG'); return p==='LCB'?' (แหลมฉบัง)':p==='SONGKHLA'?' (สงขลา)':''; };
+/* รวมข้อมูลรายอินวอยซ์ต่อ prefix ของเดือน mNum (ปี _rptYear) — ใช้ทั้งหน้าจอและ PDF */
+function _rptDetailData(mNum){
+  const det={};
+  (FLAT||[]).forEach(d=>{
+    const y=d.year?parseInt(d.year):(d.month?parseInt(String(d.month).split('_')[0]):0);
+    if(y!==_rptYear)return;
+    let mn; if(d.month&&String(d.month).includes('_'))mn=parseInt(String(d.month).split('_')[1]); else if(d.month)mn=parseInt(d.month); else return;
+    if(mn!==mNum)return;
+    const p=getPfx(d.inv||''); if(!det[p])det[p]=[];
+    det[p].push({inv:d.inv||'',vol:parseInt(d.total_expected)||0});
+  });
+  const cols=Object.keys(det).sort((a,b)=>(det[b].reduce((s,x)=>s+x.vol,0)-det[a].reduce((s,x)=>s+x.vol,0))||a.localeCompare(b));
+  cols.forEach(p=>det[p].sort((a,b)=>String(a.inv).localeCompare(String(b.inv))));
+  return {cols,det};
+}
+function printRptDetail(){
+  if(!_rptDetailMonth){ alert('เลือกเดือนก่อนครับ'); return; }
+  const ML=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const {cols,det}=_rptDetailData(_rptDetailMonth);
+  if(!cols.length){ alert('ไม่มีอินวอยซ์ในเดือนนี้'); return; }
+  const he=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const maxRows=Math.max(...cols.map(p=>det[p].length));
+  let th='',tb='',tf='',grandInv=0,grandCtr=0;
+  cols.forEach(p=>{th+=`<th>${he(p)}<div class="cnt">${det[p].length} ใบ</div></th>`;});
+  for(let i=0;i<maxRows;i++){ tb+='<tr>'; cols.forEach(p=>{ const it=det[p][i]; tb+=`<td>${it?`${he(it.inv)}${he(_portTag(it.inv))} <span class="vol">(${it.vol})</span>`:''}</td>`; }); tb+='</tr>'; }
+  cols.forEach(p=>{const ivn=det[p].length,tot=det[p].reduce((s,x)=>s+x.vol,0);grandInv+=ivn;grandCtr+=tot;tf+=`<td>รวม ${ivn} ใบ · ${tot} ตู้</td>`;});
+  const css=`@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
+    @page{size:A4 landscape;margin:10mm 12mm;}*{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Sarabun',sans-serif;font-size:11px;color:#0f172a;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #0f2a52;padding-bottom:7px;margin-bottom:12px;}
+    .hd h1{font-size:17px;color:#0f2a52;font-weight:800;}.hd .m{font-size:11px;color:#64748b;margin-top:2px;}
+    table{width:100%;border-collapse:collapse;}
+    th{background:#0f2a52;color:#fff;font-size:11px;font-weight:700;padding:6px 9px;text-align:left;border:1px solid #0f2a52;vertical-align:top;}
+    th .cnt{font-size:9px;font-weight:400;color:#cbd5e1;margin-top:2px;}
+    td{border:1px solid #e2e8f0;padding:4px 9px;font-size:11px;white-space:nowrap;}
+    tbody tr:nth-child(even) td{background:#f8fafc;}
+    .vol{color:#94a3b8;font-size:9.5px;}
+    tfoot td{background:#ecfeff;color:#0e7490;font-weight:800;border-top:2px solid #0e7490;font-size:11px;}
+    @page{@bottom-right{content:"หน้า " counter(page);font-family:'Sarabun';font-size:9pt;color:#94a3b8;}}`;
+  const today=new Date().toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
+  const html=`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>รายอินวอยซ์ ${ML[_rptDetailMonth-1]} ${_rptYear}</title><style>${css}</style></head><body>
+    <div class="hd"><div><h1>📋 รายอินวอยซ์ — ${ML[_rptDetailMonth-1]} ${_rptYear}</h1><div class="m">แยกตาม prefix · วงเล็บ = ท่าแหลมฉบัง/สงขลา (ปาดังไม่ใส่) · รวม ${grandInv} ใบ · ${grandCtr} ตู้</div></div><div class="m">พิมพ์ ${today}</div></div>
+    <table><thead><tr>${th}</tr></thead><tbody>${tb}</tbody><tfoot><tr>${tf}</tr></tfoot></table></body></html>`;
+  const win=window.open('','_blank','width=1100,height=760');
+  if(!win){ alert('⚠️ กรุณาอนุญาต Pop-up ก่อนนะครับ'); return; }
+  win.document.open();win.document.write(html);win.document.close();win.focus();
+  setTimeout(()=>{try{win.print();}catch(e){}},500);
+}
 function renderReport(){
   const wrap = document.getElementById('reportWrap');
   if(!wrap) return;
@@ -10923,7 +10973,10 @@ function renderReport(){
     if(d.month)return parseInt(d.month); return 0;
   }).filter(m=>m>=1&&m<=12))].sort((a,b)=>a-b);
   out += `<div style="margin-top:34px;border-top:2px dashed #cbd5e1;padding-top:20px;">
-    <div style="font-size:18px;font-weight:800;color:#0f2a52;margin-bottom:10px;">📋 รายอินวอยซ์ต่อเดือน <span style="font-size:12px;font-weight:500;color:#64748b;">— เลือกเดือนเพื่อดูเลขอินวอยซ์แยกตาม prefix</span></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+      <div style="font-size:18px;font-weight:800;color:#0f2a52;">📋 รายอินวอยซ์ต่อเดือน <span style="font-size:12px;font-weight:500;color:#64748b;">— เลือกเดือนเพื่อดูเลขอินวอยซ์แยกตาม prefix · วงเล็บ=ท่าแหลมฉบัง/สงขลา</span></div>
+      ${_rptDetailMonth?`<button onclick="printRptDetail()" style="padding:7px 16px;background:linear-gradient(135deg,#dc2626,#ef4444);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(220,38,38,.35);">🖨️ PRINT PDF</button>`:''}
+    </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">`;
   monthsWithData.forEach(m=>{
     const on=_rptDetailMonth===m;
@@ -10931,20 +10984,12 @@ function renderReport(){
   });
   out += `</div>`;
   if(_rptDetailMonth){
-    const det={};
-    rows.forEach(d=>{
-      let mn; if(d.month&&String(d.month).includes('_'))mn=parseInt(String(d.month).split('_')[1]); else if(d.month)mn=parseInt(d.month); else return;
-      if(mn!==_rptDetailMonth)return;
-      const p=getPfx(d.inv||''); if(!det[p])det[p]=[];
-      det[p].push({inv:d.inv||'',vol:parseInt(d.total_expected)||0});
-    });
-    const cols=Object.keys(det).sort((a,b)=>(allPfx.indexOf(a)-allPfx.indexOf(b)));
-    cols.forEach(p=>det[p].sort((a,b)=>String(a.inv).localeCompare(String(b.inv))));
+    const {cols,det}=_rptDetailData(_rptDetailMonth);
     if(!cols.length){
       out += `<div style="padding:30px;text-align:center;color:#94a3b8;">ไม่มีอินวอยซ์ในเดือน ${MONTH_LABELS[_rptDetailMonth-1]}</div>`;
     }else{
       const maxRows=Math.max(...cols.map(p=>det[p].length));
-      out += `<div style="overflow-x:auto;border-radius:12px;border:1px solid #e2e8f0;"><table style="width:100%;border-collapse:collapse;min-width:${cols.length*180}px;">
+      out += `<div style="overflow-x:auto;border-radius:12px;border:1px solid #e2e8f0;"><table style="width:100%;border-collapse:collapse;min-width:${cols.length*200}px;">
         <thead><tr style="background:#0f2a52;">`;
       cols.forEach(p=>{const c=pst(p);out+=`<th style="padding:9px 12px;text-align:left;white-space:nowrap;"><span style="background:${c.bg};color:${c.tx};border:1px solid ${c.bd};border-radius:6px;padding:2px 10px;font-size:12px;font-weight:800;">${h(p)}</span> <span style="color:#cbd5e1;font-size:11px;">${det[p].length} ใบ</span></th>`;});
       out += `</tr></thead><tbody>`;
@@ -10952,11 +10997,11 @@ function renderReport(){
         out += `<tr style="background:${i%2?'#f8fafc':'#fff'};">`;
         cols.forEach(p=>{
           const it=det[p][i];
-          out += `<td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;white-space:nowrap;font-size:12.5px;">${it?`${h(it.inv)} <span style="color:#94a3b8;font-size:10.5px;">(${it.vol})</span>`:''}</td>`;
+          const _pt=it?_portTag(it.inv):'';
+          out += `<td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;white-space:nowrap;font-size:12.5px;">${it?`${h(it.inv)}${_pt?`<span style="color:#0e7490;font-weight:700;">${_pt}</span>`:''} <span style="color:#94a3b8;font-size:10.5px;">(${it.vol})</span>`:''}</td>`;
         });
         out += `</tr>`;
       }
-      /* footer: รวมตู้ต่อ prefix */
       out += `<tr style="background:#ecfeff;border-top:2px solid #a5f3fc;font-weight:800;">`;
       cols.forEach(p=>{const tot=det[p].reduce((s,x)=>s+x.vol,0);out+=`<td style="padding:8px 12px;font-size:12px;color:#0e7490;">รวม ${det[p].length} ใบ · ${tot} ตู้</td>`;});
       out += `</tr></tbody></table></div>`;
