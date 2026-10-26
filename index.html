@@ -3285,6 +3285,8 @@ function editLcbCtr(uid){
           <input id="lcbEdWt" type="number" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:15px;font-family:inherit;"></div>
         <div style="margin-bottom:11px"><label style="font-size:11px;font-weight:800;color:#475569;display:block;margin-bottom:4px;">วันเข้าโรงงาน</label>
           <input id="lcbEdDate" type="date" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:15px;font-family:inherit;"></div>
+        <div style="margin-bottom:11px"><label style="font-size:11px;font-weight:800;color:#475569;display:block;margin-bottom:4px;">วันรับตู้ (DATE PICKUP)</label>
+          <input id="lcbEdPickup" type="date" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:15px;font-family:inherit;"></div>
         <div id="lcbEdFacWrap"><label style="font-size:11px;font-weight:800;color:#475569;display:block;margin-bottom:4px;">โรงงาน</label>
           <select id="lcbEdFac" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:15px;font-family:inherit;background:#fff;cursor:pointer;"></select></div>
         <div id="lcbEdErr" style="color:#b91c1c;font-size:11.5px;font-weight:700;margin-top:9px;min-height:15px;"></div>
@@ -3301,6 +3303,7 @@ function editLcbCtr(uid){
   document.getElementById('lcbEdTruck').value=row.ทะเบียนรถ||'';
   document.getElementById('lcbEdWt').value=row._wt||'';
   document.getElementById('lcbEdDate').value=row._fdISO||'';
+  document.getElementById('lcbEdPickup').value=row._pdISO||'';
   /* ดรอปดาวน์โรงงาน — ตัวเลือกตาม prefix (OGM/ONE-GOLD = 3 โรงงานย่อย) + คงค่าปัจจุบันไว้เสมอ */
   { const cur=row.โรงงาน||''; let opts=(FAC_OPTS_BY_PFX[(_parentPfx||'').toUpperCase()]||[]).slice();
     if(cur && !opts.includes(cur)) opts.unshift(cur);
@@ -3328,6 +3331,7 @@ async function _doEditLcbCtr(uid){
         truck_plate:  document.getElementById('lcbEdTruck').value,
         weight:       document.getElementById('lcbEdWt').value,
         factory_date: document.getElementById('lcbEdDate').value,
+        pickup_date:  document.getElementById('lcbEdPickup').value,
         factory:      document.getElementById('lcbEdFac').value,
       }}),
     });
@@ -4295,6 +4299,7 @@ async function loadData(forceRefresh=false){
       สายเรือ:c.shipping_line||'-',
       CADO:c.cado_no||'',
       DATE_PICKUP:c.pickup_date?fmtDateFromISO(c.pickup_date):'-',
+      _pdISO:c.pickup_date||'',          /* วันรับตู้ ISO — ใช้ในหน้าต่างแก้ไข */
       _src:c.source||'PADANG',        /* ใช้ติดป้าย LCB รายตู้ */
       _seal:c.seal_no||'',            /* ฝั่งแหลมฉบังมีเบอร์ซีล */
       _uid:c.uid||'',                 /* ใช้อ้างตอนสั่งลบ/แก้ */
