@@ -1647,7 +1647,7 @@ const SKH_API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-skh'
 const SKH_FAC_CODE = {BSW:'10262', 'ONE-GOLD':'11581', INV:'13584'};   /* รหัสโรงงาน CTIC ต่อ prefix (ท่าสงขลา) — เพิ่มโรงงานใหม่ที่นี่ · ONE-GOLD=OGM(ไม่ใช่(A)) · INV=THE ONE PARAWOOD */
 /* โรงงานย่อยต่อ prefix — ใช้ในดรอปดาวน์แก้ชื่อโรงงาน (sync กับ line-skh SKH_FACTORY_BY_PREFIX) */
 const OGM_SUBFAC=['กนกทอง','นาเมืองเพชร','นาวาพารา'];
-const FAC_OPTS_BY_PFX={OGM:OGM_SUBFAC,'ONE-GOLD':OGM_SUBFAC,BSW:['บ้านส้อง'],INV:['THE ONE PARAWOOD']};
+const FAC_OPTS_BY_PFX={OGM:OGM_SUBFAC,'ONE-GOLD':OGM_SUBFAC,BSW:['บ้านส้อง'],INV:['THE ONE']};   /* INV = THE ONE (ชื่อสั้น, เต็ม=THE ONE PARAWOOD) */
 
 /* โหลดไลบรารีตอนกดปุ่มเท่านั้น — ไม่ถ่วงหน้าเว็บตอนเปิดปกติ */
 function _lazyScript(src){
