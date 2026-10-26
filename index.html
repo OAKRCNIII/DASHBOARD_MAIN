@@ -4882,7 +4882,7 @@ const _curMonthKey=()=>{const b=new Date().toLocaleDateString('en-CA',{timeZone:
 /* เลือก default: เดือนปัจจุบันถ้ามีข้อมูล ไม่งั้นเดือนล่าสุด (months เรียง mSort น้อย→มาก) */
 const _defMonth=months=>{const ck=_curMonthKey();return months.includes(ck)?ck:(months[months.length-1]||null);};
 /* ดึง prefix จาก invoice number: letters ก่อนตัวเลขแรก (ANTS-JM → "JM" สำหรับแสดงผล) */
-function getPfx(inv){const s=String(inv||'').trim().toUpperCase();if(s.startsWith('ANTS-JM'))return 'JM';if(s.startsWith('OGM')&&!s.includes('(A)')&&s.includes('('))return 'ONE-GOLD';const m=s.match(/^([A-Z]+)/);return m?m[1]:s.substring(0,3);}
+function getPfx(inv){const s=String(inv||'').trim().toUpperCase();if(s.startsWith('ANTS-JM'))return 'JM';if(s.startsWith('OGM')&&!s.includes('(A)')&&!s.includes('(AD)')&&s.includes('('))return 'ONE-GOLD';const m=s.match(/^([A-Z]+)/);return m?m[1]:s.substring(0,3);}   /* OGM(A)/OGM(AD)=OGM (ไม่หัก1%) · OGM วงเล็บอื่น (Yang/J/B)=ONE-GOLD */
 const PFXC={
   BSW:{bg:'#dbeafe',tx:'#1e40af',bd:'#bfdbfe'},
   OGM:{bg:'#dcfce7',tx:'#166534',bd:'#bbf7d0'},
