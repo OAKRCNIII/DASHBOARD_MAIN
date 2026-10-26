@@ -10758,10 +10758,17 @@ function _rptDetailData(mNum){
     let mn; if(d.month&&String(d.month).includes('_'))mn=parseInt(String(d.month).split('_')[1]); else if(d.month)mn=parseInt(d.month); else return;
     if(mn!==mNum)return;
     const p=getPfx(d.inv||''); if(!det[p])det[p]=[];
-    det[p].push({inv:d.inv||'',vol:parseInt(d.total_expected)||0});
+    /* วันที่ตู้แรกเข้าโรงงาน = factory_date เก่าสุดในบรรดาตู้ของใบนี้ (ISO เทียบ lexicographic = เรียงเวลา) */
+    let fd=null; (d.details||[]).forEach(x=>{const iso=x._fdISO||''; if(iso&&(!fd||iso<fd))fd=iso;});
+    det[p].push({inv:d.inv||'',vol:parseInt(d.total_expected)||0,fd});
   });
   const cols=Object.keys(det).sort((a,b)=>(det[b].reduce((s,x)=>s+x.vol,0)-det[a].reduce((s,x)=>s+x.vol,0))||a.localeCompare(b));
-  cols.forEach(p=>det[p].sort((a,b)=>String(a.inv).localeCompare(String(b.inv))));
+  /* เรียงตามวันตู้แรกเข้าโรงงาน (เก่า→ใหม่); ใบที่ยังไม่มีตู้เข้า (fd ว่าง) ไว้ท้าย เรียงตามเลขอินวอยซ์ */
+  cols.forEach(p=>det[p].sort((a,b)=>{
+    if(a.fd&&b.fd) return a.fd.localeCompare(b.fd)||String(a.inv).localeCompare(String(b.inv));
+    if(a.fd) return -1; if(b.fd) return 1;
+    return String(a.inv).localeCompare(String(b.inv));
+  }));
   return {cols,det};
 }
 function printRptDetail(){
