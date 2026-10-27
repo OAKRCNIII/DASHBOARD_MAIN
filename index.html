@@ -1279,6 +1279,30 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     </div>
   </div>
 
+  <!-- CTIC PORT FEE MODAL (ค่าท่าเรือ CTIC + วันที่จ่าย) -->
+  <div id="cticModalBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9100;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:20px;padding:24px 22px;min-width:300px;max-width:360px;width:92vw;box-shadow:0 12px 50px rgba(0,0,0,.3);">
+      <div style="font-size:15px;font-weight:900;color:#0369a1;margin-bottom:6px;">⚓ ค่าท่าเรือ CTIC</div>
+      <div id="cticInvLabel" style="font-size:12px;color:#475569;background:#f1f5f9;border-radius:8px;padding:5px 10px;margin-bottom:14px;font-family:monospace;font-weight:700;"></div>
+      <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">ยอดค่าท่าเรือ CTIC (บาท) <span style="color:#dc2626;">*</span></label>
+      <input id="cticAmt" type="number" step="100" placeholder="0"
+        style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #bae6fd;border-radius:10px;font-size:16px;font-weight:700;color:#0369a1;outline:none;margin-bottom:6px;"
+        oninput="document.getElementById('cticErr').textContent=''"
+        onkeydown="if(event.key==='Enter')requirePin(confirmCticSave)">
+      <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin:8px 0 5px;">วันที่จ่าย</label>
+      <input id="cticDate" type="date"
+        style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid #bae6fd;border-radius:10px;font-size:14px;font-weight:700;color:#0369a1;outline:none;margin-bottom:6px;">
+      <div id="cticErr" style="font-size:11px;color:#dc2626;min-height:16px;margin-bottom:10px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button onclick="closeCticModal()" style="padding:8px 16px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:12px;font-weight:700;cursor:pointer;">ยกเลิก</button>
+        <button onclick="requirePin(confirmCticSave)" style="padding:8px 18px;border-radius:8px;border:none;background:#0369a1;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">✅ บันทึก</button>
+      </div>
+      <div id="cticClearBtn" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
+        <button onclick="requirePin(confirmCticClear)" style="width:100%;padding:7px;border-radius:8px;border:1.5px solid #fca5a5;background:#fff1f2;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;">🗑️ ลบค่า CTIC (ไม่มี)</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ADVANCE PAYMENT MODAL -->
   <div id="advModalBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9150;align-items:center;justify-content:center;" onmousedown="this._d=(event.target===this)" onclick="if(event.target===this&&this._d)closeAdvModal();this._d=false">
     <div style="background:#fff;border-radius:18px;padding:22px 20px;width:min(480px,95vw);max-height:88vh;overflow-y:auto;box-shadow:0 12px 50px rgba(0,0,0,.3);">
@@ -1530,6 +1554,69 @@ function confirmTrainSave(){
   saveTrainThb(inv, amt, dt);
 }
 function confirmTrainClear(){ const inv=_trainInv; closeTrainModal(); saveTrainThb(inv, null, null); }
+/* ── ค่าท่าเรือ CTIC (บาท) ต่ออินวอยซ์ — กรอกมือ admin เท่านั้น (is_money RLS) เก็บ invoice_ctic_fee (mirror รถไฟ) ── */
+let CTIC_THB = new Map(); let CTIC_DATE = new Map(); let _CTIC_COL = true;
+async function loadCticFee(){
+  try{
+    const rows = await sbFetch('invoice_ctic_fee','select=invoice_no,ctic_thb,ctic_paid_date&ctic_thb=not.is.null');
+    CTIC_THB = new Map(); CTIC_DATE = new Map();
+    rows.forEach(r=>{ const k=normInv(r.invoice_no); CTIC_THB.set(k, Number(r.ctic_thb)||0); if(r.ctic_paid_date) CTIC_DATE.set(k, String(r.ctic_paid_date).slice(0,10)); });
+    _CTIC_COL = true;
+  }catch(e){ _CTIC_COL=false; CTIC_THB=new Map(); CTIC_DATE=new Map(); console.warn('ตาราง invoice_ctic_fee ยังไม่มี (รัน SQL ก่อน):', e.message); }
+}
+async function saveCticFee(inv, amt, dateYmd){
+  if(!_CTIC_COL){ alert('ยังเปิดช่อง CTIC ไม่ได้ — ต้องรัน SQL สร้างตาราง invoice_ctic_fee ก่อน'); return; }
+  const key=normInv(inv);
+  const val=(amt===''||amt==null)?null:(parseFloat(amt)||0);
+  const dt=(val==null||!dateYmd)?null:dateYmd;   /* ไม่มียอด = ล้างวันที่ด้วย */
+  const hdr={'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'};
+  try{
+    let r;
+    if(val==null){   /* ล้างยอด = ลบแถว */
+      r=await fetch(`${SB_URL}/rest/v1/invoice_ctic_fee?invoice_no=eq.${encodeURIComponent(inv)}`,
+        {method:'DELETE',headers:{...hdr,'Prefer':'return=minimal'}});
+    }else{           /* upsert ตาม PK invoice_no */
+      r=await fetch(`${SB_URL}/rest/v1/invoice_ctic_fee?on_conflict=invoice_no`,
+        {method:'POST',headers:{...hdr,'Prefer':'resolution=merge-duplicates,return=minimal'},
+         body:JSON.stringify({invoice_no:inv,ctic_thb:val,ctic_paid_date:dt})});
+    }
+    if(!r.ok) throw new Error(await r.text());
+    if(val==null){ CTIC_THB.delete(key); CTIC_DATE.delete(key); } else { CTIC_THB.set(key,val); if(dt)CTIC_DATE.set(key,dt); else CTIC_DATE.delete(key); }
+    renderVessel();
+  }catch(e){ alert('บันทึกค่า CTIC ไม่สำเร็จ: '+e.message); }
+}
+let _cticFeeInv=null;
+function openCticModal(inv){
+  _cticFeeInv=inv;
+  const key=normInv(inv);
+  const amt=CTIC_THB.get(key)||'';
+  const dt=CTIC_DATE.get(key)||new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Bangkok'});
+  document.getElementById('cticInvLabel').textContent=inv;
+  document.getElementById('cticAmt').value=amt?amt:'';
+  document.getElementById('cticDate').value=dt;
+  document.getElementById('cticClearBtn').style.display=CTIC_THB.has(key)?'':'none';
+  document.getElementById('cticModalBg').style.display='flex';
+  setTimeout(()=>document.getElementById('cticAmt').focus(),80);
+}
+function closeCticModal(){ document.getElementById('cticModalBg').style.display='none'; _cticFeeInv=null; }
+function confirmCticSave(){
+  if(!_cticFeeInv)return;
+  const amt=parseFloat(document.getElementById('cticAmt').value)||0;
+  const dt=document.getElementById('cticDate').value||'';
+  if(!amt){ document.getElementById('cticErr').textContent='กรุณากรอกยอดค่าท่าเรือ CTIC'; return; }
+  const inv=_cticFeeInv; closeCticModal();
+  saveCticFee(inv, amt, dt);
+}
+function confirmCticClear(){ const inv=_cticFeeInv; closeCticModal(); saveCticFee(inv, null, null); }
+/* ── ICD (ค่ายกตู้ ICD สงขลา) รวมยอดต่ออินวอยซ์ — ออโต้จาก skh_lift_fees อ่านอย่างเดียว (แก้ที่ปุ่ม 🧾) ── */
+let ICD_TOTAL = new Map();
+async function loadIcdTotals(){
+  try{
+    const rows = await sbFetch('skh_lift_fees','select=invoice_no,amount_total&invoice_no=not.is.null');
+    ICD_TOTAL = new Map();
+    rows.forEach(r=>{ const k=normInv(r.invoice_no); ICD_TOTAL.set(k, (ICD_TOTAL.get(k)||0) + (Number(r.amount_total)||0)); });
+  }catch(e){ ICD_TOTAL=new Map(); console.warn('อ่าน skh_lift_fees (ICD) ไม่ได้:', e.message); }
+}
 /* ── สลับลำดับตู้ล็อคในใบแจ้งเบอร์ตู้ (ต่ออินวอยซ์) — default(false)=ตู้ล็อคอยู่ล่าง · true=ขึ้นบน ── */
 let LOCK_TOP = new Set();
 async function loadLockTop(){
@@ -4357,7 +4444,7 @@ async function loadData(forceRefresh=false){
   }
   /* ป้ายแหลมฉบัง — ดึงแยกจากก้อนหลัก ไม่ให้ไปกระทบลำดับ _rows / cache
      พังก็ไม่เป็นไร แค่ป้ายไม่ขึ้น ข้อมูลอื่นทำงานปกติ */
-  loadLcbInv(); loadTrainThb(); loadLockTop(); loadRailMode();
+  loadLcbInv(); loadTrainThb(); loadLockTop(); loadRailMode(); loadCticFee(); loadIcdTotals();
   if(!_rows){
     setLoad('LOADING...');
     _rows=await Promise.all([
@@ -6684,6 +6771,8 @@ function showPriceHistory(pfx){
 }
 let _vslFilter='';let _VSL_GROUPS=[];let _VSL_DRAFT_GROUPS=[];   /* เรือ DRAFT (ยังไม่ FINAL) สำหรับ PDF picker */
 let _vslViewMode='list'; /* 'list' | 'cal' */
+let _vslPort='all';      /* กรองหน้าเรือตามท่า: all | PADANG | LCB | SONGKHLA */
+function setVslPort(p){_vslPort=p;renderVessel();}
 let _vslCalYear=new Date().getFullYear();
 let _vslCalMonth=new Date().getMonth(); /* 0-indexed */
 /* เซลล์ค่าธรรมเนียม OCF/TLX/ตู้ละ ต่อ 1 แถวอินวอยซ์ (ใช้ร่วมทั้งการ์ด finalized + draft) */
@@ -6721,19 +6810,27 @@ function _vslFeeCells(r, gVessel, hasFees, fm){
   const trainCell=trVal
     ?`<span onclick="openTrainModal('${_trInvEsc}')" style="cursor:pointer;color:#b45309;font-weight:700;" title="แก้ค่ารถไฟ">${trVal.toLocaleString('th-TH')} ฿${trDt?`<br><span style="font-size:8px;color:#94a3b8;font-weight:600;">📅 ${_ymdThai(trDt)}</span>`:''}</span>`
     :`<span onclick="openTrainModal('${_trInvEsc}')" style="cursor:pointer;color:#cbd5e1;font-size:10px;text-decoration:underline dotted;" title="กรอกค่ารถไฟ">ไม่มี</span>`;
-  return `<td style="text-align:right;">${ocfCell}</td><td style="text-align:right;">${tlxCell}</td><td style="text-align:right;">${trainCell}</td><td style="text-align:right;">${perCtrCell}</td>`;
+  const _cticK=normInv(r.inv), cticVal=CTIC_THB.get(_cticK), cticDt=CTIC_DATE.get(_cticK);
+  const cticCell=cticVal
+    ?`<span onclick="openCticModal('${_trInvEsc}')" style="cursor:pointer;color:#0369a1;font-weight:700;" title="แก้ค่าท่าเรือ CTIC">${cticVal.toLocaleString('th-TH')} ฿${cticDt?`<br><span style="font-size:8px;color:#94a3b8;font-weight:600;">📅 ${_ymdThai(cticDt)}</span>`:''}</span>`
+    :`<span onclick="openCticModal('${_trInvEsc}')" style="cursor:pointer;color:#cbd5e1;font-size:10px;text-decoration:underline dotted;" title="กรอกค่าท่าเรือ CTIC">ไม่มี</span>`;
+  const icdVal=ICD_TOTAL.get(_cticK)||0;
+  const icdCell=icdVal>0?`<span style="color:#b45309;font-weight:700;">${icdVal.toLocaleString('th-TH')} ฿</span>`:'<span style="color:#94a3b8;font-size:10px;">-</span>';
+  return `<td style="text-align:right;">${ocfCell}</td><td style="text-align:right;">${tlxCell}</td><td style="text-align:right;">${trainCell}</td><td style="text-align:right;">${perCtrCell}</td><td style="text-align:right;">${cticCell}</td><td style="text-align:right;">${icdCell}</td>`;
 }
 function renderVessel(){
   if(!VESSEL.length&&!VESSEL_DRAFT.length){document.getElementById('vesselWrap').innerHTML='<div class="placeholder"><div class="ico">🚢</div><p>ยังไม่มีข้อมูลเรือ — ใส่พาธ VESSEL_MANAGE.xlsm ในหน้าตั้งค่า</p></div>';return;}
-  const groups={};VESSEL.forEach(r=>{const k=r.vessel+'|||'+r.date;if(!groups[k])groups[k]={vessel:r.vessel,date:r.date,rows:[],vol:0};groups[k].rows.push(r);groups[k].vol+=r.vol;});
-  const all=[...new Set(VESSEL.map(r=>r.vessel))].sort();
+  const _vpf=r=>_vslPort==='all'||_portOf(r.inv)===_vslPort;   /* กรองหน้าเรือตามท่า */
+  const _VES=VESSEL.filter(_vpf), _VESD=VESSEL_DRAFT.filter(_vpf);
+  const groups={};_VES.forEach(r=>{const k=r.vessel+'|||'+r.date;if(!groups[k])groups[k]={vessel:r.vessel,date:r.date,rows:[],vol:0};groups[k].rows.push(r);groups[k].vol+=r.vol;});
+  const all=[...new Set(_VES.map(r=>r.vessel))].sort();
   let sorted=Object.values(groups).sort((a,b)=>pDate(b.date)-pDate(a.date));
   _VSL_GROUPS=[...sorted]; /* store all groups for PDF picker */
   if(_vslViewMode==='cal'){renderVesselCal();return;}
   if(_vslFilter)sorted=sorted.filter(g=>g.vessel===_vslFilter);
   const hasFees=_canSeeFees()&&Object.keys(FEES).length>0;const fm=n=>n>0?n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}):'-';
   /* เรือ draft (แพลนแล้ว มีอินวอยซ์ ยังไม่ ADD DATABASE) — group เหมือน finalized */
-  const dgroups={};VESSEL_DRAFT.forEach(r=>{const k=r.vessel+'|||'+r.date;if(!dgroups[k])dgroups[k]={vessel:r.vessel,date:r.date,rows:[],vol:0};dgroups[k].rows.push(r);dgroups[k].vol+=r.vol;});
+  const dgroups={};_VESD.forEach(r=>{const k=r.vessel+'|||'+r.date;if(!dgroups[k])dgroups[k]={vessel:r.vessel,date:r.date,rows:[],vol:0};dgroups[k].rows.push(r);dgroups[k].vol+=r.vol;});
   let draftGroups=Object.values(dgroups).sort((a,b)=>pDate(b.date)-pDate(a.date));
   if(_vslFilter)draftGroups=draftGroups.filter(g=>g.vessel===_vslFilter);
   /* แยก draft 2 กลุ่ม: ลำที่ finalize แล้ว → รวม delta เข้าการ์ด final; ลำใหม่ล้วน → การ์ด draft แยกบนสุด */
@@ -6742,24 +6839,26 @@ function renderVessel(){
   draftGroups.forEach(g=>{ draftByVsl[g.vessel.trim().toUpperCase()+'|'+g.date]=g.rows; });
   const draftStandalone = draftGroups.filter(g=>!_finalVslKeys.has(g.vessel.trim().toUpperCase()+'|'+g.date));
   _VSL_DRAFT_GROUPS=draftStandalone;   /* เก็บไว้ให้ PDF picker เลือกเรือ DRAFT ได้ */
-  const draftNames=[...new Set(VESSEL_DRAFT.map(r=>r.vessel))].filter(v=>!all.includes(v)).sort();
+  const draftNames=[...new Set(_VESD.map(r=>r.vessel))].filter(v=>!all.includes(v)).sort();
 
   let opts=`<option value="">🚢 เรือทั้งหมด (${all.length} ลำ)</option>`;all.forEach(v=>{opts+=`<option value="${h(v)}"${v===_vslFilter?' selected':''}>${h(v)}</option>`;});
   draftNames.forEach(v=>{opts+=`<option value="${h(v)}"${v===_vslFilter?' selected':''}>🗓️ ${h(v)} (ยังไม่ FINAL)</option>`;});
-  let out=`<div style="padding:4px 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><label style="font-size:12px;color:#475569;font-weight:600;">กรองเรือ:</label><select id="vslSel" onchange="_vslFilter=this.value;renderVessel();" style="padding:6px 12px;border:1.5px solid #bfdbfe;border-radius:8px;font-size:13px;background:#fff;color:#1e40af;cursor:pointer;min-width:220px;">${opts}</select><button onclick="showVesselPdfModal()" style="padding:6px 14px;border:1.5px solid #0ea5e9;border-radius:8px;background:#eff6ff;color:#0369a1;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;">🖨️ PDF</button><button onclick="_vslViewMode='cal';_vslCalYear=new Date().getFullYear();_vslCalMonth=new Date().getMonth();renderVessel();" style="padding:6px 14px;border:1.5px solid #8b5cf6;border-radius:8px;background:#f5f3ff;color:#6d28d9;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📅 มุมมองปฏิทิน</button></div>`;
+  const _vpBar=(p,l)=>`<button onclick="setVslPort('${p}')" style="padding:6px 12px;border-radius:8px;border:1.5px solid ${_vslPort===p?'#0d9488':'#cbd5e1'};background:${_vslPort===p?'#0d9488':'#fff'};color:${_vslPort===p?'#fff':'#475569'};font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">${l}</button>`;
+  const _portBar=`${_vpBar('all','🌐 ทุกท่า')}${_vpBar('PADANG','ปาดัง')}${_vpBar('LCB','แหลมฉบัง')}${_vpBar('SONGKHLA','สงขลา')}<span style="width:1px;height:22px;background:#e2e8f0;margin:0 2px;"></span>`;
+  let out=`<div style="padding:4px 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">${_portBar}<label style="font-size:12px;color:#475569;font-weight:600;">กรองเรือ:</label><select id="vslSel" onchange="_vslFilter=this.value;renderVessel();" style="padding:6px 12px;border:1.5px solid #bfdbfe;border-radius:8px;font-size:13px;background:#fff;color:#1e40af;cursor:pointer;min-width:220px;">${opts}</select><button onclick="showVesselPdfModal()" style="padding:6px 14px;border:1.5px solid #0ea5e9;border-radius:8px;background:#eff6ff;color:#0369a1;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;">🖨️ PDF</button><button onclick="_vslViewMode='cal';_vslCalYear=new Date().getFullYear();_vslCalMonth=new Date().getMonth();renderVessel();" style="padding:6px 14px;border:1.5px solid #8b5cf6;border-radius:8px;background:#f5f3ff;color:#6d28d9;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📅 มุมมองปฏิทิน</button></div>`;
 
   /* ── การ์ด DRAFT (โปร่งๆ มีป้าย) แสดงบนสุด ── */
   if(draftStandalone.length){
     out+=`<div style="margin:2px 0 8px;font-size:12.5px;font-weight:800;color:#92400e;display:flex;align-items:center;gap:6px;">🗓️ เรือที่กำลังแพลน — ยังไม่ FINAL (${draftStandalone.length} ลำ)</div>`;
     draftStandalone.forEach(g=>{
-      let oc=0,tl=0,trTot=0;g.rows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}trTot+=TRAIN_THB.get(normInv(r.inv))||0;});const tot=oc+tl;
+      let oc=0,tl=0,trTot=0,cticTot=0,icdTot=0;g.rows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}const _k=normInv(r.inv);trTot+=TRAIN_THB.get(_k)||0;cticTot+=CTIC_THB.get(_k)||0;icdTot+=ICD_TOTAL.get(_k)||0;});const tot=oc+tl;
       out+=`<div class="vessel-card" style="position:relative;overflow:hidden;opacity:.94;background:repeating-linear-gradient(45deg,#fffdf6,#fffdf6 13px,#fdf3d8 13px,#fdf3d8 26px);border:2px dashed #f59e0b;box-shadow:none;">
         <div style="position:absolute;top:13px;right:-40px;transform:rotate(38deg);background:#f59e0b;color:#fff;font-size:10px;font-weight:800;padding:3px 46px;letter-spacing:2px;box-shadow:0 1px 4px rgba(0,0,0,.25);z-index:2;">DRAFT</div>
         <div class="vessel-head" style="background:linear-gradient(90deg,#b45309,#78350f);"><span class="vessel-name">🚢 ${h(g.vessel)}</span><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span class="vessel-badge">📅 ${h(g.date)}</span><span class="vessel-badge">${g.rows.length} INV · ${g.vol} ตู้</span>${hasFees&&tot>0?`<span class="vessel-badge">💰 ${fm(tot)} RM</span>`:''}<span class="vessel-badge" style="background:#fef3c7;color:#92400e;">⚠️ ยังไม่ ADD DATABASE</span></div></div>`;
-      const fh=hasFees?'<th style="text-align:right;">OCF (RM)</th><th style="text-align:right;">TLX (RM)</th><th style="text-align:right;color:#b45309;">รถไฟ (฿)</th><th style="text-align:right;color:#7c3aed;">ตู้ละ (RM)</th>':'';
+      const fh=hasFees?'<th style="text-align:right;">OCF (RM)</th><th style="text-align:right;">TLX (RM)</th><th style="text-align:right;color:#b45309;">รถไฟ (฿)</th><th style="text-align:right;color:#7c3aed;">ตู้ละ (RM)</th><th style="text-align:right;color:#0369a1;">ท่าเรือ CTIC (฿)</th><th style="text-align:right;color:#b45309;">ICD (฿)</th>':'';
       out+=`<table class="vtbl"><thead><tr><th>#</th><th>อินวอยซ์</th><th>ปลายทาง</th><th>BKG</th><th style="text-align:center;">ตู้</th>${fh}</tr></thead><tbody>`;
       g.rows.forEach((r,i)=>{const s=pst(getPfx(r.inv));out+=`<tr><td style="color:#94a3b8;font-size:11px;">${i+1}</td><td><span class="finv-badge" style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd}">${h(getPfx(r.inv))}</span>${h(r.inv)}</td><td style="color:#64748b;font-size:11px;">${h(r.des)}</td><td style="font-family:monospace;font-weight:600;color:#475569;">${h(r.bkg)}</td><td style="font-weight:700;color:#16a34a;text-align:center;">${r.vol}</td>${_vslFeeCells(r,g.vessel,hasFees,fm)}</tr>`;});
-      if(hasFees){const perCtrAvg=oc>0&&g.vol>0?oc/g.vol:0;out+=`<tr style="background:#fef3c7;border-top:2px solid #fcd34d;"><td colspan="5" style="text-align:right;font-weight:700;font-size:11px;color:#92400e;padding:8px 12px;">รวมเรือลำนี้ (draft)</td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#16a34a;">${fm(oc)}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#2563eb;">${fm(tl)}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#b45309;">${trTot>0?trTot.toLocaleString('th-TH')+' ฿':'-'}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:700;color:#7c3aed;font-size:10px;">${perCtrAvg>0?fm(perCtrAvg)+' avg':'-'}</span></td></tr><tr style="background:#fde9b8;"><td colspan="5" style="text-align:right;font-weight:700;font-size:11px;color:#92400e;padding:6px 12px;">รวม OCF+TLX</td><td colspan="4" style="text-align:right;padding:6px 12px;font-weight:800;font-size:13px;color:#78350f;">${fm(tot)} RM</td></tr>`;}
+      if(hasFees){const perCtrAvg=oc>0&&g.vol>0?oc/g.vol:0;out+=`<tr style="background:#fef3c7;border-top:2px solid #fcd34d;"><td colspan="5" style="text-align:right;font-weight:700;font-size:11px;color:#92400e;padding:8px 12px;">รวมเรือลำนี้ (draft)</td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#16a34a;">${fm(oc)}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#2563eb;">${fm(tl)}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#b45309;">${trTot>0?trTot.toLocaleString('th-TH')+' ฿':'-'}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:700;color:#7c3aed;font-size:10px;">${perCtrAvg>0?fm(perCtrAvg)+' avg':'-'}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#0369a1;">${cticTot>0?cticTot.toLocaleString('th-TH')+' ฿':'-'}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#b45309;">${icdTot>0?icdTot.toLocaleString('th-TH')+' ฿':'-'}</span></td></tr><tr style="background:#fde9b8;"><td colspan="5" style="text-align:right;font-weight:700;font-size:11px;color:#92400e;padding:6px 12px;">รวม OCF+TLX</td><td colspan="6" style="text-align:right;padding:6px 12px;font-weight:800;font-size:13px;color:#78350f;">${fm(tot)} RM</td></tr>`;}
       else{out+=`<tr style="background:#fef3c7;border-top:2px solid #fcd34d;"><td colspan="4" style="text-align:right;font-weight:700;font-size:11px;color:#92400e;padding:8px 12px;">รวมเรือลำนี้ (draft)</td><td style="text-align:center;font-weight:800;color:#b45309;padding:8px 12px;">${g.vol}</td></tr>`;}
       out+='</tbody></table></div>';
     });
@@ -6770,15 +6869,15 @@ function renderVessel(){
     const _draftRows=(draftByVsl[_dkey]||[]).map(r=>({...r,_draft:true}));   /* delta ที่ยังไม่ ADD */
     const allRows=[...g.rows,..._draftRows];
     const _allVol=allRows.reduce((s,r)=>s+(parseFloat(r.vol)||0),0);
-    let oc=0,tl=0,trTot=0;allRows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}trTot+=TRAIN_THB.get(normInv(r.inv))||0;});const tot=oc+tl;
+    let oc=0,tl=0,trTot=0,cticTot=0,icdTot=0;allRows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}const _k=normInv(r.inv);trTot+=TRAIN_THB.get(_k)||0;cticTot+=CTIC_THB.get(_k)||0;icdTot+=ICD_TOTAL.get(_k)||0;});const tot=oc+tl;
     const _gvn=g.vessel.replace(/\s+\d+[NSEW](\s*\([^)]*\))?$/i,'').replace(/[\s\/]+V\.\w+$/i,'').trim();const _gmmsi=VESSEL_MMSI[_gvn.toUpperCase()]||VESSEL_MMSI[_gvn]||null;const _gurl=_gmmsi?'https://www.vesselfinder.com/vessels/details/'+_gmmsi:'https://www.vesselfinder.com/?name='+encodeURIComponent(_gvn);
     const _draftBadge=_draftRows.length?`<span class="vessel-badge" style="background:#fef3c7;color:#92400e;">🕒 ${_draftRows.length} ยังไม่ ADD</span>`:'';
     out+=`<div class="vessel-card"><div class="vessel-head"><span class="vessel-name">🚢 ${h(g.vessel)}</span><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span class="vessel-badge">📅 ${h(g.date)}</span><span class="vessel-badge">${allRows.length} INV · ${_allVol} ตู้</span>${_draftBadge}${hasFees&&tot>0?`<span class="vessel-badge">💰 ${fm(tot)} RM</span>`:''}<span onclick="window.open('${_gurl}','_blank','noopener,noreferrer')" style="cursor:pointer;font-size:11px;padding:2px 8px;border-radius:6px;background:#dbeafe;color:#1d4ed8;font-weight:700;user-select:none;" title="ดูตำแหน่งเรือบน VesselFinder">🛰️ ติดตามเรือ</span></div></div>`;
-    const fh=hasFees?'<th style="text-align:right;">OCF (RM)</th><th style="text-align:right;">TLX (RM)</th><th style="text-align:right;color:#b45309;">รถไฟ (฿)</th><th style="text-align:right;color:#7c3aed;">ตู้ละ (RM)</th>':'';
+    const fh=hasFees?'<th style="text-align:right;">OCF (RM)</th><th style="text-align:right;">TLX (RM)</th><th style="text-align:right;color:#b45309;">รถไฟ (฿)</th><th style="text-align:right;color:#7c3aed;">ตู้ละ (RM)</th><th style="text-align:right;color:#0369a1;">ท่าเรือ CTIC (฿)</th><th style="text-align:right;color:#b45309;">ICD (฿)</th>':'';
     out+=`<table class="vtbl"><thead><tr><th>#</th><th>อินวอยซ์</th><th>ปลายทาง</th><th>BKG</th><th style="text-align:center;">ตู้</th>${fh}</tr></thead><tbody>`;
     allRows.forEach((r,i)=>{const s=pst(getPfx(r.inv));const _dr=r._draft;out+=`<tr${_dr?' style="background:#fffbeb;"':''}><td style="color:#94a3b8;font-size:11px;${_dr?'border-left:3px solid #f59e0b;':''}">${i+1}</td><td><span class="finv-badge" style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd}">${h(getPfx(r.inv))}</span>${h(r.inv)}${_dr?` <span style="font-size:8.5px;font-weight:800;color:#c2410c;background:#ffedd5;border:1px solid #fdba74;border-radius:4px;padding:0 4px;">DRAFT</span>`:''}</td><td style="color:#64748b;font-size:11px;">${h(r.des)}</td><td style="font-family:monospace;font-weight:600;color:#475569;">${h(r.bkg)}</td><td style="font-weight:700;color:${_dr?'#c2410c':'#16a34a'};text-align:center;">${r.vol}</td>${_vslFeeCells(r,g.vessel,hasFees,fm)}</tr>`;
     });
-    if(hasFees){const perCtrAvg=oc>0&&_allVol>0?oc/_allVol:0;out+=`<tr style="background:#f0f9ff;border-top:2px solid #bfdbfe;"><td colspan="5" style="text-align:right;font-weight:700;font-size:11px;color:#1e40af;padding:8px 12px;">รวมเรือลำนี้${_draftRows.length?' (รวม '+_draftRows.length+' draft)':''}</td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#16a34a;">${fm(oc)}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#2563eb;">${fm(tl)}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#b45309;">${trTot>0?trTot.toLocaleString('th-TH')+' ฿':'-'}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:700;color:#7c3aed;font-size:10px;">${perCtrAvg>0?fm(perCtrAvg)+' avg':'-'}</span></td></tr><tr style="background:#dbeafe;"><td colspan="5" style="text-align:right;font-weight:700;font-size:11px;color:#1e40af;padding:6px 12px;">รวม OCF+TLX</td><td colspan="4" style="text-align:right;padding:6px 12px;font-weight:800;font-size:13px;color:#1e3a8a;">${fm(tot)} RM</td></tr>`;}
+    if(hasFees){const perCtrAvg=oc>0&&_allVol>0?oc/_allVol:0;out+=`<tr style="background:#f0f9ff;border-top:2px solid #bfdbfe;"><td colspan="5" style="text-align:right;font-weight:700;font-size:11px;color:#1e40af;padding:8px 12px;">รวมเรือลำนี้${_draftRows.length?' (รวม '+_draftRows.length+' draft)':''}</td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#16a34a;">${fm(oc)}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#2563eb;">${fm(tl)}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#b45309;">${trTot>0?trTot.toLocaleString('th-TH')+' ฿':'-'}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:700;color:#7c3aed;font-size:10px;">${perCtrAvg>0?fm(perCtrAvg)+' avg':'-'}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#0369a1;">${cticTot>0?cticTot.toLocaleString('th-TH')+' ฿':'-'}</span></td><td style="text-align:right;padding:8px 12px;"><span style="font-weight:800;color:#b45309;">${icdTot>0?icdTot.toLocaleString('th-TH')+' ฿':'-'}</span></td></tr><tr style="background:#dbeafe;"><td colspan="5" style="text-align:right;font-weight:700;font-size:11px;color:#1e40af;padding:6px 12px;">รวม OCF+TLX</td><td colspan="6" style="text-align:right;padding:6px 12px;font-weight:800;font-size:13px;color:#1e3a8a;">${fm(tot)} RM</td></tr>`;}
     out+='</tbody></table></div>';
   });
   document.getElementById('vesselWrap').innerHTML=out;
