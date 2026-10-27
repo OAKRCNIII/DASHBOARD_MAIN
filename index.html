@@ -3275,7 +3275,18 @@ async function openSkhLift(inv){
   try{
     const r=await fetch(`${SKH_API}/lift-fee?inv=${encodeURIComponent(inv)}`);
     const j=await r.json(); if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
-    _skhLiftFees=j.fees||[]; _renderSkhLift();
+    _skhLiftFees=j.fees||[];
+    /* เรียงใบ ICD ตามลำดับตู้ในตารางรายละเอียด (FLAT.details) ให้ตรงกับที่โชว์ด้านขวา */
+    try{
+      const nk=normInv(inv);
+      let rec=FLAT.find(x=>normInv(x.inv)===nk);
+      if(!rec){const f=nk.replace(/[-_\/]/g,'');rec=FLAT.find(x=>normInv(x.inv).replace(/[-_\/]/g,'')===f);}
+      const ord=new Map();
+      ((rec&&rec.details)||[]).forEach((r,i)=>{const c=(r.เบอร์ตู้||'').trim().toUpperCase();if(c&&!ord.has(c))ord.set(c,i);});
+      const rank=f=>{const c=(f.container_no||'').trim().toUpperCase();return ord.has(c)?ord.get(c):9999;};
+      _skhLiftFees=_skhLiftFees.map((f,i)=>({f,i})).sort((a,b)=>rank(a.f)-rank(b.f)||a.i-b.i).map(x=>x.f);
+    }catch(e){}
+    _renderSkhLift();
   }catch(e){ const b=document.getElementById('skhLiftBody'); if(b)b.innerHTML=`<div style="padding:26px;text-align:center;color:#b91c1c;font-weight:700;">${h(e.message)}</div>`; }
 }
 function _renderSkhLift(){
