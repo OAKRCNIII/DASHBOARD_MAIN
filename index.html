@@ -3256,6 +3256,82 @@ function lcbViewClose(){
   if(bg) bg.style.display='none';
 }
 
+/* ══ ค่ายกตู้ ICD (ท่าสงขลา) — ใบเสร็จ LIFT ON/OFF จากบอท LINE ══ */
+let _skhLiftInv='', _skhLiftFees=[];
+async function openSkhLift(inv){
+  _skhLiftInv=inv;
+  let bg=document.getElementById('skhLiftBg');
+  if(!bg){ bg=document.createElement('div'); bg.id='skhLiftBg';
+    bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9300;align-items:center;justify-content:center;padding:14px;';
+    bg.addEventListener('mousedown',e=>{bg._d=(e.target===bg);});
+    bg.addEventListener('click',e=>{if(e.target===bg&&bg._d)bg.style.display='none';bg._d=false;});
+    document.body.appendChild(bg); }
+  bg.innerHTML=`<div style="background:#fff;border-radius:16px;width:min(640px,96vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+    <div style="padding:14px 18px;border-bottom:1px solid #e8edf5;display:flex;align-items:center;justify-content:space-between;background:#fffbeb;border-radius:16px 16px 0 0;">
+      <span style="font-size:13px;font-weight:800;color:#b45309;">🧾 ค่ายกตู้ ICD — ${h(inv)}</span>
+      <button onclick="document.getElementById('skhLiftBg').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:#94a3b8;">✕</button></div>
+    <div style="overflow-y:auto;padding:14px 18px;" id="skhLiftBody"><div style="padding:26px;text-align:center;color:#64748b;">กำลังโหลด…</div></div></div>`;
+  bg.style.display='flex';
+  try{
+    const r=await fetch(`${SKH_API}/lift-fee?inv=${encodeURIComponent(inv)}`);
+    const j=await r.json(); if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+    _skhLiftFees=j.fees||[]; _renderSkhLift();
+  }catch(e){ const b=document.getElementById('skhLiftBody'); if(b)b.innerHTML=`<div style="padding:26px;text-align:center;color:#b91c1c;font-weight:700;">${h(e.message)}</div>`; }
+}
+function _renderSkhLift(){
+  const body=document.getElementById('skhLiftBody'); if(!body)return;
+  const canEdit=LOGGED_USER==='OAK_THIRA';
+  const fm=n=>n!=null&&n!==''?Number(n).toLocaleString('th-TH'):'—';
+  if(!_skhLiftFees.length){ body.innerHTML='<div style="padding:26px;text-align:center;color:#64748b;">ยังไม่มีใบเสร็จค่ายกตู้<br><span style="font-size:11px">(ส่งรูปใบ ICD ผ่านบอท LINE สงขลา)</span></div>'; return; }
+  const tot=_skhLiftFees.reduce((s,x)=>s+(Number(x.amount_total)||0),0);
+  const nPhoto=_skhLiftFees.filter(f=>f.photo_url).length;
+  let html=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+      <span style="font-size:12px;color:#64748b;">${_skhLiftFees.length} ใบ · รวม <b style="color:#b45309;">${fm(tot)}</b> บาท</span>
+      ${nPhoto?`<button onclick="skhLiftZip()" style="margin-left:auto;padding:5px 13px;border:1px solid #b45309;background:#b45309;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📥 โหลดรูป${nPhoto>1?' ZIP':''}</button>`:''}
+    </div>`;
+  _skhLiftFees.forEach((f,ix)=>{
+    html+=`<div style="border:1px solid #fde68a;border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;">
+      ${f.photo_url?`<img src="${f.photo_url}" onclick="window.open('${f.photo_url}','_blank')" style="width:72px;height:72px;object-fit:cover;border-radius:7px;cursor:zoom-in;border:1px solid #e2e8f0;flex-shrink:0;">`:''}
+      <div style="flex:1;min-width:0;font-size:12px;line-height:1.7;">
+        <div><b>#${h(f.receipt_no)}</b> · ${h(f.receipt_date||'—')}</div>
+        <div style="color:#475569;">ตู้ ${h(f.container_no||'—')} · ทะเบียน ${h(f.truck_plate||'—')}</div>
+        <div style="color:#b45309;font-weight:700;">${fm(f.amount_total)} บาท <span style="font-size:10px;color:#94a3b8;font-weight:400;">(ก่อน VAT ${fm(f.amount_base)} · VAT ${fm(f.vat)})</span></div>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+          ${f.photo_url?`<button onclick="skhLiftDownOne(${ix})" style="font-size:11px;padding:3px 10px;border:1px solid #fcd34d;background:#fffbeb;color:#b45309;border-radius:6px;cursor:pointer;font-family:inherit;">📥 โหลดรูป</button>`:''}
+          ${canEdit?`<button onclick="skhLiftRelink(${f.id},'${h(f.invoice_no||'').replace(/'/g,"\\'")}')" style="font-size:11px;padding:3px 10px;border:1px solid #cbd5e1;background:#f8fafc;border-radius:6px;cursor:pointer;font-family:inherit;">✏️ แก้อินวอยซ์ที่ผูก</button>
+          <button onclick="skhLiftDelete(${f.id},'${h(f.receipt_no)}')" style="font-size:11px;padding:3px 10px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;border-radius:6px;cursor:pointer;font-family:inherit;">🗑 ลบ</button>`:''}
+        </div>
+      </div></div>`;
+  });
+  body.innerHTML=html;
+}
+async function skhLiftRelink(id,cur){
+  const nv=prompt('ผูกใบเสร็จนี้กับอินวอยซ์ไหน? (พิมพ์เลขอินวอยซ์ให้ตรง)',cur); if(nv==null)return;
+  try{ const r=await fetch(`${SKH_API}/lift-fee-update`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_TOKEN}`},body:JSON.stringify({id,fields:{invoice_no:nv.trim()}})});
+    const j=await r.json(); if(!r.ok)throw new Error(j.error||'HTTP '+r.status); openSkhLift(_skhLiftInv);
+  }catch(e){ alert('⚠️ '+e.message); }
+}
+function skhLiftDelete(id,no){
+  requirePin(async()=>{ try{ const r=await fetch(`${SKH_API}/lift-fee-delete`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_TOKEN}`},body:JSON.stringify({id})});
+    const j=await r.json(); if(!r.ok)throw new Error(j.error||'HTTP '+r.status); openSkhLift(_skhLiftInv);
+  }catch(e){ alert('⚠️ '+e.message); } }, 'ยืนยันลบใบเสร็จค่ายกตู้ #'+no);
+}
+async function skhLiftDownOne(ix){
+  const f=_skhLiftFees[ix]; if(!f||!f.photo_url){ alert('ใบนี้ยังไม่มีรูป'); return; }
+  try{ const blob=await (await fetch(f.photo_url)).blob(); _lcbDown(blob,`ใบเสร็จ ICD ${String(f.receipt_no).replace(/[\\/:*?"<>|]/g,'-')}.jpg`); }
+  catch(e){ alert('⚠️ โหลดรูปไม่สำเร็จ: '+e.message); }
+}
+async function skhLiftZip(){
+  const withPhoto=_skhLiftFees.map((f,ix)=>({f,ix})).filter(x=>x.f.photo_url);
+  if(!withPhoto.length){ alert('ยังไม่มีรูปใบเสร็จ'); return; }
+  if(withPhoto.length===1) return skhLiftDownOne(withPhoto[0].ix);
+  try{ await _lazyScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+    const zip=new JSZip(); const folder=zip.folder(`ใบเสร็จ ICD ${_lcbSafe(_skhLiftInv)}`);
+    for(const {f} of withPhoto){ folder.file(`ICD ${String(f.receipt_no).replace(/[\\/:*?"<>|]/g,'-')}.jpg`, await (await fetch(f.photo_url)).blob()); }
+    _lcbDown(await zip.generateAsync({type:'blob'}), `ใบเสร็จ ICD ${_lcbSafe(_skhLiftInv)}.zip`);
+  }catch(e){ alert('⚠️ '+e.message); }
+}
+
 /* ══ แก้ตู้ย้อนหลัง — เฉพาะ OAK_THIRA + PIN · แก้ได้ 4 ช่อง ══ */
 function editLcbCtr(uid){
   if(LOGGED_USER!=='OAK_THIRA'){ alert('เฉพาะ OAK_THIRA เท่านั้นที่แก้ได้'); return; }
@@ -5649,6 +5725,9 @@ function showInvDetail(id,panelId){
   /* รูปตู้ — ท่าสงขลา (รูปส่งผ่าน LINE OA สงขลา → line-skh) ใช้ gallery เดียวกับแหลมฉบัง */
   if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA')
     out+=` <button onclick="openSkhPhotos('${_invEsc}')" style="padding:6px 14px;background:#9d174d;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📷 รูปตู้</button>`;
+  /* ค่ายกตู้ ICD — ท่าสงขลา */
+  if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA' && !_mgrView)
+    out+=` <button onclick="openSkhLift('${_invEsc}')" style="padding:6px 14px;background:#b45309;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🧾 ค่ายกตู้</button>`;
   /* ไฟล์ VGM แบบแหลมฉบัง — ท่าสงขลาก็ออกได้ (skh_containers มี TARE จริงจากบอท) */
   if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA')
     out+=` <button onclick="openVgmModal('${_invEsc}')" style="padding:6px 14px;background:#4d7c0f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">⚖️ ไฟล์ VGM</button>`;
