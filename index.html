@@ -3258,6 +3258,20 @@ function lcbViewClose(){
 
 /* ══ ค่ายกตู้ ICD (ท่าสงขลา) — ใบเสร็จ LIFT ON/OFF จากบอท LINE ══ */
 let _skhLiftInv='', _skhLiftFees=[];
+/* มาร์ค 🧾 ICD ในแถวตู้ที่มีใบเสร็จค่ายกตู้แล้ว (เรียกหลัง render แผงรายละเอียดใบสงขลา) */
+async function markSkhLiftRows(inv,panelId){
+  try{
+    const r=await fetch(`${SKH_API}/lift-fee?inv=${encodeURIComponent(inv)}`);
+    if(!r.ok)return; const j=await r.json();
+    const set=new Set((j.fees||[]).map(f=>(f.container_no||'').trim().toUpperCase()).filter(Boolean));
+    if(!set.size)return;
+    const panel=document.getElementById(panelId); if(!panel)return;
+    panel.querySelectorAll('td[data-skhlift]').forEach(td=>{
+      const c=td.getAttribute('data-skhlift');
+      if(c&&set.has(c)){const mk=td.querySelector('.skh-lift-mk');if(mk)mk.style.display='inline-block';}
+    });
+  }catch(e){}
+}
 async function openSkhLift(inv){
   _skhLiftInv=inv;
   let bg=document.getElementById('skhLiftBg');
@@ -5867,7 +5881,8 @@ function showInvDetail(id,panelId){
       const _cticTd=_hasSkh?`<td style="font-family:monospace;color:${r._ctic?'#0f172a':'#cbd5e1'};">${r._ctic?h(r._ctic):'—'}</td>`:'';
       const _facCode=SKH_FAC_CODE[(d.prefix||'').toUpperCase()]||'';
       const _facCodeTd=_hasSkh?`<td style="font-family:monospace;color:${_facCode?'#0f172a':'#cbd5e1'};">${_facCode?h(_facCode):'—'}</td>`:'';   /* รหัสโรงงานตาม prefix (BSW=10262) */
-      out+=`<tr style="${rowBg}"><td>${h(r.ทะเบียนรถ)}</td><td style="font-family:monospace">${_ctrHtml}${pendBadge}${_lcbTag}${_lcbEdit}${_lcbDel}</td>${_sealTd}${_cticTd}${_facCodeTd}<td>${h(r.โรงงาน)}</td><td>${h(r.เข้าโรงงาน)}</td><td>${h(r.DATE_PICKUP)}</td><td>${h(r.CADO)}</td></tr>`;
+      const _liftMk=`<span class="skh-lift-mk" style="display:none;margin-left:5px;font-size:8.5px;padding:1px 6px;border-radius:8px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;font-weight:700;vertical-align:middle;font-family:inherit;" title="มีใบเสร็จค่ายกตู้ ICD แล้ว">🧾 ICD</span>`;
+      out+=`<tr style="${rowBg}"><td>${h(r.ทะเบียนรถ)}</td><td style="font-family:monospace" data-skhlift="${h(_ctr.toUpperCase())}">${_ctrHtml}${_liftMk}${pendBadge}${_lcbTag}${_lcbEdit}${_lcbDel}</td>${_sealTd}${_cticTd}${_facCodeTd}<td>${h(r.โรงงาน)}</td><td>${h(r.เข้าโรงงาน)}</td><td>${h(r.DATE_PICKUP)}</td><td>${h(r.CADO)}</td></tr>`;
     });
     out+='</tbody></table>';
     if(invPendCtrs.length){
@@ -5876,6 +5891,7 @@ function showInvDetail(id,panelId){
   }
   else if(!invPendCtrs.length){out+='<div style="color:#94a3b8;font-size:12px;">ยังไม่มีข้อมูลตู้</div>';}
   document.getElementById(panelId).innerHTML=out;
+  if(typeof portOf==='function'&&portOf(d.inv)==='SONGKHLA')markSkhLiftRows(d.inv,panelId);   /* มาร์คแถวตู้ที่มีใบเสร็จ ICD แล้ว */
   _checkLockBadge(d.inv);
   initAISStream();
   if(_curMmsi){
