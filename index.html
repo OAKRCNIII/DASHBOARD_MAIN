@@ -4444,7 +4444,7 @@ async function loadData(forceRefresh=false){
   }
   /* ป้ายแหลมฉบัง — ดึงแยกจากก้อนหลัก ไม่ให้ไปกระทบลำดับ _rows / cache
      พังก็ไม่เป็นไร แค่ป้ายไม่ขึ้น ข้อมูลอื่นทำงานปกติ */
-  loadLcbInv(); loadTrainThb(); loadLockTop(); loadRailMode(); loadCticFee(); loadIcdTotals();
+  loadLcbInv(); loadTrainThb(); loadLockTop(); loadRailMode(); loadCticFee();
   if(!_rows){
     setLoad('LOADING...');
     _rows=await Promise.all([
@@ -6773,6 +6773,7 @@ let _vslFilter='';let _VSL_GROUPS=[];let _VSL_DRAFT_GROUPS=[];   /* เรือ
 let _vslViewMode='list'; /* 'list' | 'cal' */
 let _vslPort='all';      /* กรองหน้าเรือตามท่า: all | PADANG | LCB | SONGKHLA */
 function setVslPort(p){_vslPort=p;renderVessel();}
+const ICD_PER_CTR=1070;  /* ค่ายกตู้ ICD สงขลา = 1,070 ฿/ตู้ (คงที่) — คอลัมน์ ICD = 1070 × จำนวนตู้ */
 let _vslCalYear=new Date().getFullYear();
 let _vslCalMonth=new Date().getMonth(); /* 0-indexed */
 /* เซลล์ค่าธรรมเนียม OCF/TLX/ตู้ละ ต่อ 1 แถวอินวอยซ์ (ใช้ร่วมทั้งการ์ด finalized + draft) */
@@ -6814,7 +6815,7 @@ function _vslFeeCells(r, gVessel, hasFees, fm){
   const cticCell=cticVal
     ?`<span onclick="openCticModal('${_trInvEsc}')" style="cursor:pointer;color:#0369a1;font-weight:700;" title="แก้ค่าท่าเรือ CTIC">${cticVal.toLocaleString('th-TH')} ฿${cticDt?`<br><span style="font-size:8px;color:#94a3b8;font-weight:600;">📅 ${_ymdThai(cticDt)}</span>`:''}</span>`
     :`<span onclick="openCticModal('${_trInvEsc}')" style="cursor:pointer;color:#cbd5e1;font-size:10px;text-decoration:underline dotted;" title="กรอกค่าท่าเรือ CTIC">ไม่มี</span>`;
-  const icdVal=ICD_TOTAL.get(_cticK)||0;
+  const icdVal=(_portOf(r.inv)==='SONGKHLA')?ICD_PER_CTR*(parseFloat(r.vol)||0):0;
   const icdCell=icdVal>0?`<span style="color:#b45309;font-weight:700;">${icdVal.toLocaleString('th-TH')} ฿</span>`:'<span style="color:#94a3b8;font-size:10px;">-</span>';
   return `<td style="text-align:right;">${ocfCell}</td><td style="text-align:right;">${tlxCell}</td><td style="text-align:right;">${trainCell}</td><td style="text-align:right;">${perCtrCell}</td><td style="text-align:right;">${cticCell}</td><td style="text-align:right;">${icdCell}</td>`;
 }
@@ -6851,7 +6852,7 @@ function renderVessel(){
   if(draftStandalone.length){
     out+=`<div style="margin:2px 0 8px;font-size:12.5px;font-weight:800;color:#92400e;display:flex;align-items:center;gap:6px;">🗓️ เรือที่กำลังแพลน — ยังไม่ FINAL (${draftStandalone.length} ลำ)</div>`;
     draftStandalone.forEach(g=>{
-      let oc=0,tl=0,trTot=0,cticTot=0,icdTot=0;g.rows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}const _k=normInv(r.inv);trTot+=TRAIN_THB.get(_k)||0;cticTot+=CTIC_THB.get(_k)||0;icdTot+=ICD_TOTAL.get(_k)||0;});const tot=oc+tl;
+      let oc=0,tl=0,trTot=0,cticTot=0,icdTot=0;g.rows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}const _k=normInv(r.inv);trTot+=TRAIN_THB.get(_k)||0;cticTot+=CTIC_THB.get(_k)||0;if(_portOf(r.inv)==='SONGKHLA')icdTot+=ICD_PER_CTR*(parseFloat(r.vol)||0);});const tot=oc+tl;
       out+=`<div class="vessel-card" style="position:relative;overflow:hidden;opacity:.94;background:repeating-linear-gradient(45deg,#fffdf6,#fffdf6 13px,#fdf3d8 13px,#fdf3d8 26px);border:2px dashed #f59e0b;box-shadow:none;">
         <div style="position:absolute;top:13px;right:-40px;transform:rotate(38deg);background:#f59e0b;color:#fff;font-size:10px;font-weight:800;padding:3px 46px;letter-spacing:2px;box-shadow:0 1px 4px rgba(0,0,0,.25);z-index:2;">DRAFT</div>
         <div class="vessel-head" style="background:linear-gradient(90deg,#b45309,#78350f);"><span class="vessel-name">🚢 ${h(g.vessel)}</span><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span class="vessel-badge">📅 ${h(g.date)}</span><span class="vessel-badge">${g.rows.length} INV · ${g.vol} ตู้</span>${hasFees&&tot>0?`<span class="vessel-badge">💰 ${fm(tot)} RM</span>`:''}<span class="vessel-badge" style="background:#fef3c7;color:#92400e;">⚠️ ยังไม่ ADD DATABASE</span></div></div>`;
@@ -6869,7 +6870,7 @@ function renderVessel(){
     const _draftRows=(draftByVsl[_dkey]||[]).map(r=>({...r,_draft:true}));   /* delta ที่ยังไม่ ADD */
     const allRows=[...g.rows,..._draftRows];
     const _allVol=allRows.reduce((s,r)=>s+(parseFloat(r.vol)||0),0);
-    let oc=0,tl=0,trTot=0,cticTot=0,icdTot=0;allRows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}const _k=normInv(r.inv);trTot+=TRAIN_THB.get(_k)||0;cticTot+=CTIC_THB.get(_k)||0;icdTot+=ICD_TOTAL.get(_k)||0;});const tot=oc+tl;
+    let oc=0,tl=0,trTot=0,cticTot=0,icdTot=0;allRows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}const _k=normInv(r.inv);trTot+=TRAIN_THB.get(_k)||0;cticTot+=CTIC_THB.get(_k)||0;if(_portOf(r.inv)==='SONGKHLA')icdTot+=ICD_PER_CTR*(parseFloat(r.vol)||0);});const tot=oc+tl;
     const _gvn=g.vessel.replace(/\s+\d+[NSEW](\s*\([^)]*\))?$/i,'').replace(/[\s\/]+V\.\w+$/i,'').trim();const _gmmsi=VESSEL_MMSI[_gvn.toUpperCase()]||VESSEL_MMSI[_gvn]||null;const _gurl=_gmmsi?'https://www.vesselfinder.com/vessels/details/'+_gmmsi:'https://www.vesselfinder.com/?name='+encodeURIComponent(_gvn);
     const _draftBadge=_draftRows.length?`<span class="vessel-badge" style="background:#fef3c7;color:#92400e;">🕒 ${_draftRows.length} ยังไม่ ADD</span>`:'';
     out+=`<div class="vessel-card"><div class="vessel-head"><span class="vessel-name">🚢 ${h(g.vessel)}</span><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span class="vessel-badge">📅 ${h(g.date)}</span><span class="vessel-badge">${allRows.length} INV · ${_allVol} ตู้</span>${_draftBadge}${hasFees&&tot>0?`<span class="vessel-badge">💰 ${fm(tot)} RM</span>`:''}<span onclick="window.open('${_gurl}','_blank','noopener,noreferrer')" style="cursor:pointer;font-size:11px;padding:2px 8px;border-radius:6px;background:#dbeafe;color:#1d4ed8;font-weight:700;user-select:none;" title="ดูตำแหน่งเรือบน VesselFinder">🛰️ ติดตามเรือ</span></div></div>`;
