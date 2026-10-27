@@ -39,12 +39,15 @@ thead th{font-size:14px;font-weight:700;line-height:1.2;padding:5px 4px;height:a
 .c-fac  {width:19%;font-weight:500}
 /* สงขลา 8 คอลัมน์ (SEAL + โรงงาน + TARE + VGM) — ความกว้างรวม 100% กันเบียด (c-wt มี 2 ช่อง) */
 .skh-rpt .c-no   {width:5%}
-.skh-rpt .c-truck{width:12%}
-.skh-rpt .c-ctr  {width:18%;font-size:14px;letter-spacing:.2px}
-.skh-rpt .c-seal {width:15%}
-.skh-rpt .c-date {width:14%}
-.skh-rpt .c-fac  {width:12%}
-.skh-rpt .c-wt   {width:12%}
+.skh-rpt .c-truck{width:10%;font-size:12.5px}
+.skh-rpt .c-ctr  {width:16%;font-size:13.5px;font-weight:800;letter-spacing:0}
+.skh-rpt .c-seal {width:15%;font-size:12.5px}
+.skh-rpt .c-date {width:15%;font-size:12.5px}
+.skh-rpt .c-fac  {width:13%;font-size:12.5px}
+.skh-rpt .c-wt   {width:13%;font-size:13px}
+/* กันตัวอักษรล้นช่อง: ยาวเกินให้ตัดบรรทัดในช่อง ไม่ทะลุเส้น (ไม่ใช้ overflow:hidden จะได้ไม่ตัดข้อความหาย) */
+.skh-rpt th,.skh-rpt td{overflow-wrap:break-word;word-break:break-word}
+.skh-rpt thead th{font-size:12.5px;white-space:normal}
 tbody tr:nth-child(even){background:#fafbfc}
 td.seq{font-weight:600;color:#000}          /* ← ลำดับต้องเห็นทุกแถว รวมแถวว่าง */
 
@@ -116,6 +119,7 @@ const API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-lcb';
 const DOW = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
 const MON = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 let CUR = null, ROWS = [], KIND = 'LCB', EXPORT = null, IS_RAIL = false, IS_SKH = false;
+const VGM_NET_SKH = 28500;   /* VGM สงขลา = TARE + 28,500 (net คงที่ตาม SI) */
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -161,7 +165,7 @@ function render(inv, list, kind, locked){
     ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
        esc(thaiDate(c.factory_date)), esc(c.factory ?? ''),
        (c.tare_kg!=null&&c.tare_kg!=='') ? Number(c.tare_kg).toLocaleString() : '',
-       (c.max_gross_kg!=null&&c.max_gross_kg!=='') ? Number(c.max_gross_kg).toLocaleString() : '']
+       (c.tare_kg!=null&&c.tare_kg!=='') ? (Number(c.tare_kg)+VGM_NET_SKH).toLocaleString() : '']
     : (KIND === 'LCB')
     ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
        esc(thaiDate(c.factory_date)), c.weight ? Number(c.weight).toLocaleString() : '']
@@ -456,7 +460,7 @@ async function saveXlsx(){
         ? [i+1, c.truck_plate ?? '', c.container_no ?? '', c.seal_no ?? '',
            thaiDate(c.factory_date), c.factory ?? '',
            (c.tare_kg!=null&&c.tare_kg!=='')?Number(c.tare_kg):'',
-           (c.max_gross_kg!=null&&c.max_gross_kg!=='')?Number(c.max_gross_kg):'']
+           (c.tare_kg!=null&&c.tare_kg!=='')?(Number(c.tare_kg)+VGM_NET_SKH):'']
         : (KIND === 'LCB')
         ? [i+1, c.truck_plate ?? '', c.container_no ?? '', c.seal_no ?? '',
            thaiDate(c.factory_date), c.weight ? Number(c.weight) : '']
