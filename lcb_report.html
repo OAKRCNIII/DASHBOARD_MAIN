@@ -37,14 +37,14 @@ thead th{font-size:14px;font-weight:700;line-height:1.2;padding:5px 4px;height:a
 .c-date {width:19%;font-weight:500}
 .c-wt   {width:15%;font-weight:600}
 .c-fac  {width:19%;font-weight:500}
-/* สงขลา 7 คอลัมน์ (มีทั้ง SEAL + โรงงาน) — ความกว้างรวม 100% กันเบียด */
-.skh-rpt .c-no   {width:6%}
-.skh-rpt .c-truck{width:13%}
-.skh-rpt .c-ctr  {width:19%;font-size:15px;letter-spacing:.2px}
-.skh-rpt .c-seal {width:17%}
-.skh-rpt .c-date {width:16%}
-.skh-rpt .c-fac  {width:15%}
-.skh-rpt .c-wt   {width:14%}
+/* สงขลา 8 คอลัมน์ (SEAL + โรงงาน + TARE + VGM) — ความกว้างรวม 100% กันเบียด (c-wt มี 2 ช่อง) */
+.skh-rpt .c-no   {width:5%}
+.skh-rpt .c-truck{width:12%}
+.skh-rpt .c-ctr  {width:18%;font-size:14px;letter-spacing:.2px}
+.skh-rpt .c-seal {width:15%}
+.skh-rpt .c-date {width:14%}
+.skh-rpt .c-fac  {width:12%}
+.skh-rpt .c-wt   {width:12%}
 tbody tr:nth-child(even){background:#fafbfc}
 td.seq{font-weight:600;color:#000}          /* ← ลำดับต้องเห็นทุกแถว รวมแถวว่าง */
 
@@ -136,7 +136,7 @@ function render(inv, list, kind, locked){
   IS_RAIL = (kind === 'RAIL') || (new URLSearchParams(location.search).get('mode') === 'rail');   /* รถไฟ-แหลมฉบัง = เหมือนใบเรือทุกอย่าง ต่างแค่หัว 'รถไฟ - แหลมฉบัง' + ตัดคอลัมน์น้ำหนัก */
   KIND = IS_RAIL ? 'LCB' : (kind || 'LCB');
   IS_SKH = !IS_RAIL && (list || []).some(c => String(c.source || '').toUpperCase() === 'SONGKHLA');   /* สงขลา: kind คืนมาเป็น PADANG ดูจาก source ของตู้ */
-  document.body.classList.toggle('skh-rpt', IS_SKH);   /* สงขลา 7 คอลัมน์ → ใช้ความกว้างเฉพาะ (กัน SEAL/วันที่เบียดกัน) */
+  document.body.classList.toggle('skh-rpt', IS_SKH);   /* สงขลา 8 คอลัมน์ (SEAL+โรงงาน+TARE+VGM) → ใช้ความกว้างเฉพาะ */
   { const vb = document.getElementById('vgm'); if(vb) vb.style.display = (KIND === 'PADANG') ? '' : 'none'; }   /* VGM OOCL = เฉพาะปาดัง */
   const isLocked = !!(locked && locked.containers && locked.containers.length);
   const rows = [];
@@ -147,7 +147,7 @@ function render(inv, list, kind, locked){
        ['SEAL NO.','c-seal'],['วันที่เข้าโรงงาน','c-date']]   /* = ใบเรือ ตัดน้ำหนักออก */
     : IS_SKH   /* สงขลา = มีทั้งซีล และโรงงาน (OGM 3 โรงงานย่อย กนกทอง/นาเมืองเพชร/นาวาพารา ต้องเห็นชื่อ) */
     ? [['ลำดับ','c-no'],['ทะเบียนรถ','c-truck'],['เบอร์ตู้','c-ctr'],
-       ['SEAL NO.','c-seal'],['วันที่เข้าโรงงาน','c-date'],['โรงงาน','c-fac'],['น้ำหนัก (กก.)','c-wt']]
+       ['SEAL NO.','c-seal'],['วันที่เข้าโรงงาน','c-date'],['โรงงาน','c-fac'],['TARE WEIGHT','c-wt'],['VGM WEIGHT','c-wt']]
     : (KIND === 'LCB')   /* แหลมฉบัง = มีซีล ไม่มีโรงงาน */
     ? [['ลำดับ','c-no'],['ทะเบียนรถ','c-truck'],['เบอร์ตู้','c-ctr'],
        ['SEAL NO.','c-seal'],['วันที่เข้าโรงงาน','c-date'],['น้ำหนัก (กก.)','c-wt']]
@@ -159,7 +159,9 @@ function render(inv, list, kind, locked){
        esc(thaiDate(c.factory_date))]   /* รถไฟ: วันที่เข้าโหลด = factory_date (ต่อแถวจากตาราง) */
     : IS_SKH   /* สงขลา: ซีล + วันที่ + โรงงาน + น้ำหนัก */
     ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
-       esc(thaiDate(c.factory_date)), esc(c.factory ?? ''), c.weight ? Number(c.weight).toLocaleString() : '']
+       esc(thaiDate(c.factory_date)), esc(c.factory ?? ''),
+       (c.tare_kg!=null&&c.tare_kg!=='') ? Number(c.tare_kg).toLocaleString() : '',
+       (c.max_gross_kg!=null&&c.max_gross_kg!=='') ? Number(c.max_gross_kg).toLocaleString() : '']
     : (KIND === 'LCB')
     ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
        esc(thaiDate(c.factory_date)), c.weight ? Number(c.weight).toLocaleString() : '']
@@ -435,7 +437,7 @@ async function saveXlsx(){
     ].filter(Boolean).join(' ');
 
     const HEAD = IS_SKH
-      ? ['ลำดับ','ทะเบียนรถ','เบอร์ตู้','SEAL NO.','วันที่เข้าโรงงาน','โรงงาน','น้ำหนัก (กก.)']
+      ? ['ลำดับ','ทะเบียนรถ','เบอร์ตู้','SEAL NO.','วันที่เข้าโรงงาน','โรงงาน','TARE WEIGHT','VGM WEIGHT']
       : (KIND === 'LCB')
       ? ['ลำดับ','ทะเบียนรถ','เบอร์ตู้','SEAL NO.','วันที่เข้าโรงงาน','น้ำหนัก (กก.)']
       : ['ลำดับ','ทะเบียนรถ','เบอร์ตู้','วันที่เข้าโรงงาน','โรงงาน','น้ำหนัก (กก.)'];
@@ -452,7 +454,9 @@ async function saveXlsx(){
       if(!c){ aoa.push(_blank(i)); return; }   // ช่องว่าง (ฟันหลอ/รอตู้)
       aoa.push(IS_SKH
         ? [i+1, c.truck_plate ?? '', c.container_no ?? '', c.seal_no ?? '',
-           thaiDate(c.factory_date), c.factory ?? '', c.weight ? Number(c.weight) : '']
+           thaiDate(c.factory_date), c.factory ?? '',
+           (c.tare_kg!=null&&c.tare_kg!=='')?Number(c.tare_kg):'',
+           (c.max_gross_kg!=null&&c.max_gross_kg!=='')?Number(c.max_gross_kg):'']
         : (KIND === 'LCB')
         ? [i+1, c.truck_plate ?? '', c.container_no ?? '', c.seal_no ?? '',
            thaiDate(c.factory_date), c.weight ? Number(c.weight) : '']
