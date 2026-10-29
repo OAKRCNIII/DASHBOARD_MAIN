@@ -1498,7 +1498,7 @@ const PORTS = {
 let LCB_INV  = new Set();         /* invoice_no ที่เป็นแหลมฉบัง */
 let PORT_OF  = new Map();         /* invoice_no → port เก็บเฉพาะที่ไม่ใช่ PADANG */
 let _PORT_COL = true;             /* false = ยังไม่รัน migrate_18 → ถอยไปใช้ lcb_invoices แบบเดิม */
-const portOf = inv => PORT_OF.get(String(inv).trim()) || 'PADANG';
+const portOf = inv => PORT_OF.get(normInv(inv)) || 'PADANG';   /* normInv กัน case/ช่องว่างไม่ตรงระหว่าง vessels(ตัวใหญ่) กับ invoices */
 /* ค่ารถไฟ (บาท) ต่ออินวอยซ์ — กรอกมือ เก็บในตาราง invoice_train (admin เท่านั้น — กันเงินที่ต้นทาง; มักเป็นตู้แหลมฉบัง) */
 let TRAIN_THB = new Map(); let TRAIN_DATE = new Map(); let _TRAIN_COL = true;
 async function loadTrainThb(){
@@ -1662,7 +1662,7 @@ const _syncLcbSet = () => {
 async function loadLcbInv(){
   try{
     const rows = await sbFetch('invoices','select=invoice_no,port&port=neq.PADANG');
-    PORT_OF = new Map(rows.map(r => [String(r.invoice_no).trim(), r.port]));
+    PORT_OF = new Map(rows.map(r => [normInv(r.invoice_no), r.port]));
     _PORT_COL = true;
   }catch(e){
     /* คอลัมน์ port ยังไม่มี (ยังไม่รัน migrate_18) — ใช้ lcb_invoices แบบเดิมไปก่อน
@@ -1670,7 +1670,7 @@ async function loadLcbInv(){
     _PORT_COL = false;
     try{
       const rows = await sbFetch('lcb_invoices','select=invoice_no');
-      PORT_OF = new Map(rows.map(r => [String(r.invoice_no).trim(), 'LCB']));
+      PORT_OF = new Map(rows.map(r => [normInv(r.invoice_no), 'LCB']));
     }catch(e2){ console.warn('โหลดท่าเรือไม่ได้:', e2.message); }
   }
   _syncLcbSet();
@@ -1715,7 +1715,7 @@ async function _doSetPort(inv, port, btn){
                             {method:'DELETE', headers:hdr});
       if (!r.ok) throw new Error(await r.text());
     }
-    if (port === 'PADANG') PORT_OF.delete(inv); else PORT_OF.set(inv, port);
+    if (port === 'PADANG') PORT_OF.delete(normInv(inv)); else PORT_OF.set(normInv(inv), port);
     _syncLcbSet();
   }catch(e){
     alert('เปลี่ยนท่าเรือไม่สำเร็จ: ' + e.message);
@@ -5826,13 +5826,13 @@ function showInvDetail(id,panelId){
   if(!_mgrView)
     out+=`<button onclick="openDocsModal('${_invEsc}')" style="padding:6px 14px;background:#0e7490;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📎 เอกสาร</button>`;
   /* รูปตู้ — เฉพาะแหลมฉบัง (ปาดังไม่มีรูปในระบบ) */
-  if(LCB_INV.has(String(d.inv).trim()))
+  if(LCB_INV.has(normInv(d.inv)))
     out+=` <button onclick="openLcbPhotos('${_invEsc}')" style="padding:6px 14px;background:#9d174d;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📷 รูปตู้</button>`;
   /* ใบ SI — ต้องรับใบโรงงานเข้ามาก่อนถึงจะออกได้ */
-  if(LCB_INV.has(String(d.inv).trim()) && !_mgrView)
+  if(LCB_INV.has(normInv(d.inv)) && !_mgrView)
     out+=` <button onclick="openSiModal('${_invEsc}')" style="padding:6px 14px;background:#1e3a5f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📋 ใบ SI</button>`;
   /* ไฟล์ VGM — เฉพาะแหลมฉบัง เพราะต้องใช้ TARE ที่บอทอ่านจากรูปตู้ */
-  if(LCB_INV.has(String(d.inv).trim()))
+  if(LCB_INV.has(normInv(d.inv)))
     out+=` <button onclick="openVgmModal('${_invEsc}')" style="padding:6px 14px;background:#4d7c0f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">⚖️ ไฟล์ VGM</button>`;
   /* รูปตู้ — ท่าสงขลา (รูปส่งผ่าน LINE OA สงขลา → line-skh) ใช้ gallery เดียวกับแหลมฉบัง */
   if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA')
@@ -5857,7 +5857,7 @@ function showInvDetail(id,panelId){
   /* ── ฝั่งรับข้อมูลเข้า วางไว้ขวาสุดแยกจากปุ่มออกเอกสาร ──
      ปุ่มอื่นคือ "ออก" เอกสาร ปุ่มนี้คือ "รับ" เข้า คนละทิศทางกัน
      ต้องกดปุ่มนี้ก่อน ปุ่มใบ SI ถึงจะใช้ได้ */
-  if(LCB_INV.has(String(d.inv).trim()) && !_mgrView)
+  if(LCB_INV.has(normInv(d.inv)) && !_mgrView)
     out+=` <span style="display:inline-block;width:1px;height:22px;background:#e2e8f0;margin:0 6px;vertical-align:middle;"></span>`
       + ` <button onclick="openFactoryModal('${_invEsc}')" title="อัปโหลดใบ PROFORMA ของโรงงาน — ต้องทำก่อนออกใบ SI" style="padding:6px 14px;background:#fff;border:1.5px solid #7c2d12;border-radius:7px;color:#7c2d12;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">⬇️ รับใบโรงงาน</button>`;
   if(_canSeeFees()&&(d.prefix==='INV'||d.prefix==='SHL'))out+=`<button onclick="openQuotationModal('${_invEsc}')" style="padding:6px 14px;background:#1e3a5f;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🖨️ ใบเสนอราคา</button>`;
