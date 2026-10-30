@@ -3446,7 +3446,7 @@ async function skhLiftZip(){
 
 /* ══ แก้ตู้ย้อนหลัง — เฉพาะ OAK_THIRA + PIN · แก้ได้ 4 ช่อง ══ */
 function editLcbCtr(uid){
-  if(LOGGED_USER!=='OAK_THIRA'&&LOGGED_USER!=='PLA'){ alert('เฉพาะ OAK_THIRA / PLA เท่านั้นที่แก้ได้'); return; }
+  if(LOGGED_USER!=='OAK_THIRA'&&LOGGED_USER!=='PLA_ANTS'){ alert('เฉพาะ OAK_THIRA / PLA เท่านั้นที่แก้ได้'); return; }
   /* หาแถวจาก FLAT ที่โหลดไว้แล้ว ไม่ต้องยิงเซิร์ฟเวอร์ */
   let row=null, _parentPfx='';
   for(const d of FLAT){ const f=(d.details||[]).find(x=>x._uid===uid); if(f){row=f;_parentPfx=d.prefix||'';break;} }
@@ -3545,7 +3545,7 @@ async function _doEditLcbCtr(uid){
 /* ลบตู้ที่บอท LINE บันทึกไว้ทีละใบ — เฉพาะ OAK_THIRA + ต้องใส่ PIN
    เซิร์ฟเวอร์เช็คสิทธิ์ซ้ำอีกชั้น ซ่อนปุ่มอย่างเดียวไม่พอ */
 function delLcbCtr(uid, ctrNo){
-  if(LOGGED_USER!=='OAK_THIRA'&&LOGGED_USER!=='PLA'){ alert('เฉพาะ OAK_THIRA / PLA เท่านั้นที่ลบได้'); return; }
+  if(LOGGED_USER!=='OAK_THIRA'&&LOGGED_USER!=='PLA_ANTS'){ alert('เฉพาะ OAK_THIRA / PLA เท่านั้นที่ลบได้'); return; }
   requirePin(()=>_doDelLcbCtr(uid, ctrNo), `ยืนยันลบตู้ ${ctrNo} ออกจากระบบ`, PLA_PIN);
 }
 
@@ -5966,7 +5966,7 @@ function showInvDetail(id,panelId){
         ? `<span title="บันทึกจากบอท LINE สงขลา${r._seal?' · ซีล '+h(r._seal):''}" style="margin-left:5px;font-size:8.5px;padding:1px 5px;border-radius:8px;background:#fffbeb;color:#b45309;border:1px solid #fcd34d;font-weight:700;font-family:inherit;">🏖️ สงขลา</span>`
         : '';
       /* ปุ่มแก้/ลบ — เฉพาะตู้ที่บอท LINE บันทึก (LCB+สงขลา) และเฉพาะ OAK_THIRA */
-      const _lcbCan=((r._src==='LCB'||r._src==='SONGKHLA')&&r._uid&&(LOGGED_USER==='OAK_THIRA'||LOGGED_USER==='PLA'));
+      const _lcbCan=((r._src==='LCB'||r._src==='SONGKHLA')&&r._uid&&(LOGGED_USER==='OAK_THIRA'||LOGGED_USER==='PLA_ANTS'));
       const _lcbEdit=_lcbCan
         ? `<button onclick="editLcbCtr('${r._uid}')" title="แก้ข้อมูลตู้ใบนี้" style="margin-left:5px;border:none;background:none;color:#0e7490;font-size:12px;cursor:pointer;padding:0 2px;font-family:inherit;">✏️</button>`
         : '';
