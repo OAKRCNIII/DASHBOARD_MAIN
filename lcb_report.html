@@ -236,6 +236,7 @@ function render(inv, list, kind, locked){
     <div class="tbox"><h1>${IS_RAIL ? 'รถไฟ - แหลมฉบัง' : (KIND === 'LCB' ? 'ท่าเรือสุราษฎร์ธานี - แหลมฉบัง' : (IS_SKH ? 'ใบแจ้งเบอร์ตู้ (ท่าเรือสงขลา)' : 'ใบแจ้งเบอร์ตู้'))}</h1></div>
     <p class="l1">ขอแจ้งเบอร์ตู้ ของ <b>${esc(inv.invoice_no)}</b></p>
     <p class="l2">${esc(line2)}</p>
+    ${(inv.vessel||inv.booking)?`<p class="l2 vb">${[inv.vessel?`เรือ <b>${esc(inv.vessel)}</b>`:'',inv.booking?`Booking <b>${esc(inv.booking)}</b>`:''].filter(Boolean).join('&nbsp;&nbsp;·&nbsp;&nbsp;')}</p>`:''}
     <table>
       <thead><tr>${COLS.map(([t,cl])=>`<th class="${cl}">${t}</th>`).join('')}</tr></thead>
       <tbody>${rows.join('')}</tbody>
@@ -438,6 +439,8 @@ async function saveXlsx(){
       total ? `${total} ตู้` : '',
       CUR.destination ? `ไป ${CUR.destination}` : '',
       CUR.customer ? `ของ ${CUR.customer}` : '',
+      CUR.vessel ? `· เรือ ${CUR.vessel}` : '',
+      CUR.booking ? `· Booking ${CUR.booking}` : '',
     ].filter(Boolean).join(' ');
 
     const HEAD = IS_SKH
