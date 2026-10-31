@@ -991,6 +991,9 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
       <div id="priceWrap" style="max-width:900px;margin:0 auto;padding:16px;width:100%;box-sizing:border-box;"></div>
     </div>
     <div class="view" id="reportView" style="flex-direction:column;overflow-y:auto;background:#f0f4ff;min-width:0;">
+      <div id="icdRptBar" style="max-width:1800px;margin:14px auto 0;padding:0 20px;width:100%;box-sizing:border-box;display:none;">
+        <button onclick="openIcdMonthReport()" style="font-size:12px;padding:8px 16px;background:#b45309;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;">🧾 ค่ายกตู้ ICD รายเดือน (สงขลา)</button>
+      </div>
       <div id="reportWrap" style="max-width:1800px;margin:0 auto;padding:20px;width:100%;box-sizing:border-box;"></div>
     </div>
     <!-- กำไรต่อใบ (OAK_THIRA เท่านั้น) -->
@@ -3343,6 +3346,68 @@ function lcbViewClose(){
   if(bg) bg.style.display='none';
 }
 
+/* ══ รายงานค่ายกตู้ ICD รายเดือน (ท่าสงขลา) — อ้างวันที่จากใบยกตู้ (receipt_date) ══ */
+let _icdRptRows=null, _icdRptMonth='';
+const _ICD_MON=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function _icdYm(d){ const m=String(d||'').match(/^(\d{4})-(\d{2})/); if(m)return m[1]+'-'+m[2]; const m2=String(d||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if(m2){let y=+m2[3]; if(y>2400)y-=543; if(y<100)y+=2000; return y+'-'+String(+m2[2]).padStart(2,'0');} return ''; }
+function _icdMoName(ym){ if(!ym)return'—'; const p=ym.split('-'); return _ICD_MON[(+p[1])-1]+' '+(+p[0]+543); }
+function _icdDayKey(d){ const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/); if(m)return m[1]+'-'+m[2]+'-'+m[3]; const m2=String(d||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if(m2){let y=+m2[3]; if(y>2400)y-=543; if(y<100)y+=2000; return y+'-'+String(+m2[2]).padStart(2,'0')+'-'+String(+m2[1]).padStart(2,'0');} return String(d||''); }
+function _icdDayText(key){ const p=String(key).split('-'); if(p.length<3)return key; return (+p[2])+' '+_ICD_MON[(+p[1])-1]+' '+(+p[0]+543); }
+async function openIcdMonthReport(){
+  let bg=document.getElementById('icdRptBg');
+  if(!bg){ bg=document.createElement('div'); bg.id='icdRptBg';
+    bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9300;align-items:center;justify-content:center;padding:14px;';
+    bg.innerHTML=`<div style="background:#fff;border-radius:16px;max-width:780px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+      <div style="padding:14px 18px;border-bottom:1px solid #e8edf5;display:flex;align-items:center;justify-content:space-between;background:#fffbeb;border-radius:16px 16px 0 0;">
+        <span style="font-size:14px;font-weight:800;color:#b45309;">🧾 รายงานค่ายกตู้ ICD รายเดือน — ท่าเรือสงขลา</span>
+        <button onclick="document.getElementById('icdRptBg').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:#94a3b8;">✕</button></div>
+      <div style="padding:12px 18px;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <label style="font-size:12px;font-weight:700;color:#475569;">เลือกเดือน</label>
+        <select id="icdRptMoSel" onchange="_renderIcdRpt()" style="font-size:13px;padding:6px 10px;border:1.5px solid #cbd5e1;border-radius:8px;font-family:inherit;"></select>
+        <button onclick="_printIcdRpt()" style="margin-left:auto;font-size:12px;padding:6px 14px;background:#0f2a52;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;">🖨️ พิมพ์</button>
+      </div>
+      <div style="overflow-y:auto;padding:14px 18px;" id="icdRptBody"><div style="padding:26px;text-align:center;color:#64748b;">กำลังโหลด…</div></div></div>`;
+    document.body.appendChild(bg);
+  }
+  bg.style.display='flex';
+  document.getElementById('icdRptBody').innerHTML='<div style="padding:26px;text-align:center;color:#64748b;">กำลังโหลด…</div>';
+  try{
+    const rows=await sbFetch('skh_lift_fees','select=receipt_no,receipt_date,container_no,invoice_no,truck_plate,amount_total&order=receipt_date.asc');
+    _icdRptRows=(rows||[]).filter(r=>r.receipt_date);
+    const months=[...new Set(_icdRptRows.map(r=>_icdYm(r.receipt_date)).filter(Boolean))].sort().reverse();
+    const sel=document.getElementById('icdRptMoSel');
+    sel.innerHTML=months.length?months.map(m=>`<option value="${m}">${_icdMoName(m)}</option>`).join(''):'<option value="">— ไม่มีข้อมูล —</option>';
+    _icdRptMonth=months[0]||''; sel.value=_icdRptMonth;
+    _renderIcdRpt();
+  }catch(e){ document.getElementById('icdRptBody').innerHTML=`<div style="padding:26px;text-align:center;color:#b91c1c;font-weight:700;">โหลดข้อมูลไม่ได้: ${h(e.message)}</div>`; }
+}
+function _renderIcdRpt(){
+  const sel=document.getElementById('icdRptMoSel'); _icdRptMonth=sel.value;
+  const body=document.getElementById('icdRptBody');
+  const rows=(_icdRptRows||[]).filter(r=>_icdYm(r.receipt_date)===_icdRptMonth);
+  if(!rows.length){ body.innerHTML='<div style="padding:26px;text-align:center;color:#64748b;">ไม่มีใบยกตู้ในเดือนนี้</div>'; return; }
+  const byDay=new Map();
+  rows.forEach(r=>{ const k=_icdDayKey(r.receipt_date); if(!byDay.has(k))byDay.set(k,[]); byDay.get(k).push(r); });
+  const days=[...byDay.keys()].sort();
+  const fmt=n=>Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  let grand=0, grandN=0;
+  let sum='<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;"><thead><tr style="background:#0f2a52;color:#fff;"><th style="padding:8px;text-align:left;">วันที่ (ใบยกตู้)</th><th style="padding:8px;text-align:right;">จำนวนใบ</th><th style="padding:8px;text-align:right;">ยอดรวม (฿)</th></tr></thead><tbody>';
+  days.forEach((k,i)=>{ const ds=byDay.get(k); const t=ds.reduce((s,r)=>s+(Number(r.amount_total)||0),0); grand+=t; grandN+=ds.length;
+    sum+=`<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #eef2f7;"><td style="padding:7px 8px;">${h(_icdDayText(k))}</td><td style="padding:7px 8px;text-align:right;">${ds.length}</td><td style="padding:7px 8px;text-align:right;font-weight:700;">${fmt(t)}</td></tr>`; });
+  sum+=`<tr style="background:#fffbeb;border-top:2px solid #b45309;"><td style="padding:9px 8px;font-weight:800;color:#b45309;">รวมทั้งเดือน</td><td style="padding:9px 8px;text-align:right;font-weight:800;">${grandN} ใบ</td><td style="padding:9px 8px;text-align:right;font-weight:900;color:#b45309;font-size:15px;">${fmt(grand)}</td></tr></tbody></table>`;
+  let det='<div style="font-size:12px;font-weight:800;color:#475569;margin:6px 0;">รายละเอียดใบเสร็จ</div><table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr style="background:#e8edf5;"><th style="padding:6px;text-align:left;">วันที่</th><th style="padding:6px;text-align:left;">เลขใบ ICD</th><th style="padding:6px;text-align:left;">เบอร์ตู้</th><th style="padding:6px;text-align:left;">อินวอยซ์</th><th style="padding:6px;text-align:right;">ยอด (฿)</th></tr></thead><tbody>';
+  rows.slice().sort((a,b)=>_icdDayKey(a.receipt_date).localeCompare(_icdDayKey(b.receipt_date))||String(a.receipt_no).localeCompare(String(b.receipt_no))).forEach((r,i)=>{
+    det+=`<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #f1f5f9;"><td style="padding:5px 6px;">${h(_icdDayText(_icdDayKey(r.receipt_date)))}</td><td style="padding:5px 6px;font-family:monospace;">${h(r.receipt_no||'')}</td><td style="padding:5px 6px;font-family:monospace;">${h(r.container_no||'')}</td><td style="padding:5px 6px;">${h(r.invoice_no||'—')}</td><td style="padding:5px 6px;text-align:right;">${fmt(r.amount_total)}</td></tr>`; });
+  det+='</tbody></table>';
+  body.innerHTML=sum+det;
+}
+function _printIcdRpt(){
+  const body=document.getElementById('icdRptBody'); if(!body||!_icdRptMonth)return;
+  const w=window.open('','_blank'); if(!w)return;
+  w.document.write(`<!DOCTYPE html><meta charset="utf-8"><title>ค่ายกตู้ ICD ${_icdMoName(_icdRptMonth)}</title><body style="font-family:Tahoma,sans-serif;padding:24px;color:#0f172a;"><h2 style="text-align:center;margin:0 0 4px;">รายงานค่ายกตู้ ICD — ท่าเรือสงขลา</h2><div style="text-align:center;color:#64748b;margin-bottom:16px;">${_icdMoName(_icdRptMonth)}</div>${body.innerHTML}</body>`);
+  w.document.close(); w.focus(); setTimeout(()=>{w.print();},300);
+}
+
 /* ══ ค่ายกตู้ ICD (ท่าสงขลา) — ใบเสร็จ LIFT ON/OFF จากบอท LINE ══ */
 let _skhLiftInv='', _skhLiftFees=[];
 /* มาร์ค 🧾 ICD ในแถวตู้ที่มีใบเสร็จค่ายกตู้แล้ว (เรียกหลัง render แผงรายละเอียดใบสงขลา) */
@@ -4905,6 +4970,7 @@ function _canSeeBilledPaid(){return USER_ROLE==='admin';}
 function _canLockUpload(){return _canSeeFees()||LOGGED_USER==='PLA_ANTS';}
 function applyRoleRestrictions(){
   { const vp=document.getElementById('htab-profit'); if(vp) vp.style.display=(LOGGED_USER==='OAK_THIRA')?'':'none'; }   /* แท็บกำไร เฉพาะ OAK_THIRA */
+  { const ib=document.getElementById('icdRptBar'); if(ib) ib.style.display=_canSeeFees()?'':'none'; }   /* ปุ่มรายงานค่ายกตู้ ICD รายเดือน — เฉพาะ admin (เป็นยอดจ่ายจริง) */
   const dashBtn=document.getElementById('dashToggleBtn');
   const debtBtn=document.getElementById('debtDashBtn');
   const setBtn=document.getElementById('settingsBtn');
