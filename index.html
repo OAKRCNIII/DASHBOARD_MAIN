@@ -3395,16 +3395,16 @@ function _renderIcdRpt(){
   days.forEach((k,i)=>{ const ds=byDay.get(k); const t=ds.reduce((s,r)=>s+(Number(r.amount_total)||0),0); grand+=t; grandN+=ds.length;
     sum+=`<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #eef2f7;"><td style="padding:7px 8px;">${h(_icdDayText(k))}</td><td style="padding:7px 8px;text-align:right;">${ds.length}</td><td style="padding:7px 8px;text-align:right;font-weight:700;">${fmt(t)}</td></tr>`; });
   sum+=`<tr style="background:#fffbeb;border-top:2px solid #b45309;"><td style="padding:9px 8px;font-weight:800;color:#b45309;">รวมทั้งเดือน</td><td style="padding:9px 8px;text-align:right;font-weight:800;">${grandN} ใบ</td><td style="padding:9px 8px;text-align:right;font-weight:900;color:#b45309;font-size:15px;">${fmt(grand)}</td></tr></tbody></table>`;
-  let det='<div style="font-size:12px;font-weight:800;color:#475569;margin:6px 0;">รายละเอียดใบเสร็จ</div><table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr style="background:#e8edf5;"><th style="padding:6px;text-align:left;">วันที่</th><th style="padding:6px;text-align:left;">เลขใบ ICD</th><th style="padding:6px;text-align:left;">เบอร์ตู้</th><th style="padding:6px;text-align:left;">อินวอยซ์</th><th style="padding:6px;text-align:right;">ยอด (฿)</th></tr></thead><tbody>';
+  let det='<div class="icd-det"><div style="font-size:12px;font-weight:800;color:#475569;margin:6px 0;">รายละเอียดใบเสร็จ</div><table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr style="background:#e8edf5;"><th style="padding:6px;text-align:left;">วันที่</th><th style="padding:6px;text-align:left;">เลขใบ ICD</th><th style="padding:6px;text-align:left;">เบอร์ตู้</th><th style="padding:6px;text-align:left;">อินวอยซ์</th><th style="padding:6px;text-align:right;">ยอด (฿)</th></tr></thead><tbody>';
   rows.slice().sort((a,b)=>_icdDayKey(a.receipt_date).localeCompare(_icdDayKey(b.receipt_date))||String(a.receipt_no).localeCompare(String(b.receipt_no))).forEach((r,i)=>{
     det+=`<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #f1f5f9;"><td style="padding:5px 6px;">${h(_icdDayText(_icdDayKey(r.receipt_date)))}</td><td style="padding:5px 6px;font-family:monospace;">${h(r.receipt_no||'')}</td><td style="padding:5px 6px;font-family:monospace;">${h(r.container_no||'')}</td><td style="padding:5px 6px;">${h(r.invoice_no||'—')}</td><td style="padding:5px 6px;text-align:right;">${fmt(r.amount_total)}</td></tr>`; });
-  det+='</tbody></table>';
+  det+='</tbody></table></div>';
   body.innerHTML=sum+det;
 }
 function _printIcdRpt(){
   const body=document.getElementById('icdRptBody'); if(!body||!_icdRptMonth)return;
   const w=window.open('','_blank'); if(!w)return;
-  w.document.write(`<!DOCTYPE html><meta charset="utf-8"><title>ค่ายกตู้ ICD ${_icdMoName(_icdRptMonth)}</title><body style="font-family:Tahoma,sans-serif;padding:24px;color:#0f172a;"><h2 style="text-align:center;margin:0 0 4px;">รายงานค่ายกตู้ ICD — ท่าเรือสงขลา</h2><div style="text-align:center;color:#64748b;margin-bottom:16px;">${_icdMoName(_icdRptMonth)}</div>${body.innerHTML}</body>`);
+  w.document.write(`<!DOCTYPE html><meta charset="utf-8"><title>ค่ายกตู้ ICD ${_icdMoName(_icdRptMonth)}</title><style>.icd-det{page-break-before:always;}.icd-det::before{content:"รายงานค่ายกตู้ ICD — ท่าเรือสงขลา · ${_icdMoName(_icdRptMonth)}";display:block;text-align:center;font-weight:800;font-size:15px;margin-bottom:12px;}table{width:100%;border-collapse:collapse;}@page{margin:14mm;}</style><body style="font-family:Tahoma,sans-serif;padding:24px;color:#0f172a;"><h2 style="text-align:center;margin:0 0 4px;">รายงานค่ายกตู้ ICD — ท่าเรือสงขลา</h2><div style="text-align:center;color:#64748b;margin-bottom:16px;">${_icdMoName(_icdRptMonth)}</div>${body.innerHTML}</body>`);
   w.document.close(); w.focus(); setTimeout(()=>{w.print();},300);
 }
 
