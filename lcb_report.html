@@ -116,6 +116,7 @@ html.shooting body{width:210mm}
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script>
 const API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-lcb';
+const SKH_API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-skh';   /* ลิสต์อินวอยซ์สงขลา (ดรอปดาวน์) */
 const DOW = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
 const MON = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 let CUR = null, ROWS = [], KIND = 'LCB', EXPORT = null, IS_RAIL = false, IS_SKH = false;
@@ -689,6 +690,12 @@ async function load(inv){
       const kind = await load(cur);          // load() คืนชนิดกลับมา
       if(kind === 'LCB'){
         const list = (await (await fetch(`${API}/report`)).json()).invoices || [];
+        sel.innerHTML = list.map(i =>
+          `<option value="${esc(i.invoice_no)}">${esc(i.invoice_no)}</option>`).join('');
+        sel.value = cur;
+        sel.onchange = () => load(sel.value);
+      }else if(IS_SKH){   /* สงขลา → ดรอปดาวน์ลิสต์อินวอยซ์สงขลา (line-skh); โหลดใบยังใช้ line-lcb */
+        const list = (await (await fetch(`${SKH_API}/report`)).json()).invoices || [];
         sel.innerHTML = list.map(i =>
           `<option value="${esc(i.invoice_no)}">${esc(i.invoice_no)}</option>`).join('');
         sel.value = cur;
