@@ -325,7 +325,7 @@ function readQParam(name){
 }
 
 /* ══ โหมดค่าใช้จ่ายท่าสงขลา (OCF/CTIC/คุณวัส) จากสลิป ══ */
-const EXP_OPTS = [['OCF','OCF (ค่าระวางเรือ)'],['CTIC','CTIC (ท่าเรือ)'],['WATR','คุณวัส (ตรวจปล่อย+ล่วงเวลา)']];
+const EXP_OPTS = [['OCF','OCF (ค่าระวางเรือ)'],['TLX','TLX (ค่าเทเลกซ์)'],['CTIC','CTIC (ท่าเรือ)'],['WATR','คุณวัส (ตรวจปล่อย+ล่วงเวลา)']];
 async function initExpense(){
   try{
     const r = await fetch(`${API}/exp-draft?t=${encodeURIComponent(TOKEN)}`);
