@@ -313,6 +313,67 @@ async function save(){
   }
 }
 
+/* ── อ่านพารามิเตอร์จาก query / liff.state / hash (LIFF ห่อ param ไว้ใน liff.state) ── */
+function readQParam(name){
+  const q = new URLSearchParams(location.search);
+  if(q.get(name)) return q.get(name);
+  const state = q.get('liff.state');
+  if(state){ const qs = state.includes('?') ? state.slice(state.indexOf('?')+1) : state;
+    const v = new URLSearchParams(qs).get(name); if(v) return v; }
+  if(location.hash){ const v = new URLSearchParams(location.hash.replace(/^#\/?/, '')).get(name); if(v) return v; }
+  return null;
+}
+
+/* ══ โหมดค่าใช้จ่ายท่าสงขลา (OCF/CTIC/คุณวัส) จากสลิป ══ */
+const EXP_OPTS = [['OCF','OCF (ค่าระวางเรือ)'],['CTIC','CTIC (ท่าเรือ)'],['WATR','คุณวัส (ตรวจปล่อย+ล่วงเวลา)']];
+async function initExpense(){
+  try{
+    const r = await fetch(`${API}/exp-draft?t=${encodeURIComponent(TOKEN)}`);
+    const j = await r.json();
+    if(!r.ok) return fail(j.error || 'โหลดสลิปไม่ได้');
+    renderExpense(j.draft || {}, j.invoices || []);
+  }catch(e){ fail('โหลดข้อมูลไม่ได้: ' + e.message); }
+}
+function renderExpense(d, invoices){
+  const amt = (d.amount!=null && d.amount!=='') ? d.amount : '';
+  const opts = EXP_OPTS.map(([v,l])=>`<option value="${v}"${v===d.type?' selected':''}>${l}</option>`).join('');
+  const invOpts = '<option value="">— เลือกอินวอยซ์ —</option>' +
+    invoices.map(i=>`<option value="${esc(i.invoice_no)}">${esc(i.invoice_no)}${i.destination?' · '+esc(i.destination):''}</option>`).join('');
+  $('app').innerHTML = `
+    <div class="hd"><div class="n">💸 ค่าใช้จ่ายสงขลา</div><div class="s">บันทึกจากสลิปโอน — เลือกว่าชำระของอินวอยซ์ไหน</div></div>
+    <div class="wrap">
+      ${d.slip_url?`<div class="card"><a href="${esc(d.slip_url)}" target="_blank" rel="noopener"><img src="${esc(d.slip_url)}" style="width:100%;border-radius:10px;display:block"></a></div>`:''}
+      <div class="card"><h3>ข้อมูลจากสลิป</h3>
+        <div class="ro"><span class="k">ผู้รับ</span><span class="v">${esc(val(d.payee))}</span></div>
+        <div class="ro"><span class="k">วันที่โอน</span><span class="v">${esc(val(d.date))}</span></div>
+        <div class="ro"><span class="k">รหัสอ้างอิง</span><span class="v" style="font-family:monospace;font-size:11px">${esc(val(d.ref))}</span></div>
+        <div class="ro"><span class="k">ธนาคาร</span><span class="v">${esc(val(d.bank))}</span></div>
+      </div>
+      <div class="card">
+        <div class="fld"><label>ประเภทค่าใช้จ่าย <span class="req">*</span></label><select id="exp_type">${opts}</select></div>
+        <div class="fld hl"><label>อินวอยซ์ที่ชำระ <span class="req">*</span></label><select id="exp_inv">${invOpts}</select></div>
+        <div class="fld"><label>ยอดเงิน (บาท) <span class="req">*</span></label><input id="exp_amt" type="number" step="0.01" value="${amt}"></div>
+      </div>
+    </div>
+    <div class="bar"><button class="save" id="exp_save" onclick="saveExpense()">บันทึกค่าใช้จ่าย</button></div>`;
+}
+async function saveExpense(){
+  const inv = $('exp_inv').value, type = $('exp_type').value, amt = $('exp_amt').value;
+  if(!inv){ alert('เลือกอินวอยซ์ที่ชำระก่อนครับ'); return; }
+  const btn = $('exp_save'); btn.disabled = true; btn.textContent = 'กำลังบันทึก…';
+  try{
+    const r = await fetch(API + '/exp-save', { method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({ token: TOKEN, invoice_no: inv, expense_type: type, amount: amt }) });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || 'บันทึกไม่สำเร็จ');
+    const label = (EXP_OPTS.find(o=>o[0]===type)||[])[1] || type;
+    $('app').innerHTML = `<div class="mid"><p style="font-size:42px;margin:0">✅</p>
+      <p style="font-weight:800;color:#059669;margin:6px 0">บันทึกแล้ว</p>
+      <p style="font-size:13px">${esc(label)}<br>ของ ${esc(inv)}<br><b>${Number(j.amount||0).toLocaleString()} บาท</b></p></div>`;
+    setTimeout(()=>{ if(liff.isInClient()) liff.closeWindow(); }, 1300);
+  }catch(e){ alert(e.message); btn.disabled=false; btn.textContent='บันทึกค่าใช้จ่าย'; }
+}
+
 function readToken(){
   const q = new URLSearchParams(location.search);
   const direct = q.get('t'); if(direct) return direct;
@@ -336,6 +397,9 @@ function readToken(){
 
   TOKEN = readToken();
   if(!TOKEN) return fail('ลิงก์ไม่ถูกต้อง (ไม่มี token)');
+
+  /* โหมดสลิปค่าใช้จ่าย — ฟอร์มคนละชุดกับบันทึกตู้ */
+  if(readQParam('mode') === 'expense') return initExpense();
 
   try{
     const [dRes, iRes] = await Promise.all([
