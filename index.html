@@ -1844,7 +1844,7 @@ const SKH_API = 'https://ywslgrusflfuxtrtvlfu.supabase.co/functions/v1/line-skh'
 const SKH_FAC_CODE = {BSW:'10262', 'ONE-GOLD':'11581', INV:'13584', PTN:'11713', NMP:'11403', KNT:'12971'};   /* รหัสโรงงาน CTIC ต่อ prefix (ท่าสงขลา) — เพิ่มโรงงานใหม่ที่นี่ · ONE-GOLD=OGM(ไม่ใช่(A)) · INV=THE ONE PARAWOOD · PTN=11713 · NMP=11403 · KNT=12971(นาวา/นาเมือง/กนก default กนกทอง) */
 /* โรงงานย่อยต่อ prefix — ใช้ในดรอปดาวน์แก้ชื่อโรงงาน (sync กับ line-skh SKH_FACTORY_BY_PREFIX) */
 const OGM_SUBFAC=['กนกทอง','นาเมืองเพชร','นาวาพารา'];
-const FAC_OPTS_BY_PFX={OGM:OGM_SUBFAC,'ONE-GOLD':OGM_SUBFAC,NMP:OGM_SUBFAC,KNT:OGM_SUBFAC,BSW:['บ้านส้อง'],INV:['THE ONE']};   /* INV = THE ONE (ชื่อสั้น, เต็ม=THE ONE PARAWOOD) · NMP = นาวา/นาเมือง/กนก (ชุดเดียวกับ OGM) */
+const FAC_OPTS_BY_PFX={OGM:OGM_SUBFAC,'ONE-GOLD':OGM_SUBFAC,NMP:OGM_SUBFAC,KNT:OGM_SUBFAC,BSW:['บ้านส้อง'],INV:['THE ONE'],WKP:['บ้านนาสาร','บ้านนาเดิม']};   /* WKP = วรเกียรติ (บ้านนาสาร=โรงเก่า / บ้านนาเดิม=โรงใหม่) */   /* INV = THE ONE (ชื่อสั้น, เต็ม=THE ONE PARAWOOD) · NMP = นาวา/นาเมือง/กนก (ชุดเดียวกับ OGM) */
 
 /* โหลดไลบรารีตอนกดปุ่มเท่านั้น — ไม่ถ่วงหน้าเว็บตอนเปิดปกติ */
 function _lazyScript(src){
@@ -3520,7 +3520,8 @@ const TRUCK_CARRIER = {
   '71-9538':'ธีรา','72-1620':'ธีรา','72-2237':'ธีรา',
   '72-3997':'คมกฤษ','72-3550':'คมกฤษ','72-4091':'คมกฤษ',
   '72-2331':'เค-ทรานส์','72-1658':'เค-ทรานส์','72-2333':'เค-ทรานส์',
-  '71-8290':'อุ้มทรัพย์',
+  '71-8290':'อุ้มทรัพย์','70-4575':'อุ้มทรัพย์',
+  '72-1176':'บังหมาน',
 };
 function _carrierOf(plate){ const p=String(plate||'').split(/[,\s]+/).filter(Boolean)[0]||''; return TRUCK_CARRIER[p] || (p?('อื่นๆ ('+p+')'):'— ไม่ระบุ'); }
 function _icdStatus(r){
@@ -6124,7 +6125,7 @@ function showInvDetail(id,panelId){
   if(Object.keys(TRANSPORT).length>0){if(tr&&tr.total>0){out+=`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin-bottom:10px;"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;"><span style="font-size:12px;font-weight:700;color:#166534;">🚛 ค่าขนส่ง — จ่ายแล้ว</span><span style="font-size:13px;font-weight:800;color:#16a34a;">${fm(tr.total)} บาท</span></div><div style="font-size:10px;color:#4ade80;margin-top:2px;">${tr.count} ตู้ · ${[...new Set(tr.records.map(r=>r.billNo).filter(Boolean))].join(', ')}</div><details style="margin-top:6px;"><summary style="font-size:10px;color:#16a34a;cursor:pointer;">ดูรายละเอียด (${tr.count})</summary><table class="det-tbl" style="margin-top:4px;"><thead><tr><th>วันที่</th><th>โรงงาน</th><th>เบอร์ตู้</th><th>ราคา</th><th>AL</th></tr></thead><tbody>`;tr.records.forEach(r=>{out+=`<tr><td>${h(r.date)}</td><td>${h(r.factory)}</td><td style="font-family:monospace;font-size:10px;">${h(r.container)}</td><td style="text-align:right;font-weight:600;">${fm(r.price)}</td><td style="color:#94a3b8;font-size:10px;">${h(r.al)}</td></tr>`;});out+='</tbody></table></details></div>';}else{out+='<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;"><span style="font-size:18px;">🚛</span><span style="font-size:12px;font-weight:700;color:#dc2626;">ค่าขนส่ง — ยังไม่มีข้อมูล</span></div>';}}
   /* === วางบิลโรงงาน (OGM(A) / ID / JM — factory type) === */
   const isOgmA=d.prefix==='OGM';
-  const isFactoryPrefix=['ID','JM','KNT','ONE-GOLD','HFI','KTW','BP','SJ','NT','NMP'].includes(d.prefix);
+  const isFactoryPrefix=['ID','JM','KNT','ONE-GOLD','HFI','KTW','BP','SJ','NT','NMP','WKP'].includes(d.prefix);
   if(isOgmA||isFactoryPrefix){try{
     const showPrice=_canSeeFees();
     const pe0=findPriceEntry(d.inv);
@@ -8740,7 +8741,7 @@ const TR_EXCL=['OGM','KNT','PTN','HFI','KTW'];   /* ตัดออกจาก�
 /* ── ข้อยกเว้นรายอินวอยซ์: prefix อยู่แก๊งไม่หัก แต่ใบนี้ต้อง "หัก ณ ที่จ่าย" ──
    เพิ่มเลขอินวอยซ์ในลิสต์นี้ = ใบนั้นย้ายจากแก๊งไม่หัก → กลุ่มหัก + ติดดาว ⭐
    จับคู่แบบไม่สนเว้นวรรค (KNT(JANG2) = KNT (JANG2)) */
-const TR_WHT_INV=['KNT(JANG2)017/2026','KNT(JANG2)019/2026','KNT(JANG2)021/2026'];   /* 016 เอาออก 10 ก.ย.69 = เคสปกติ (KNT ไม่หัก); 021 เพิ่ม 18 ก.ย.69 */
+const TR_WHT_INV=['KNT(JANG2)017/2026','KNT(JANG2)019/2026','KNT(JANG2)021/2026','KNT(JANG2)024/2026','KNT(JANG2)025/2026'];   /* 016 เอาออก 10 ก.ย.69 = เคสปกติ (KNT ไม่หัก); 021 เพิ่ม 18 ก.ย.69; 024/025 เพิ่ม 3 พ.ย.69 */
 const _normWhtInv=s=>String(s||'').toUpperCase().replace(/\s+/g,'');
 const _WHT_SET=new Set(TR_WHT_INV.map(_normWhtInv));
 const isWhtExc=inv=>_WHT_SET.has(_normWhtInv(inv));               /* ใบข้อยกเว้น (ต้องหัก + ⭐) */
