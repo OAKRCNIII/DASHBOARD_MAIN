@@ -143,7 +143,7 @@ function render(inv, list, kind, locked){
   IS_SKH = !IS_RAIL && (list || []).some(c => String(c.source || '').toUpperCase() === 'SONGKHLA');   /* สงขลา: kind คืนมาเป็น PADANG ดูจาก source ของตู้ */
   document.body.classList.toggle('skh-rpt', IS_SKH);   /* สงขลา 8 คอลัมน์ (SEAL+โรงงาน+TARE+VGM) → ใช้ความกว้างเฉพาะ */
   { const vb = document.getElementById('vgm'); if(vb) vb.style.display = (KIND === 'PADANG') ? '' : 'none'; }   /* VGM OOCL = เฉพาะปาดัง */
-  const isLocked = !!(locked && locked.containers && locked.containers.length);
+  const isLocked = !IS_SKH && !!(locked && locked.containers && locked.containers.length);   /* ท่าสงขลา = ไม่ใช้ระบบล็อคตู้ (กันตู้ล็อคใบอื่นโผล่มั่ว) — RCN 3 พ.ย.69 */
   const rows = [];
 
   /* คอลัมน์ต่างกันตามท่าเรือ — ปาดังไม่มีซีล แต่มีโรงงาน */
