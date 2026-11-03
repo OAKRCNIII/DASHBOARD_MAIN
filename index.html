@@ -3552,9 +3552,8 @@ const TRUCK_CARRIER = {
 };
 function _carrierOf(plate){ const p=String(plate||'').split(/[,\s]+/).filter(Boolean)[0]||''; return TRUCK_CARRIER[p] || (p?('อื่นๆ ('+p+')'):'— ไม่ระบุ'); }
 function _icdStatus(r){
-  if(r&&r.reimbursed_date) return {t:'จ่ายคืนแล้ว',c:'#166534',bg:'#dcfce7'};
-  /* ธีรา = วางบิลแล้วอัตโนมัติเสมอ (in-house ไม่ต้องรอใบวางบิล) — RCN 3 พ.ย.69 */
-  if(r&&(r.billed_date||r.settle_bill_no||_carrierOf(r.truck_plate)==='ธีรา')) return {t:'วางบิลแล้ว',c:'#1e40af',bg:'#dbeafe'};
+  /* 2 สถานะ (RCN 3 พ.ย.69): จ่ายคืนแล้ว = มี reimbursed_date หรือ ธีรา (in-house ไม่ต้องคืนตัวเอง) · ที่เหลือ = รอวางบิล */
+  if(r&&(r.reimbursed_date||_carrierOf(r.truck_plate)==='ธีรา')) return {t:'จ่ายคืนแล้ว',c:'#166534',bg:'#dcfce7'};
   return {t:'รอวางบิล',c:'#b45309',bg:'#fef3c7'};
 }
 let _icdCarRows=null, _icdCarMonth='', _icdCarOpen=new Set();   /* กางดีเทลได้หลายเจ้าพร้อมกัน */
@@ -3598,13 +3597,13 @@ function _renderIcdCar(){
   if(!rows.length){ body.innerHTML='<div style="padding:26px;text-align:center;color:#64748b;">ไม่มีใบ ICD ในช่วงนี้</div>'; return; }
   const fmt=n=>Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
   const g=new Map();
-  rows.forEach(r=>{ const c=_carrierOf(r.truck_plate); if(!g.has(c))g.set(c,{rows:[],total:0,wait:0,billed:0,reimb:0}); const o=g.get(c); o.rows.push(r); o.total+=Number(r.amount_total)||0; const s=_icdStatus(r).t; if(s==='จ่ายคืนแล้ว')o.reimb++; else if(s==='วางบิลแล้ว')o.billed++; else o.wait++; });
+  rows.forEach(r=>{ const c=_carrierOf(r.truck_plate); if(!g.has(c))g.set(c,{rows:[],total:0,wait:0,reimb:0}); const o=g.get(c); o.rows.push(r); o.total+=Number(r.amount_total)||0; if(_icdStatus(r).t==='จ่ายคืนแล้ว')o.reimb++; else o.wait++; });
   const carriers=[...g.keys()].sort((a,b)=>g.get(b).total-g.get(a).total);
   let grand=0,gn=0;
-  let sum='<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;"><thead><tr style="background:#0f2a52;color:#fff;"><th style="padding:8px;text-align:left;">ขนส่ง</th><th style="padding:8px;text-align:right;">ใบ</th><th style="padding:8px;text-align:right;">ยอดรวม (฿)</th><th style="padding:8px;text-align:center;">รอวางบิล</th><th style="padding:8px;text-align:center;">วางบิลแล้ว</th><th style="padding:8px;text-align:center;">จ่ายคืนแล้ว</th></tr></thead><tbody>';
+  let sum='<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;"><thead><tr style="background:#0f2a52;color:#fff;"><th style="padding:8px;text-align:left;">ขนส่ง</th><th style="padding:8px;text-align:right;">ใบ</th><th style="padding:8px;text-align:right;">ยอดรวม (฿)</th><th style="padding:8px;text-align:center;">รอวางบิล</th><th style="padding:8px;text-align:center;">จ่ายคืนแล้ว</th></tr></thead><tbody>';
   carriers.forEach((c,i)=>{ const o=g.get(c); grand+=o.total; gn+=o.rows.length; const on=_icdCarOpen.has(c); const cj=c.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    sum+=`<tr onclick="_icdCarToggle('${cj}')" style="cursor:pointer;background:${on?'#e0edff':(i%2?'#f8fafc':'#fff')};border-bottom:1px solid #eef2f7;"><td style="padding:7px 8px;font-weight:700;">${on?'▼ ':'▶ '}${h(c)}</td><td style="padding:7px 8px;text-align:right;">${o.rows.length}</td><td style="padding:7px 8px;text-align:right;font-weight:700;">${fmt(o.total)}</td><td style="padding:7px 8px;text-align:center;color:#b45309;font-weight:700;">${o.wait||'-'}</td><td style="padding:7px 8px;text-align:center;color:#1e40af;">${o.billed||'-'}</td><td style="padding:7px 8px;text-align:center;color:#166534;">${o.reimb||'-'}</td></tr>`; });
-  sum+=`<tr style="background:#eff6ff;border-top:2px solid #1e40af;"><td style="padding:9px 8px;font-weight:800;color:#1e40af;">รวมทุกเจ้า</td><td style="padding:9px 8px;text-align:right;font-weight:800;">${gn}</td><td style="padding:9px 8px;text-align:right;font-weight:900;color:#1e40af;font-size:15px;">${fmt(grand)}</td><td colspan="3"></td></tr></tbody></table>`;
+    sum+=`<tr onclick="_icdCarToggle('${cj}')" style="cursor:pointer;background:${on?'#e0edff':(i%2?'#f8fafc':'#fff')};border-bottom:1px solid #eef2f7;"><td style="padding:7px 8px;font-weight:700;">${on?'▼ ':'▶ '}${h(c)}</td><td style="padding:7px 8px;text-align:right;">${o.rows.length}</td><td style="padding:7px 8px;text-align:right;font-weight:700;">${fmt(o.total)}</td><td style="padding:7px 8px;text-align:center;color:#b45309;font-weight:700;">${o.wait||'-'}</td><td style="padding:7px 8px;text-align:center;color:#166534;">${o.reimb||'-'}</td></tr>`; });
+  sum+=`<tr style="background:#eff6ff;border-top:2px solid #1e40af;"><td style="padding:9px 8px;font-weight:800;color:#1e40af;">รวมทุกเจ้า</td><td style="padding:9px 8px;text-align:right;font-weight:800;">${gn}</td><td style="padding:9px 8px;text-align:right;font-weight:900;color:#1e40af;font-size:15px;">${fmt(grand)}</td><td colspan="2"></td></tr></tbody></table>`;
   let det='';
   const _openList=carriers.filter(c=>_icdCarOpen.has(c));
   if(_openList.length){
