@@ -3586,7 +3586,9 @@ async function openIcdCarrier(){
     const months=[...new Set(_icdCarRows.map(r=>_icdYm(r.receipt_date)).filter(Boolean))].sort().reverse();
     const sel=document.getElementById('icdCarMoSel');
     sel.innerHTML='<option value="">ทั้งหมด (สะสม)</option>'+months.map(m=>`<option value="${m}">${_icdMoName(m)}</option>`).join('');
-    _icdCarMonth=''; _icdCarOpen.clear(); sel.value='';
+    const _nd=new Date(), _nowYm=_nd.getFullYear()+'-'+String(_nd.getMonth()+1).padStart(2,'0');
+    _icdCarMonth=months.includes(_nowYm)?_nowYm:(months[0]||'');   /* default = เดือนปัจจุบัน (ถ้ามีข้อมูล) ไม่งั้นเดือนล่าสุด */
+    _icdCarOpen.clear(); sel.value=_icdCarMonth;
     _renderIcdCar();
   }catch(e){ document.getElementById('icdCarBody').innerHTML=`<div style="padding:26px;text-align:center;color:#b91c1c;font-weight:700;">โหลดไม่ได้: ${h(e.message)}</div>`; }
 }
