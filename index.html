@@ -3671,7 +3671,8 @@ function _renderSkhLift(){
   const nPhoto=_skhLiftFees.filter(f=>f.photo_url).length;
   let html=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
       <span style="font-size:12px;color:#64748b;">${_skhLiftFees.length} ใบ · รวม <b style="color:#b45309;">${fm(tot)}</b> บาท</span>
-      <button onclick="printSkhLiftReport()" style="margin-left:auto;padding:5px 13px;border:1px solid #0f2a52;background:#0f2a52;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🖨️ พิมพ์ใบปะหน้า</button>
+      <button onclick="printSkhLiftReport()" style="margin-left:auto;padding:5px 13px;border:1px solid #0f2a52;background:#0f2a52;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🖨️ ใบปะหน้า</button>
+      ${nPhoto?`<button onclick="printSkhSlips()" style="padding:5px 13px;border:1px solid #1e40af;background:#1e40af;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📄 รูป PDF</button>`:''}
       ${nPhoto?`<button onclick="skhLiftZip()" style="padding:5px 13px;border:1px solid #b45309;background:#b45309;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📥 โหลดรูป${nPhoto>1?' ZIP':''}</button>`:''}
     </div>`;
   _skhLiftFees.forEach((f,ix)=>{
@@ -3700,11 +3701,8 @@ function printSkhLiftReport(){
   let rows='', grand=0;
   _skhLiftFees.forEach((f,i)=>{ const amt=Number(f.amount_total)||0; grand+=amt;
     rows+=`<tr><td class="c">${i+1}</td><td class="c">${h(f.truck_plate||'')}</td><td class="c b">${h(f.container_no||'')}</td><td class="c">ICD-OUT ${h(f.receipt_no||'')}</td><td class="c">${dtxt(f.receipt_date)}</td><td class="r b">${fmt(amt)}</td></tr>`; });
-  let slips='';
-  _skhLiftFees.forEach((f,i)=>{ if(!f.photo_url)return;
-    slips+=`<div class="slip"><div class="scap">${i+1}. ICD-OUT ${h(f.receipt_no||'')} · ตู้ ${h(f.container_no||'')} · ทะเบียน ${h(f.truck_plate||'')} · ${dtxt(f.receipt_date)}</div><img src="${f.photo_url}"></div>`; });
   const w=window.open('','_blank','width=900,height=1100'); if(!w){ alert('⚠️ อนุญาต Pop-up ก่อนครับ'); return; }
-  w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>ค่ายกตู้ ICD ${h(inv)}</title>
+  w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>ใบปะหน้าค่ายกตู้ ICD ${h(inv)}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
     @page{size:A4 portrait;margin:16mm 14mm;}
@@ -3719,9 +3717,6 @@ function printSkhLiftReport(){
     th{font-weight:800;text-align:center;}
     .c{text-align:center;} .r{text-align:right;} .b{font-weight:700;}
     tfoot td{font-weight:800;font-size:15px;}
-    .slip{page-break-before:always;text-align:center;}
-    .scap{font-size:13px;font-weight:700;margin-bottom:10px;}
-    .slip img{max-width:175mm;max-height:235mm;transform:rotate(180deg);}
   </style></head><body>
     <div class="titlebox"><div class="t1">ค่ายกตู้ บริษัท อินเตอร์ คอนเทนเนอร์ เดโป จำกัด</div></div>
     <div class="sub">ท่าเรือสงขลา</div>
@@ -3731,8 +3726,34 @@ function printSkhLiftReport(){
       <tbody>${rows}</tbody>
       <tfoot><tr><td colspan="5" class="r">รวมทั้งสิ้น</td><td class="r">${fmt(grand)}</td></tr></tfoot>
     </table>
+  </body></html>`);
+  w.document.close(); w.focus(); setTimeout(()=>{try{w.print();}catch(e){}},350);
+}
+/* รูปสลิปใบเสร็จ ICD เป็น PDF หน้าละใบ (รายอินวอยซ์) — ไม่หมุน (บอทหมุนให้ตอนเก็บ) */
+function printSkhSlips(){
+  if(!_skhLiftFees||!_skhLiftFees.length){ alert('ยังไม่มีใบเสร็จค่ายกตู้'); return; }
+  const inv=_skhLiftInv||'';
+  const WD=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัส','ศุกร์','เสาร์'];
+  const dtxt=d=>{ const p=String(_icdDayKey(d)).split('-'); if(p.length<3)return h(d||''); const y=+p[0],mo=+p[1],da=+p[2]; const wd=new Date(Date.UTC(y,mo-1,da)).getUTCDay(); return WD[wd]+' '+da+' '+_ICD_MON[mo-1]; };
+  const withPhoto=_skhLiftFees.filter(f=>f.photo_url);
+  if(!withPhoto.length){ alert('ยังไม่มีรูปใบเสร็จในอินวอยซ์นี้'); return; }
+  let slips='';
+  withPhoto.forEach((f,i)=>{
+    slips+=`<div class="slip"><div class="scap">${i+1}. ICD-OUT ${h(f.receipt_no||'')} · ตู้ ${h(f.container_no||'')} · ทะเบียน ${h(f.truck_plate||'')} · ${dtxt(f.receipt_date)}</div><img src="${f.photo_url}"></div>`; });
+  const w=window.open('','_blank','width=900,height=1100'); if(!w){ alert('⚠️ อนุญาต Pop-up ก่อนครับ'); return; }
+  w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>รูปใบเสร็จ ICD ${h(inv)}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap');
+    @page{size:A4 portrait;margin:12mm;}
+    *{box-sizing:border-box;margin:0;padding:0;font-family:'Sarabun',sans-serif;}
+    body{color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .slip{page-break-before:always;text-align:center;}
+    .slip:first-child{page-break-before:avoid;}
+    .scap{font-size:13px;font-weight:700;margin-bottom:10px;}
+    .slip img{max-width:186mm;max-height:250mm;}
+  </style></head><body>
     ${slips}
-    <script>(function(){var imgs=[].slice.call(document.images),left=imgs.length,done=false;function fin(){if(done)return;done=true;setTimeout(function(){try{window.print();}catch(e){}},350);}if(!left){fin();return;}imgs.forEach(function(im){if(im.complete){if(--left<=0)fin();}else{im.addEventListener('load',function(){if(--left<=0)fin();});im.addEventListener('error',function(){if(--left<=0)fin();});}});setTimeout(fin,7000);})();<\/script>
+    <script>(function(){var imgs=[].slice.call(document.images),left=imgs.length,done=false;function fin(){if(done)return;done=true;setTimeout(function(){try{window.print();}catch(e){}},350);}if(!left){fin();return;}imgs.forEach(function(im){if(im.complete){if(--left<=0)fin();}else{im.addEventListener('load',function(){if(--left<=0)fin();});im.addEventListener('error',function(){if(--left<=0)fin();});}});setTimeout(fin,8000);})();<\/script>
   </body></html>`);
   w.document.close(); w.focus();
 }
@@ -6166,8 +6187,8 @@ function showInvDetail(id,panelId){
   /* รูปตู้ — ท่าสงขลา (รูปส่งผ่าน LINE OA สงขลา → line-skh) ใช้ gallery เดียวกับแหลมฉบัง */
   if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA')
     out+=` <button onclick="openSkhPhotos('${_invEsc}')" style="padding:6px 14px;background:#9d174d;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📷 รูปตู้</button>`;
-  /* ค่ายกตู้ ICD — ท่าสงขลา */
-  if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA' && !_mgrView)
+  /* ค่ายกตู้ ICD — ท่าสงขลา · BOW/TARN เห็นได้ด้วย (พิมพ์ใบปะหน้า/โหลดรูป) แต่ edit/ลบ ยังจำกัด OAK — RCN 3 พ.ย.69 */
+  if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA')
     out+=` <button onclick="openSkhLift('${_invEsc}')" style="padding:6px 14px;background:#b45309;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🧾 ค่ายกตู้</button>`;
   /* ไฟล์ VGM แบบแหลมฉบัง — ท่าสงขลาก็ออกได้ (skh_containers มี TARE จริงจากบอท) */
   if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA')
