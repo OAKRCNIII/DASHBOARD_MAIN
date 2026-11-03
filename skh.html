@@ -331,14 +331,14 @@ async function initExpense(){
     const r = await fetch(`${API}/exp-draft?t=${encodeURIComponent(TOKEN)}`);
     const j = await r.json();
     if(!r.ok) return fail(j.error || 'โหลดสลิปไม่ได้');
-    renderExpense(j.draft || {}, j.invoices || []);
+    renderExpense(j.draft || {}, j.invoices || [], j.paid || {});
   }catch(e){ fail('โหลดข้อมูลไม่ได้: ' + e.message); }
 }
-function renderExpense(d, invoices){
+let _expInvoices=[], _expPaid={};
+function renderExpense(d, invoices, paid){
+  _expInvoices = invoices || []; _expPaid = paid || {};
   const amt = (d.amount!=null && d.amount!=='') ? d.amount : '';
   const opts = EXP_OPTS.map(([v,l])=>`<option value="${v}"${v===d.type?' selected':''}>${l}</option>`).join('');
-  const invOpts = '<option value="">— เลือกอินวอยซ์ —</option>' +
-    invoices.map(i=>`<option value="${esc(i.invoice_no)}">${esc(i.invoice_no)}${i.destination?' · '+esc(i.destination):''}</option>`).join('');
   $('app').innerHTML = `
     <div class="hd"><div class="n">💸 ค่าใช้จ่ายสงขลา</div><div class="s">บันทึกจากสลิปโอน — เลือกว่าชำระของอินวอยซ์ไหน</div></div>
     <div class="wrap">
@@ -350,12 +350,24 @@ function renderExpense(d, invoices){
         <div class="ro"><span class="k">ธนาคาร</span><span class="v">${esc(val(d.bank))}</span></div>
       </div>
       <div class="card">
-        <div class="fld"><label>ประเภทค่าใช้จ่าย <span class="req">*</span></label><select id="exp_type">${opts}</select></div>
-        <div class="fld hl"><label>อินวอยซ์ที่ชำระ <span class="req">*</span></label><select id="exp_inv">${invOpts}</select></div>
+        <div class="fld"><label>ประเภทค่าใช้จ่าย <span class="req">*</span></label><select id="exp_type" onchange="_fillExpInv()">${opts}</select></div>
+        <div class="fld hl"><label>อินวอยซ์ที่ชำระ <span class="req">*</span> <span style="font-weight:400;color:#94a3b8;font-size:10px">(ใบที่จ่ายประเภทนี้แล้วจะไม่ขึ้น)</span></label><select id="exp_inv"><option value="">— เลือกอินวอยซ์ —</option></select></div>
         <div class="fld"><label>ยอดเงิน (บาท) <span class="req">*</span></label><input id="exp_amt" type="number" step="0.01" value="${amt}"></div>
       </div>
     </div>
     <div class="bar"><button class="save" id="exp_save" onclick="saveExpense()">บันทึกค่าใช้จ่าย</button></div>`;
+  _fillExpInv();
+}
+/* กรองดรอปดาวน์อินวอยซ์ตามประเภท — ตัดใบที่จ่ายประเภทนั้นแล้ว (กันจ่ายซ้ำ) */
+function _fillExpInv(){
+  const sel = $('exp_inv'); if(!sel) return;
+  const type = $('exp_type') ? $('exp_type').value : '';
+  const taken = new Set(_expPaid[type]||[]);
+  const cur = sel.value;
+  const avail = _expInvoices.filter(i=>!taken.has(i.invoice_no));
+  sel.innerHTML = '<option value="">— เลือกอินวอยซ์ —</option>' +
+    avail.map(i=>`<option value="${esc(i.invoice_no)}">${esc(i.invoice_no)}${i.destination?' · '+esc(i.destination):''}</option>`).join('');
+  sel.value = (cur && avail.some(i=>i.invoice_no===cur)) ? cur : '';
 }
 async function saveExpense(){
   const inv = $('exp_inv').value, type = $('exp_type').value, amt = $('exp_amt').value;
