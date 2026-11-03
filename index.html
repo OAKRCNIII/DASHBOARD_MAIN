@@ -3671,7 +3671,8 @@ function _renderSkhLift(){
   const nPhoto=_skhLiftFees.filter(f=>f.photo_url).length;
   let html=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
       <span style="font-size:12px;color:#64748b;">${_skhLiftFees.length} ใบ · รวม <b style="color:#b45309;">${fm(tot)}</b> บาท</span>
-      ${nPhoto?`<button onclick="skhLiftZip()" style="margin-left:auto;padding:5px 13px;border:1px solid #b45309;background:#b45309;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📥 โหลดรูป${nPhoto>1?' ZIP':''}</button>`:''}
+      <button onclick="printSkhLiftReport()" style="margin-left:auto;padding:5px 13px;border:1px solid #0f2a52;background:#0f2a52;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🖨️ พิมพ์ใบปะหน้า</button>
+      ${nPhoto?`<button onclick="skhLiftZip()" style="padding:5px 13px;border:1px solid #b45309;background:#b45309;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📥 โหลดรูป${nPhoto>1?' ZIP':''}</button>`:''}
     </div>`;
   _skhLiftFees.forEach((f,ix)=>{
     html+=`<div style="border:1px solid #fde68a;border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;">
@@ -3688,6 +3689,52 @@ function _renderSkhLift(){
       </div></div>`;
   });
   body.innerHTML=html;
+}
+/* ใบปะหน้าค่ายกตู้ ICD (รายอินวอยซ์) — ฟอร์แมตบริษัท ICD ท่าสงขลา */
+function printSkhLiftReport(){
+  if(!_skhLiftFees||!_skhLiftFees.length){ alert('ยังไม่มีใบเสร็จค่ายกตู้'); return; }
+  const inv=_skhLiftInv||'';
+  const WD=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัส','ศุกร์','เสาร์'];
+  const fmt=n=>Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const dtxt=d=>{ const p=String(_icdDayKey(d)).split('-'); if(p.length<3)return h(d||''); const y=+p[0],mo=+p[1],da=+p[2]; const wd=new Date(Date.UTC(y,mo-1,da)).getUTCDay(); return WD[wd]+' '+da+' '+_ICD_MON[mo-1]; };
+  let rows='', grand=0;
+  _skhLiftFees.forEach((f,i)=>{ const amt=Number(f.amount_total)||0; grand+=amt;
+    rows+=`<tr><td class="c">${i+1}</td><td class="c">${h(f.truck_plate||'')}</td><td class="c b">${h(f.container_no||'')}</td><td class="c">ICD-OUT ${h(f.receipt_no||'')}</td><td class="c">${dtxt(f.receipt_date)}</td><td class="r b">${fmt(amt)}</td></tr>`; });
+  let slips='';
+  _skhLiftFees.forEach((f,i)=>{ if(!f.photo_url)return;
+    slips+=`<div class="slip"><div class="scap">${i+1}. ICD-OUT ${h(f.receipt_no||'')} · ตู้ ${h(f.container_no||'')} · ทะเบียน ${h(f.truck_plate||'')} · ${dtxt(f.receipt_date)}</div><img src="${f.photo_url}"></div>`; });
+  const w=window.open('','_blank','width=900,height=1100'); if(!w){ alert('⚠️ อนุญาต Pop-up ก่อนครับ'); return; }
+  w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>ค่ายกตู้ ICD ${h(inv)}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
+    @page{size:A4 portrait;margin:16mm 14mm;}
+    *{box-sizing:border-box;margin:0;padding:0;font-family:'Sarabun',sans-serif;}
+    body{color:#000;font-size:15px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .titlebox{border:2px solid #000;padding:8px 10px;text-align:center;margin-bottom:6px;}
+    .t1{font-size:19px;font-weight:800;}
+    .sub{text-align:center;font-size:17px;font-weight:700;margin:4px 0 2px;}
+    .inv{text-align:center;font-size:16px;font-weight:800;margin:4px 0 12px;}
+    table{width:100%;border-collapse:collapse;}
+    th,td{border:1px solid #000;padding:7px 8px;font-size:14px;}
+    th{font-weight:800;text-align:center;}
+    .c{text-align:center;} .r{text-align:right;} .b{font-weight:700;}
+    tfoot td{font-weight:800;font-size:15px;}
+    .slip{page-break-before:always;text-align:center;}
+    .scap{font-size:13px;font-weight:700;margin-bottom:10px;}
+    .slip img{max-width:175mm;max-height:235mm;transform:rotate(180deg);}
+  </style></head><body>
+    <div class="titlebox"><div class="t1">ค่ายกตู้ บริษัท อินเตอร์ คอนเทนเนอร์ เดโป จำกัด</div></div>
+    <div class="sub">ท่าเรือสงขลา</div>
+    <div class="inv">${h(inv)}</div>
+    <table>
+      <thead><tr><th style="width:8%">ลำดับ</th><th style="width:15%">ทะเบียนรถ</th><th style="width:22%">เบอร์ตู้</th><th style="width:22%">ใบเสร็จเลขที่</th><th style="width:19%">วันที่ใบเสร็จ</th><th style="width:14%">ค่าบริการ</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td colspan="5" class="r">รวมทั้งสิ้น</td><td class="r">${fmt(grand)}</td></tr></tfoot>
+    </table>
+    ${slips}
+    <script>(function(){var imgs=[].slice.call(document.images),left=imgs.length,done=false;function fin(){if(done)return;done=true;setTimeout(function(){try{window.print();}catch(e){}},350);}if(!left){fin();return;}imgs.forEach(function(im){if(im.complete){if(--left<=0)fin();}else{im.addEventListener('load',function(){if(--left<=0)fin();});im.addEventListener('error',function(){if(--left<=0)fin();});}});setTimeout(fin,7000);})();<\/script>
+  </body></html>`);
+  w.document.close(); w.focus();
 }
 async function skhLiftRelink(id,cur){
   const nv=prompt('ผูกใบเสร็จนี้กับอินวอยซ์ไหน? (พิมพ์เลขอินวอยซ์ให้ตรง)',cur); if(nv==null)return;
@@ -6129,12 +6176,12 @@ function showInvDetail(id,panelId){
   if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA')
     out+=` <button onclick="exportCticVgm('${_invEsc}')" style="padding:6px 14px;background:#0f766e;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📤 Export CTIC (VGM)</button>`;
   */
-  if(typeof portOf==='function' && portOf(d.inv)==='SONGKHLA' && !_mgrView)
+  if(false /* ซ่อนปุ่ม อัพ CTIC — RCN 3 พ.ย.69 */ && typeof portOf==='function' && portOf(d.inv)==='SONGKHLA' && !_mgrView)
     out+=` <button onclick="openCticUpload('${_invEsc}')" title="อัพรูปตาราง CTIC → อ่าน Cticno → บันทึก" style="padding:6px 14px;background:#7c3aed;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">🆔 อัพ CTIC</button>`;
   /* ใบแจ้งเบอร์ตู้ — ทุกอินวอยซ์ หน้ารายงานสลับคอลัมน์ตามท่าเรือให้เอง */
   out+=` <button onclick="openLcbReport('${_invEsc}')" style="padding:6px 14px;background:#1a3a6b;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📄 ใบแจ้งเบอร์ตู้</button>`;
   out+=` <span id="lockBadgeSlot" data-inv="${h(d.inv)}"></span>`;   /* badge 🔒 LOCK เติม async หลังเช็ค Edge */
-  if(_canLockUpload()) out+=` <button onclick="openLockUpload('${_invEsc}')" title="อัปโหลดใบล็อคตู้ (master) ให้บอทอ่านลำดับ" style="padding:6px 14px;background:#6d28d9;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📋 อัปโหลดใบล็อค</button>`;
+  if(_canLockUpload() && !(typeof portOf==='function'&&portOf(d.inv)==='SONGKHLA')) out+=` <button onclick="openLockUpload('${_invEsc}')" title="อัปโหลดใบล็อคตู้ (master) ให้บอทอ่านลำดับ" style="padding:6px 14px;background:#6d28d9;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em;">📋 อัปโหลดใบล็อค</button>`;   /* ซ่อนสงขลา — RCN 3 พ.ย.69 (LCB ยังใช้ได้) */
   if(_canLockUpload()){const _ltOn=LOCK_TOP.has(normInv(d.inv));out+=` <label title="ใบแจ้งเบอร์ตู้: ติ๊ก = ตู้ล็อคขึ้นบน · ไม่ติ๊ก = ตู้ล็อคอยู่ล่างสุด (ค่าเริ่มต้น)" style="margin-left:auto;display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:7px;font-size:11px;font-weight:700;color:#6d28d9;cursor:pointer;vertical-align:middle;"><input type="checkbox" ${_ltOn?'checked':''} onchange="toggleLockTop('${_invEsc}',this.checked,this)" style="accent-color:#6d28d9;cursor:pointer;">🔀 ตู้ล็อคขึ้นบน</label>`;}
   /* ── ฝั่งรับข้อมูลเข้า วางไว้ขวาสุดแยกจากปุ่มออกเอกสาร ──
      ปุ่มอื่นคือ "ออก" เอกสาร ปุ่มนี้คือ "รับ" เข้า คนละทิศทางกัน
