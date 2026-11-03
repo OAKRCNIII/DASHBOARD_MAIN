@@ -3525,7 +3525,8 @@ const TRUCK_CARRIER = {
 function _carrierOf(plate){ const p=String(plate||'').split(/[,\s]+/).filter(Boolean)[0]||''; return TRUCK_CARRIER[p] || (p?('อื่นๆ ('+p+')'):'— ไม่ระบุ'); }
 function _icdStatus(r){
   if(r&&r.reimbursed_date) return {t:'จ่ายคืนแล้ว',c:'#166534',bg:'#dcfce7'};
-  if(r&&(r.billed_date||r.settle_bill_no)) return {t:'วางบิลแล้ว',c:'#1e40af',bg:'#dbeafe'};
+  /* ธีรา = วางบิลแล้วอัตโนมัติเสมอ (in-house ไม่ต้องรอใบวางบิล) — RCN 3 พ.ย.69 */
+  if(r&&(r.billed_date||r.settle_bill_no||_carrierOf(r.truck_plate)==='ธีรา')) return {t:'วางบิลแล้ว',c:'#1e40af',bg:'#dbeafe'};
   return {t:'รอวางบิล',c:'#b45309',bg:'#fef3c7'};
 }
 let _icdCarRows=null, _icdCarMonth='', _icdCarPick='';
