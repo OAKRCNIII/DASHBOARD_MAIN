@@ -843,6 +843,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <button class="htab" id="htab-price" onclick="switchTab('price')" style="display:none;">💰 PRICE UPDATE</button>
     <button class="htab" id="htab-report" onclick="switchTab('report')">📈 รายงานตู้</button>
     <button class="htab" id="htab-profit" onclick="switchTab('profit')" style="display:none;">💰 กำไรต่อใบ</button>
+    <button class="htab" id="htab-skhprofit" onclick="switchTab('skhprofit')" style="display:none;">💰 กำไรสงขลา</button>
   </div>
   <div class="stats-bar" id="sBar"></div>
   <!-- BKG modal -->
@@ -1000,6 +1001,9 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <!-- กำไรต่อใบ (OAK_THIRA เท่านั้น) -->
     <div class="view" id="profitView" style="flex-direction:column;overflow-y:auto;background:#f0fdf4;">
       <div id="trProfitWrap" style="max-width:1400px;margin:0 auto;padding:16px;width:100%;box-sizing:border-box;"></div>
+    </div>
+    <div class="view" id="skhProfitView" style="flex-direction:column;overflow-y:auto;background:#f0fdf4;">
+      <div id="skhProfitWrap" style="max-width:1200px;margin:0 auto;padding:16px;width:100%;box-sizing:border-box;"></div>
     </div>
     <!-- MOBILE HOME VIEW (mobile only) -->
     <div class="view" id="mhomeView" style="flex-direction:column;overflow-y:auto;background:#f4f6fb;">
@@ -5249,6 +5253,7 @@ function _canSeeBilledPaid(){return USER_ROLE==='admin';}
 function _canLockUpload(){return _canSeeFees()||LOGGED_USER==='PLA_ANTS';}
 function applyRoleRestrictions(){
   { const vp=document.getElementById('htab-profit'); if(vp) vp.style.display=(LOGGED_USER==='OAK_THIRA')?'':'none'; }   /* แท็บกำไร เฉพาะ OAK_THIRA */
+  { const sp=document.getElementById('htab-skhprofit'); if(sp) sp.style.display=(LOGGED_USER==='OAK_THIRA')?'':'none'; }   /* แท็บกำไรสงขลา เฉพาะ OAK_THIRA */
   { const ib=document.getElementById('icdRptBar'); if(ib) ib.style.display=_canSeeFees()?'':'none'; }   /* ปุ่มรายงานค่ายกตู้ ICD รายเดือน — เฉพาะ admin (เป็นยอดจ่ายจริง) */
   const dashBtn=document.getElementById('dashToggleBtn');
   const debtBtn=document.getElementById('debtDashBtn');
@@ -5462,7 +5467,7 @@ function switchTab(tab){
     document.getElementById('mainDash').style.display='flex';
     document.getElementById('trDash').style.display='none';
   }
-  const allViews=['main','pending','stock','factory','vessel','billing','finance','price','report','profit','mhome','mmonth','mtr','mvessel'];
+  const allViews=['main','pending','stock','factory','vessel','billing','finance','price','report','profit','skhprofit','mhome','mmonth','mtr','mvessel'];
   allViews.forEach(t=>{
     const v=document.getElementById(t+'View');if(v)v.classList.toggle('active',t===tab);
     const h2=document.getElementById('htab-'+t);if(h2)h2.classList.toggle('active',t===tab);
@@ -5478,6 +5483,7 @@ function switchTab(tab){
   if(tab==='price'){renderPriceLatest();}
   if(tab==='report'){renderReport();}
   if(tab==='profit'){renderTrProfit();}
+  if(tab==='skhprofit'){renderSkhProfit();}
   if(tab==='mhome'){renderMobileHome();renderStatsMain();}
   if(tab==='mmonth'){renderMobileMonthView();}
   if(tab==='mvessel'){renderMobileVesselView();}
@@ -10959,6 +10965,110 @@ async function _profitExcel(){
   aoa.push(['รวม','','',T.ctr,r2(T.rev),r2(T.ocf),r2(T.tlx),r2(T.train),r2(T.truck),r2(T.antsFee),r2(T.fwd),r2(T.cost),r2(T.profit),T.ctr?r2(T.profit/T.ctr):0]);
   const XLSX=window.XLSX; const ws=XLSX.utils.aoa_to_sheet(aoa); const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'กำไรต่อใบ'); XLSX.writeFile(wb,'กำไรต่อใบ.xlsx');
+}
+
+/* ===== กำไรสงขลา (OAK_THIRA) — รายรับใบวางบิล vs ค่าใช้จ่าย 8 อัน (฿) — 2 กล่อง/ใบ =====
+   รายรับ = billing_ants · ค่าใช้จ่าย = OCF+TLX+CTIC+ICD+คุณวัส(สลิป) + รถบรรทุก(gross) + คุณกุ้(200/ตู้) + ANTS FEE(1000/ตู้) */
+let _SKHPROFIT_YEAR=null, _SKHPROFIT_ROWS=[];
+function _skhProfitSetYear(y){ _SKHPROFIT_YEAR=y; renderSkhProfit(); }
+function renderSkhProfit(){
+  const wrap=document.getElementById('skhProfitWrap'); if(!wrap)return;
+  if(LOGGED_USER!=='OAK_THIRA'){ wrap.innerHTML='<div style="padding:40px;text-align:center;color:#94a3b8;">เฉพาะ OAK_THIRA</div>'; return; }
+  const fm=n=>Math.round(n).toLocaleString('th-TH');
+  const he=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const ml=m=>{try{return (typeof mLabel==='function')?mLabel(m):String(m);}catch(e){return String(m);}};
+  const pb=p=>{try{const s=pst(p);return `<span style="background:${s.bg};color:${s.tx};border:1px solid ${s.bd};border-radius:4px;padding:1px 7px;font-size:10px;font-weight:800;">${he(p)}</span>`;}catch(e){return he(p||'');}};
+  const truckByInv={}; (TR_DATA||[]).forEach(t=>{ truckByInv[normInv(t.inv)]=Number(t.totalPaid)||0; });
+  let rows=[];
+  FLAT.forEach(d=>{
+    if((typeof portOf==='function'?portOf(d.inv):'')!=='SONGKHLA')return;   /* เฉพาะใบสงขลา */
+    const k=normInv(d.inv);
+    if(!BILLED_ANTS.has(k))return;   /* เฉพาะใบที่วางบิลแล้ว */
+    const rev=Number(BILLED_ANTS.get(k))||0;
+    const ctr=Number(d.container_count||d.total_expected||d.total_actual||(d.details?d.details.length:0))||0;
+    const ocf=_expSum(d.inv,'OCF'),tlx=_expSum(d.inv,'TLX'),ctic=_expSum(d.inv,'CTIC'),watr=_expSum(d.inv,'WATR');
+    const icd=(_icdRate(d.inv)||0)*ctr, truck=truckByInv[k]||0, kui=200*ctr, antsFee=1000*ctr;
+    const cost=ocf+tlx+ctic+icd+watr+truck+kui+antsFee;
+    rows.push({inv:d.inv,prefix:d.prefix,month:d.month,ctr,rev,ocf,tlx,ctic,icd,watr,truck,kui,antsFee,cost,profit:rev-cost});
+  });
+  const yrOf=m=>{try{return (typeof mYear==='function')?mYear(m):Number(String(m).split('_')[0]);}catch(e){return null;}};
+  const allYears=[...new Set(rows.map(r=>yrOf(r.month)).filter(y=>y))].sort((a,b)=>b-a);
+  if(_SKHPROFIT_YEAR!==null&&!allYears.includes(_SKHPROFIT_YEAR))_SKHPROFIT_YEAR=null;
+  rows=rows.filter(r=>_SKHPROFIT_YEAR===null||yrOf(r.month)===_SKHPROFIT_YEAR);
+  rows.sort((a,b)=>(mSort?mSort(b.month,a.month):0)||String(a.inv).localeCompare(String(b.inv)));
+  _SKHPROFIT_ROWS=rows;
+  const T={rev:0,cost:0,profit:0,ctr:0}; rows.forEach(r=>{T.rev+=r.rev;T.cost+=r.cost;T.profit+=r.profit;T.ctr+=r.ctr;});
+  const marg=T.rev>0?(T.profit/T.rev*100):0;
+  let yb=`<button onclick="_skhProfitSetYear(null)" style="padding:4px 12px;border-radius:6px;border:1px solid ${_SKHPROFIT_YEAR===null?'#065f46':'#cbd5e1'};background:${_SKHPROFIT_YEAR===null?'#065f46':'#fff'};color:${_SKHPROFIT_YEAR===null?'#fff':'#475569'};font-size:11px;font-weight:700;cursor:pointer;">ทั้งหมด</button>`;
+  allYears.forEach(y=>{yb+=`<button onclick="_skhProfitSetYear(${y})" style="padding:4px 12px;border-radius:6px;border:1px solid ${_SKHPROFIT_YEAR===y?'#065f46':'#cbd5e1'};background:${_SKHPROFIT_YEAR===y?'#065f46':'#fff'};color:${_SKHPROFIT_YEAR===y?'#fff':'#475569'};font-size:11px;font-weight:700;cursor:pointer;">ปี ${y}</button>`;});
+  const ei=(lab,v,col)=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:2px 0;"><span style="color:#64748b;">${lab}</span><span style="font-weight:700;color:${v>0?(col||'#334155'):'#cbd5e1'};">${v>0?fm(v)+' ฿':'-'}</span></div>`;
+  let cards='';
+  if(!rows.length) cards='<div style="padding:40px;text-align:center;color:#94a3b8;">ยังไม่มีใบสงขลาที่วางบิลแล้ว</div>';
+  rows.forEach(r=>{
+    const pos=r.profit>=0;
+    cards+=`<div style="background:#fff;border:1px solid #d1fae5;border-radius:12px;padding:12px 14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.05);">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px;">
+        ${pb(r.prefix)}<span style="font-weight:800;font-size:13px;color:#0f172a;">${he(r.inv)}</span>
+        <span style="font-size:11px;color:#64748b;">${ml(r.month)} · ${r.ctr} ตู้</span>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:170px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;justify-content:center;">
+          <div style="font-size:11px;font-weight:800;color:#166534;margin-bottom:4px;">💚 รายรับ (วางบิล)</div>
+          <div style="font-size:21px;font-weight:900;color:#15803d;">${fm(r.rev)} ฿</div>
+        </div>
+        <div style="flex:2;min-width:250px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 12px;">
+          <div style="font-size:11px;font-weight:800;color:#92400e;margin-bottom:4px;">🧾 ค่าใช้จ่าย</div>
+          <div style="font-size:11px;display:grid;grid-template-columns:1fr 1fr;gap:0 16px;">
+            ${ei('OCF',r.ocf,'#15803d')}${ei('TLX',r.tlx,'#1d4ed8')}
+            ${ei('ท่าเรือ CTIC',r.ctic,'#0e7490')}${ei('ICD',r.icd,'#c2410c')}
+            ${ei('คุณวัส',r.watr,'#b45309')}${ei('รถบรรทุก',r.truck,'#7c3aed')}
+            ${ei('คุณกุ้ (200/ตู้)',r.kui,'#be185d')}${ei('ANTS FEE (1000/ตู้)',r.antsFee,'#475569')}
+          </div>
+          <div style="display:flex;justify-content:space-between;border-top:1px dashed #fcd34d;margin-top:5px;padding-top:5px;font-weight:800;color:#92400e;"><span>รวมค่าใช้จ่าย</span><span>${fm(r.cost)} ฿</span></div>
+        </div>
+      </div>
+      <div style="text-align:right;margin-top:8px;font-size:13px;">
+        <span style="color:#64748b;">กำไร </span>
+        <b style="font-size:17px;color:${pos?'#15803d':'#dc2626'};">${fm(r.profit)} ฿</b>
+        <span style="color:#94a3b8;font-size:11px;">(${r.ctr?fm(r.profit/r.ctr):0} ฿/ตู้)</span>
+      </div>
+    </div>`;
+  });
+  wrap.innerHTML=`
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+      <div style="font-size:15px;font-weight:900;color:#065f46;">💰 กำไรสงขลา (วางบิลแล้ว)</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">${yb}</div>
+      <button onclick="_skhProfitExcel()" style="margin-left:auto;padding:5px 13px;border:1px solid #065f46;background:#065f46;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">📊 Excel</button>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+      <div style="flex:1;min-width:150px;background:#dcfce7;border:1px solid #86efac;border-radius:12px;padding:12px 16px;">
+        <div style="font-size:12px;font-weight:700;color:#166534;">💚 รายรับรวม</div>
+        <div style="font-size:23px;font-weight:900;color:#15803d;">${fm(T.rev)} ฿</div>
+      </div>
+      <div style="flex:1;min-width:150px;background:#fef3c7;border:1px solid #fcd34d;border-radius:12px;padding:12px 16px;">
+        <div style="font-size:12px;font-weight:700;color:#92400e;">🧾 ค่าใช้จ่ายรวม</div>
+        <div style="font-size:23px;font-weight:900;color:#b45309;">${fm(T.cost)} ฿</div>
+      </div>
+      <div style="flex:1;min-width:150px;background:${T.profit>=0?'#d1fae5':'#fee2e2'};border:1px solid ${T.profit>=0?'#6ee7b7':'#fca5a5'};border-radius:12px;padding:12px 16px;">
+        <div style="font-size:12px;font-weight:700;color:${T.profit>=0?'#065f46':'#991b1b'};">💰 กำไรรวม (${marg.toFixed(1)}%)</div>
+        <div style="font-size:23px;font-weight:900;color:${T.profit>=0?'#15803d':'#dc2626'};">${fm(T.profit)} ฿</div>
+        <div style="font-size:11px;color:#64748b;">${rows.length} ใบ · ${T.ctr} ตู้</div>
+      </div>
+    </div>
+    ${cards}`;
+}
+async function _skhProfitExcel(){
+  if(!_SKHPROFIT_ROWS.length){ alert('ยังไม่มีข้อมูล'); return; }
+  await _lazyScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
+  const r2=n=>Math.round(n||0);
+  const ml=m=>{try{return (typeof mLabel==='function')?mLabel(m):String(m);}catch(e){return String(m);}};
+  const aoa=[['โรงงาน','อินวอยซ์','เดือน','ตู้','รายรับ','OCF','TLX','CTIC','ICD','คุณวัส','รถบรรทุก','คุณกุ้','ANTS FEE','ค่าใช้จ่ายรวม','กำไร','กำไร/ตู้']];
+  const T={rev:0,ocf:0,tlx:0,ctic:0,icd:0,watr:0,truck:0,kui:0,antsFee:0,cost:0,profit:0,ctr:0};
+  _SKHPROFIT_ROWS.forEach(r=>{ for(const kk in T)T[kk]+=r[kk]||0;
+    aoa.push([r.prefix||'',r.inv,ml(r.month),r.ctr,r2(r.rev),r2(r.ocf),r2(r.tlx),r2(r.ctic),r2(r.icd),r2(r.watr),r2(r.truck),r2(r.kui),r2(r.antsFee),r2(r.cost),r2(r.profit),r.ctr?r2(r.profit/r.ctr):0]); });
+  aoa.push(['รวม','','',T.ctr,r2(T.rev),r2(T.ocf),r2(T.tlx),r2(T.ctic),r2(T.icd),r2(T.watr),r2(T.truck),r2(T.kui),r2(T.antsFee),r2(T.cost),r2(T.profit),T.ctr?r2(T.profit/T.ctr):0]);
+  const XLSX=window.XLSX; const ws=XLSX.utils.aoa_to_sheet(aoa); const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'กำไรสงขลา'); XLSX.writeFile(wb,'กำไรสงขลา.xlsx');
 }
 
 /* ===== DUPLICATE ALERT ===== */
