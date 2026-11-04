@@ -5292,7 +5292,7 @@ function _canSeeFees(){return USER_ROLE==='admin';}
 function _canSeeBilledPaid(){return USER_ROLE==='admin';}
 /* ปุ่มอัปโหลดใบล็อค: admin + PLA (PLA เห็นปุ่มนี้ได้ แต่ไม่เห็นค่าธรรมเนียม/การเงิน) */
 function _canLockUpload(){return _canSeeFees()||LOGGED_USER==='PLA_ANTS';}
-function _icdOnlyView(){return LOGGED_USER==='BOW_ANTS'||LOGGED_USER==='TARN_ANTS';}   /* แท็บรายงาน = ปุ่ม ICD อย่างเดียว */
+function _icdOnlyView(){return LOGGED_USER==='BOW_ANTS'||LOGGED_USER==='TARN_ANTS'||LOGGED_USER==='YAI_ANTS';}   /* แท็บรายงาน = ปุ่ม ICD อย่างเดียว (YAI เพิ่ม 4 พ.ย.69) */
 function applyRoleRestrictions(){
   { const vp=document.getElementById('htab-profit'); if(vp) vp.style.display=(LOGGED_USER==='OAK_THIRA')?'':'none'; }   /* แท็บกำไร เฉพาะ OAK_THIRA */
   { const sp=document.getElementById('htab-skhprofit'); if(sp) sp.style.display=(LOGGED_USER==='OAK_THIRA')?'':'none'; }   /* แท็บกำไรสงขลา เฉพาะ OAK_THIRA */
@@ -5306,9 +5306,11 @@ function applyRoleRestrictions(){
     if(setBtn)setBtn.style.display='none';
     const _syncBtn=document.getElementById('syncNowBtn'); if(_syncBtn)_syncBtn.style.display='none';   /* ซ่อนปุ่ม SYNC */
     /* มุม Dashboard หลัก: เห็นแค่แท็บ "รายเดือน" + "เข้าโรงงาน" — ซ่อนแท็บอื่นทั้ง desktop + mobile */
-    ['htab-pending','htab-stock','htab-vessel','htab-report',
-     'mtab-pending','mtab-stock','mtab-vessel']
-      .forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+    const _hide=['htab-pending','htab-stock','htab-vessel',
+     'mtab-pending','mtab-stock','mtab-vessel'];
+    if(!_icdOnlyView()) _hide.push('htab-report');   /* YAI: เห็นแท็บ ICD เหมือน BOW/TARN; transport อื่นซ่อน */
+    _hide.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+    if(_icdOnlyView()){ const _rt=document.getElementById('htab-report'); if(_rt) _rt.textContent='🧾 ค่ายกตู้ ICD'; }   /* YAI: เปลี่ยนชื่อแท็บเป็น ICD */
     /* หน้าแรก = Dashboard หลัก (รายเดือน) ไม่ใช่หน้าขนส่ง */
   } else if(USER_ROLE==='manager'){
     if(dashBtn)dashBtn.style.display='none';   /* manager ไม่มีปุ่มค่าขนส่งอยู่แล้ว */
