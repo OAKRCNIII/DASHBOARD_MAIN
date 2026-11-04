@@ -1002,7 +1002,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <div class="view" id="profitView" style="flex-direction:column;overflow-y:auto;background:#f0fdf4;">
       <div id="trProfitWrap" style="max-width:1400px;margin:0 auto;padding:16px;width:100%;box-sizing:border-box;"></div>
     </div>
-    <div class="view" id="skhProfitView" style="flex-direction:column;overflow-y:auto;background:#f0fdf4;">
+    <div class="view" id="skhprofitView" style="flex-direction:column;overflow-y:auto;background:#f0fdf4;">
       <div id="skhProfitWrap" style="max-width:1200px;margin:0 auto;padding:16px;width:100%;box-sizing:border-box;"></div>
     </div>
     <!-- MOBILE HOME VIEW (mobile only) -->
@@ -10983,13 +10983,14 @@ function renderSkhProfit(){
   FLAT.forEach(d=>{
     if((typeof portOf==='function'?portOf(d.inv):'')!=='SONGKHLA')return;   /* เฉพาะใบสงขลา */
     const k=normInv(d.inv);
-    if(!BILLED_ANTS.has(k))return;   /* เฉพาะใบที่วางบิลแล้ว */
+    const billed=BILLED_ANTS.has(k);
     const rev=Number(BILLED_ANTS.get(k))||0;
     const ctr=Number(d.container_count||d.total_expected||d.total_actual||(d.details?d.details.length:0))||0;
     const ocf=_expSum(d.inv,'OCF'),tlx=_expSum(d.inv,'TLX'),ctic=_expSum(d.inv,'CTIC'),watr=_expSum(d.inv,'WATR');
     const icd=(_icdRate(d.inv)||0)*ctr, truck=truckByInv[k]||0, kui=200*ctr, antsFee=1000*ctr;
     const cost=ocf+tlx+ctic+icd+watr+truck+kui+antsFee;
-    rows.push({inv:d.inv,prefix:d.prefix,month:d.month,ctr,rev,ocf,tlx,ctic,icd,watr,truck,kui,antsFee,cost,profit:rev-cost});
+    if(rev<=0 && cost<=0) return;   /* ไม่มีทั้งรายรับและค่าใช้จ่าย → ข้าม · ยังไม่วางบิลแต่มีค่าใช้จ่าย = โชว์ติดลบ (RCN 4 พ.ย.) */
+    rows.push({inv:d.inv,prefix:d.prefix,month:d.month,ctr,rev,billed,ocf,tlx,ctic,icd,watr,truck,kui,antsFee,cost,profit:rev-cost});
   });
   const yrOf=m=>{try{return (typeof mYear==='function')?mYear(m):Number(String(m).split('_')[0]);}catch(e){return null;}};
   const allYears=[...new Set(rows.map(r=>yrOf(r.month)).filter(y=>y))].sort((a,b)=>b-a);
@@ -11003,18 +11004,20 @@ function renderSkhProfit(){
   allYears.forEach(y=>{yb+=`<button onclick="_skhProfitSetYear(${y})" style="padding:4px 12px;border-radius:6px;border:1px solid ${_SKHPROFIT_YEAR===y?'#065f46':'#cbd5e1'};background:${_SKHPROFIT_YEAR===y?'#065f46':'#fff'};color:${_SKHPROFIT_YEAR===y?'#fff':'#475569'};font-size:11px;font-weight:700;cursor:pointer;">ปี ${y}</button>`;});
   const ei=(lab,v,col)=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:2px 0;"><span style="color:#64748b;">${lab}</span><span style="font-weight:700;color:${v>0?(col||'#334155'):'#cbd5e1'};">${v>0?fm(v)+' ฿':'-'}</span></div>`;
   let cards='';
-  if(!rows.length) cards='<div style="padding:40px;text-align:center;color:#94a3b8;">ยังไม่มีใบสงขลาที่วางบิลแล้ว</div>';
+  if(!rows.length) cards='<div style="padding:40px;text-align:center;color:#94a3b8;">ยังไม่มีใบสงขลาที่มีค่าใช้จ่าย/วางบิล</div>';
   rows.forEach(r=>{
     const pos=r.profit>=0;
     cards+=`<div style="background:#fff;border:1px solid #d1fae5;border-radius:12px;padding:12px 14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.05);">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px;">
         ${pb(r.prefix)}<span style="font-weight:800;font-size:13px;color:#0f172a;">${he(r.inv)}</span>
         <span style="font-size:11px;color:#64748b;">${ml(r.month)} · ${r.ctr} ตู้</span>
+        ${r.billed?'':'<span style="font-size:10px;font-weight:700;color:#b45309;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:1px 8px;">⏳ ยังไม่วางบิล</span>'}
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:170px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;justify-content:center;">
-          <div style="font-size:11px;font-weight:800;color:#166534;margin-bottom:4px;">💚 รายรับ (วางบิล)</div>
-          <div style="font-size:21px;font-weight:900;color:#15803d;">${fm(r.rev)} ฿</div>
+        <div style="flex:1;min-width:170px;background:${r.rev>0?'#f0fdf4':'#f8fafc'};border:1px solid ${r.rev>0?'#bbf7d0':'#e2e8f0'};border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;justify-content:center;">
+          <div style="font-size:11px;font-weight:800;color:${r.rev>0?'#166534':'#94a3b8'};margin-bottom:4px;">💚 รายรับ (วางบิล)</div>
+          <div style="font-size:21px;font-weight:900;color:${r.rev>0?'#15803d':'#cbd5e1'};">${fm(r.rev)} ฿</div>
+          ${r.billed?'':'<div style="font-size:10px;color:#b45309;font-weight:600;">ยังไม่ออกใบวางบิล</div>'}
         </div>
         <div style="flex:2;min-width:250px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 12px;">
           <div style="font-size:11px;font-weight:800;color:#92400e;margin-bottom:4px;">🧾 ค่าใช้จ่าย</div>
@@ -11036,7 +11039,7 @@ function renderSkhProfit(){
   });
   wrap.innerHTML=`
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
-      <div style="font-size:15px;font-weight:900;color:#065f46;">💰 กำไรสงขลา (วางบิลแล้ว)</div>
+      <div style="font-size:15px;font-weight:900;color:#065f46;">💰 กำไรสงขลา <span style="font-size:11px;font-weight:500;color:#64748b;">(รวมใบที่ยังไม่วางบิล = ติดลบไว้ก่อน)</span></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">${yb}</div>
       <button onclick="_skhProfitExcel()" style="margin-left:auto;padding:5px 13px;border:1px solid #065f46;background:#065f46;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">📊 Excel</button>
     </div>
