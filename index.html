@@ -7650,7 +7650,7 @@ function printVesselPdf(){
     const _cardSkh=g.rows.length>0&&g.rows.every(x=>_portOf(x.inv)==='SONGKHLA');
     let oc=0,tl=0,cticTot=0,icdTot=0,watrTot=0,ocfBahtTot=0,tlxBahtTot=0;g.rows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}const _k=normInv(r.inv);const _skh=_portOf(r.inv)==='SONGKHLA';cticTot+=_skh?_expSum(r.inv,'CTIC'):(CTIC_THB.get(_k)||0);if(_skh){icdTot+=_icdRate(r.inv)*(parseFloat(r.vol)||0);watrTot+=_expSum(r.inv,'WATR');ocfBahtTot+=_expSum(r.inv,'OCF');tlxBahtTot+=_expSum(r.inv,'TLX');}});
     const tot=oc+tl; const _U=_cardSkh?'฿':'RM';
-    const fh=hasFees?('<th class="r">OCF ('+_U+')</th><th class="r">TLX ('+_U+')</th><th class="r">ท่าเรือ CTIC (฿)</th><th class="r">ICD (฿)</th><th class="r">คุณวัส (฿)</th>'):'';
+    const fh=hasFees?('<th class="r h-ocf">OCF ('+_U+')</th><th class="r h-tlx">TLX ('+_U+')</th><th class="r h-ctic">ท่าเรือ CTIC (฿)</th><th class="r h-icd">ICD (฿)</th><th class="r h-watr">คุณวัส (฿)</th>'):'';
     let trows='';
     g.rows.forEach((r,ri)=>{
       const pfx=getPfx(r.inv);
@@ -7693,7 +7693,7 @@ function printVesselPdf(){
         <td class="des">${he(r.des)}</td>
         <td class="mono">${he(r.bkg)}</td>
         <td class="r"><span class="amt g">${r.vol}</span></td>
-        ${hasFees?`<td class="r">${ocfTd}</td><td class="r">${tlxTd}</td><td class="r">${cticTd}</td><td class="r">${icdTd}</td><td class="r">${watrTd}</td>`:''}
+        ${hasFees?`<td class="r fc-ocf">${ocfTd}</td><td class="r fc-tlx">${tlxTd}</td><td class="r fc-ctic">${cticTd}</td><td class="r fc-icd">${icdTd}</td><td class="r fc-watr">${watrTd}</td>`:''}
       </tr>`;
     });
     let foot='';
@@ -7701,11 +7701,11 @@ function printVesselPdf(){
       const _sb=n=>n>0?`<span class="amt">${n.toLocaleString('th-TH')} ฿</span>`:`<span class="tag gr">-</span>`;
       foot=`<tr class="sr">
         <td colspan="${colCount-5}" class="rl">รวมเรือลำนี้</td>
-        <td class="r">${_cardSkh?_sb(ocfBahtTot):`<span class="amt g">${oc>0?fm(oc):'-'}</span>`}</td>
-        <td class="r">${_cardSkh?_sb(tlxBahtTot):`<span class="amt b">${tl>0?fm(tl):'-'}</span>`}</td>
-        <td class="r">${_sb(cticTot)}</td>
-        <td class="r">${_sb(icdTot)}</td>
-        <td class="r">${_sb(watrTot)}</td>
+        <td class="r fc-ocf">${_cardSkh?_sb(ocfBahtTot):`<span class="amt g">${oc>0?fm(oc):'-'}</span>`}</td>
+        <td class="r fc-tlx">${_cardSkh?_sb(tlxBahtTot):`<span class="amt b">${tl>0?fm(tl):'-'}</span>`}</td>
+        <td class="r fc-ctic">${_sb(cticTot)}</td>
+        <td class="r fc-icd">${_sb(icdTot)}</td>
+        <td class="r fc-watr">${_sb(watrTot)}</td>
       </tr><tr class="tr2">
         <td colspan="${colCount-5}" class="rl">${_cardSkh?'รวมทั้งหมด':'รวม OCF + TLX'}</td>
         <td colspan="5" class="r"><span class="amt nv">${_cardSkh?(ocfBahtTot+tlxBahtTot+cticTot+icdTot+watrTot).toLocaleString('th-TH')+' ฿':fm(tot)+' RM'}</span></td>
@@ -7739,7 +7739,7 @@ function printVesselPdf(){
 html,body{width:100%;height:100%;}
 body{font-family:'Inter',sans-serif;color:#1e293b;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 /* ── page container — fills exactly one A4 landscape sheet ── */
-.pg{width:277mm;height:184mm;display:flex;flex-direction:column;overflow:hidden;}
+.pg{width:277mm;display:flex;flex-direction:column;margin-bottom:6mm;}
 .pb{page-break-after:always;}
 /* ── vessel header ── */
 .vhdr{flex-shrink:0;background:linear-gradient(100deg,#0a1628 0%,#12284d 55%,#0e3460 100%);color:white;padding:10px 16px;border-radius:10px 10px 0 0;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
@@ -7749,9 +7749,8 @@ body{font-family:'Inter',sans-serif;color:#1e293b;background:#fff;-webkit-print-
 .vb.gold{background:rgba(245,158,11,.22);border-color:rgba(245,158,11,.38);color:#fef3c7;}
 .vb.dim{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.12);color:rgba(255,255,255,.45);font-weight:400;}
 /* ── table wrapper — grows to fill remaining height ── */
-.tbl-wrap{flex:1;overflow:hidden;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;display:flex;flex-direction:column;}
-table{width:100%;border-collapse:collapse;flex:1;}
-thead{flex-shrink:0;}
+.tbl-wrap{overflow:hidden;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;}
+table{width:100%;border-collapse:collapse;}
 thead tr{background:linear-gradient(90deg,#0a1628 0%,#1a3a6b 100%);}
 th{color:#fff;font-weight:700;padding:7px 9px;text-align:left;font-size:9.5px;letter-spacing:.3px;white-space:nowrap;}
 th.r{text-align:right;}
@@ -7781,6 +7780,10 @@ td{padding:6px 9px;vertical-align:middle;font-size:10px;}
 .rl{text-align:right;font-weight:700;font-size:9px;color:#1e40af;padding-right:14px;}
 .tr2{background:#dbeafe !important;}
 .tr2 td{padding:6px 9px;}
+/* ── สีประจำคอลัมน์ค่าธรรมเนียม (ให้ตรงกับในจอ) ── */
+.h-ocf{color:#86efac;}.h-tlx{color:#93c5fd;}.h-ctic{color:#67e8f9;}.h-icd{color:#fdba74;}.h-watr{color:#fcd34d;}
+td.fc-ocf{background:rgba(22,163,74,.05);}td.fc-tlx{background:rgba(37,99,235,.05);}td.fc-ctic{background:rgba(14,116,144,.055);}td.fc-icd{background:rgba(234,88,12,.055);}td.fc-watr{background:rgba(180,83,9,.055);}
+td.fc-ocf .amt{color:#15803d !important;}td.fc-tlx .amt{color:#1d4ed8 !important;}td.fc-ctic .amt{color:#0e7490 !important;}td.fc-icd .amt{color:#c2410c !important;}td.fc-watr .amt{color:#b45309 !important;}
 @page{@bottom-right{content:"หน้า " counter(page);font-family:'Sarabun',sans-serif;font-size:9pt;color:#94a3b8;}}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
 </style></head><body>${pages}</body></html>`;
   closeVPdfModal();
