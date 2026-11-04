@@ -3457,6 +3457,21 @@ function lcbViewClose(){
   if(bg) bg.style.display='none';
 }
 
+/* ตู้สงขลาที่ยังไม่มีใบเสร็จ ICD (จาก skh_containers) → แถวประมาณ 1,070/ตู้ ให้เห็นยอดตามจริง (RCN 4 พ.ย.) */
+async function _skhIcdPendingRows(liftRows){
+  let ctrs=[]; try{ ctrs=await sbFetch('skh_containers','select=id,container_no,truck_plate,invoice_no,pickup_date,factory_date'); }catch(e){ return []; }
+  const nk=s=>String(s||'').replace(/\s/g,'').toUpperCase();
+  const haveId=new Set(), haveKey=new Set();
+  (liftRows||[]).forEach(r=>{ if(r.skh_container_id!=null)haveId.add(r.skh_container_id); haveKey.add(normInv(r.invoice_no)+'|'+nk(r.container_no)); });
+  const out=[];
+  (ctrs||[]).forEach(c=>{
+    if(haveId.has(c.id))return;
+    if(haveKey.has(normInv(c.invoice_no)+'|'+nk(c.container_no)))return;
+    const dt=c.pickup_date||c.factory_date; if(!dt)return;
+    out.push({receipt_no:null,receipt_date:dt,container_no:c.container_no,truck_plate:c.truck_plate,invoice_no:c.invoice_no,amount_base:1000,vat:70,amount_total:1070,_pending:true});
+  });
+  return out;
+}
 /* ══ รายงานค่ายกตู้ ICD รายเดือน (ท่าสงขลา) — อ้างวันที่จากใบยกตู้ (receipt_date) ══ */
 let _icdRptRows=null, _icdRptMonth='';
 const _ICD_MON=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
@@ -3484,8 +3499,9 @@ async function openIcdMonthReport(){
   bg.style.display='flex';
   document.getElementById('icdRptBody').innerHTML='<div style="padding:26px;text-align:center;color:#64748b;">กำลังโหลด…</div>';
   try{
-    const rows=await sbFetch('skh_lift_fees','select=receipt_no,receipt_date,container_no,invoice_no,truck_plate,amount_total&order=receipt_date.asc');
+    const rows=await sbFetch('skh_lift_fees','select=receipt_no,receipt_date,container_no,invoice_no,truck_plate,amount_total,skh_container_id&order=receipt_date.asc');
     _icdRptRows=(rows||[]).filter(r=>r.receipt_date);
+    try{ _icdRptRows=_icdRptRows.concat((await _skhIcdPendingRows(rows)).filter(p=>p.receipt_date)); }catch(e){}
     const months=[...new Set(_icdRptRows.map(r=>_icdYm(r.receipt_date)).filter(Boolean))].sort().reverse();
     const sel=document.getElementById('icdRptMoSel');
     sel.innerHTML=months.length?months.map(m=>`<option value="${m}">${_icdMoName(m)}</option>`).join(''):'<option value="">— ไม่มีข้อมูล —</option>';
@@ -3509,7 +3525,7 @@ function _renderIcdRpt(){
   sum+=`<tr style="background:#fffbeb;border-top:2px solid #b45309;"><td style="padding:9px 8px;font-weight:800;color:#b45309;">รวมทั้งเดือน</td><td style="padding:9px 8px;text-align:right;font-weight:800;">${grandN} ใบ</td><td style="padding:9px 8px;text-align:right;font-weight:900;color:#b45309;font-size:15px;">${fmt(grand)}</td></tr></tbody></table>`;
   let det='<div class="icd-det"><div style="font-size:12px;font-weight:800;color:#475569;margin:6px 0;">รายละเอียดใบเสร็จ</div><table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr style="background:#e8edf5;"><th style="padding:6px;text-align:left;">วันที่</th><th style="padding:6px;text-align:left;">เลขใบ ICD</th><th style="padding:6px;text-align:left;">ทะเบียนรถ</th><th style="padding:6px;text-align:left;">เบอร์ตู้</th><th style="padding:6px;text-align:left;">อินวอยซ์</th><th style="padding:6px;text-align:right;">ยอด (฿)</th></tr></thead><tbody>';
   rows.slice().sort((a,b)=>_icdDayKey(a.receipt_date).localeCompare(_icdDayKey(b.receipt_date))||String(a.receipt_no).localeCompare(String(b.receipt_no))).forEach((r,i)=>{
-    det+=`<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #f1f5f9;"><td style="padding:5px 6px;">${h(_icdDayText(_icdDayKey(r.receipt_date)))}</td><td style="padding:5px 6px;font-family:monospace;">${h(r.receipt_no||'')}</td><td style="padding:5px 6px;">${h(r.truck_plate||'—')}</td><td style="padding:5px 6px;font-family:monospace;">${h(r.container_no||'')}</td><td style="padding:5px 6px;">${h(r.invoice_no||'—')}</td><td style="padding:5px 6px;text-align:right;">${fmt(r.amount_total)}</td></tr>`; });
+    det+=`<tr style="background:${r._pending?'#fffbeb':(i%2?'#f8fafc':'#fff')};border-bottom:1px solid #f1f5f9;"><td style="padding:5px 6px;">${h(_icdDayText(_icdDayKey(r.receipt_date)))}</td><td style="padding:5px 6px;font-family:monospace;">${r._pending?'<span style="color:#b45309;font-weight:700;font-family:inherit;">⏳ ยังไม่มีใบเสร็จ</span>':h(r.receipt_no||'')}</td><td style="padding:5px 6px;">${h(r.truck_plate||'—')}</td><td style="padding:5px 6px;font-family:monospace;">${h(r.container_no||'')}</td><td style="padding:5px 6px;">${h(r.invoice_no||'—')}</td><td style="padding:5px 6px;text-align:right;${r._pending?'color:#b45309;':''}">${r._pending?'~':''}${fmt(r.amount_total)}</td></tr>`; });
   det+='</tbody></table></div>';
   body.innerHTML=sum+det;
 }
@@ -3581,11 +3597,12 @@ async function openIcdCarrier(){
   bg.style.display='flex';
   document.getElementById('icdCarBody').innerHTML='<div style="padding:26px;text-align:center;color:#64748b;">กำลังโหลด…</div>';
   try{
-    const base='receipt_no,receipt_date,container_no,truck_plate,invoice_no,amount_total';
+    const base='receipt_no,receipt_date,container_no,truck_plate,invoice_no,amount_total,skh_container_id';
     let rows;
     try{ rows=await sbFetch('skh_lift_fees','select='+base+',billed_date,reimbursed_date,settle_bill_no&order=receipt_date.asc'); }
     catch(e){ rows=await sbFetch('skh_lift_fees','select='+base+'&order=receipt_date.asc'); }
     _icdCarRows=(rows||[]).filter(r=>r.receipt_date);
+    try{ _icdCarRows=_icdCarRows.concat((await _skhIcdPendingRows(rows)).filter(p=>p.receipt_date)); }catch(e){}
     const months=[...new Set(_icdCarRows.map(r=>_icdYm(r.receipt_date)).filter(Boolean))].sort().reverse();
     const sel=document.getElementById('icdCarMoSel');
     sel.innerHTML='<option value="">ทั้งหมด (สะสม)</option>'+months.map(m=>`<option value="${m}">${_icdMoName(m)}</option>`).join('');
@@ -3613,7 +3630,7 @@ function _renderIcdCar(){
   if(_openList.length){
     _openList.forEach(cName=>{ const o=g.get(cName);
       det+='<div style="font-size:12px;font-weight:800;color:#1e40af;margin:14px 0 6px;">รายตู้ — '+h(cName)+(_icdCarMonth?' · '+_icdMoName(_icdCarMonth):' · ทั้งหมด')+' ('+o.rows.length+' ใบ)</div><table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr style="background:#e8edf5;"><th style="padding:6px;text-align:left;">วันที่</th><th style="padding:6px;text-align:left;">เบอร์ตู้</th><th style="padding:6px;text-align:left;">ทะเบียน</th><th style="padding:6px;text-align:left;">อินวอยซ์</th><th style="padding:6px;text-align:right;">ยอด (฿)</th><th style="padding:6px;text-align:center;">สถานะ</th><th style="padding:6px;text-align:left;">เลขบิลที่จ่าย</th></tr></thead><tbody>';
-      o.rows.forEach((r,i)=>{ const st=_icdStatus(r); det+=`<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #f1f5f9;"><td style="padding:5px 6px;">${h(_icdDayText(_icdDayKey(r.receipt_date)))}</td><td style="padding:5px 6px;font-family:monospace;">${h(r.container_no||'')}</td><td style="padding:5px 6px;">${h(r.truck_plate||'')}</td><td style="padding:5px 6px;">${h(r.invoice_no||'—')}</td><td style="padding:5px 6px;text-align:right;">${fmt(r.amount_total)}</td><td style="padding:5px 6px;text-align:center;"><span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:8px;background:${st.bg};color:${st.c};">${st.t}</span></td><td style="padding:5px 6px;font-family:monospace;font-size:10.5px;color:#166534;">${h(r.settle_bill_no||'—')}</td></tr>`; });
+      o.rows.forEach((r,i)=>{ const st=r._pending?{t:'⏳ ยังไม่มีใบเสร็จ',c:'#b45309',bg:'#fef3c7'}:_icdStatus(r); det+=`<tr style="background:${r._pending?'#fffbeb':(i%2?'#f8fafc':'#fff')};border-bottom:1px solid #f1f5f9;"><td style="padding:5px 6px;">${h(_icdDayText(_icdDayKey(r.receipt_date)))}</td><td style="padding:5px 6px;font-family:monospace;">${h(r.container_no||'')}</td><td style="padding:5px 6px;">${h(r.truck_plate||'')}</td><td style="padding:5px 6px;">${h(r.invoice_no||'—')}</td><td style="padding:5px 6px;text-align:right;${r._pending?'color:#b45309;':''}">${r._pending?'~':''}${fmt(r.amount_total)}</td><td style="padding:5px 6px;text-align:center;"><span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:8px;background:${st.bg};color:${st.c};">${st.t}</span></td><td style="padding:5px 6px;font-family:monospace;font-size:10.5px;color:#166534;">${h(r.settle_bill_no||'—')}</td></tr>`; });
       det+='</tbody></table>';
     });
   } else {
