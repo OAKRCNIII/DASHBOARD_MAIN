@@ -5268,10 +5268,11 @@ function _canSeeFees(){return USER_ROLE==='admin';}
 function _canSeeBilledPaid(){return USER_ROLE==='admin';}
 /* ปุ่มอัปโหลดใบล็อค: admin + PLA (PLA เห็นปุ่มนี้ได้ แต่ไม่เห็นค่าธรรมเนียม/การเงิน) */
 function _canLockUpload(){return _canSeeFees()||LOGGED_USER==='PLA_ANTS';}
+function _icdOnlyView(){return LOGGED_USER==='BOW_ANTS'||LOGGED_USER==='TARN_ANTS';}   /* แท็บรายงาน = ปุ่ม ICD อย่างเดียว */
 function applyRoleRestrictions(){
   { const vp=document.getElementById('htab-profit'); if(vp) vp.style.display=(LOGGED_USER==='OAK_THIRA')?'':'none'; }   /* แท็บกำไร เฉพาะ OAK_THIRA */
   { const sp=document.getElementById('htab-skhprofit'); if(sp) sp.style.display=(LOGGED_USER==='OAK_THIRA')?'':'none'; }   /* แท็บกำไรสงขลา เฉพาะ OAK_THIRA */
-  { const ib=document.getElementById('icdRptBar'); if(ib) ib.style.display=_canSeeFees()?'':'none'; }   /* ปุ่มรายงานค่ายกตู้ ICD รายเดือน — เฉพาะ admin (เป็นยอดจ่ายจริง) */
+  { const ib=document.getElementById('icdRptBar'); if(ib) ib.style.display=(_canSeeFees()||_icdOnlyView())?'':'none'; }   /* ปุ่มรายงานค่ายกตู้ ICD รายเดือน — admin + BOW/TARN (RCN 4 พ.ย.69) */
   const dashBtn=document.getElementById('dashToggleBtn');
   const debtBtn=document.getElementById('debtDashBtn');
   const setBtn=document.getElementById('settingsBtn');
@@ -5291,8 +5292,10 @@ function applyRoleRestrictions(){
     if(setBtn)setBtn.style.display='none';
     if(LOGGED_USER==='BOW_ANTS'||LOGGED_USER==='TARN_ANTS'){   /* BOW/TARN: manager (main dashboard ไม่มีค่าขนส่ง) แต่จำกัดแท็บ + ซ่อน SYNC แบบ YAI; ไม่เห็นราคา/เงิน (ไม่ใช่ admin) */
       const _sb=document.getElementById('syncNowBtn'); if(_sb)_sb.style.display='none';
-      ['htab-pending','htab-stock','htab-vessel','htab-report',
+      ['htab-pending','htab-stock','htab-vessel',
        'mtab-pending','mtab-stock','mtab-vessel'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+      /* แท็บรายงาน: เปิดให้เฉพาะปุ่มค่ายกตู้ ICD — ไม่เห็นรายงานสรุปรวมตู้ (renderReport ตัดทิ้ง) */
+      const _rt=document.getElementById('htab-report'); if(_rt) _rt.textContent='🧾 ค่ายกตู้ ICD';
     }
   }
   /* BILLING tab + FINANCE button: admin only */
@@ -11673,6 +11676,7 @@ function printRptDetail(){
 function renderReport(){
   const wrap = document.getElementById('reportWrap');
   if(!wrap) return;
+  if(_icdOnlyView()){ wrap.innerHTML='<div style="padding:14px 4px;color:#64748b;font-size:13px;">กดปุ่มด้านบนเพื่อดูค่ายกตู้ ICD</div>'; return; }   /* BOW/TARN: ไม่เห็นรายงานสรุปรวมตู้ */
   if(!FLAT || !FLAT.length){
     wrap.innerHTML = '<div class="placeholder"><div class="ico">📈</div><p>ยังไม่มีข้อมูล — กรุณาโหลดข้อมูลก่อน</p></div>';
     return;
