@@ -5292,7 +5292,7 @@ function _canSeeFees(){return USER_ROLE==='admin';}
 function _canSeeBilledPaid(){return USER_ROLE==='admin';}
 /* ปุ่มอัปโหลดใบล็อค: admin + PLA (PLA เห็นปุ่มนี้ได้ แต่ไม่เห็นค่าธรรมเนียม/การเงิน) */
 function _canLockUpload(){return _canSeeFees()||LOGGED_USER==='PLA_ANTS';}
-function _icdOnlyView(){return LOGGED_USER==='BOW_ANTS'||LOGGED_USER==='TARN_ANTS'||LOGGED_USER==='YAI_ANTS';}   /* แท็บรายงาน = ปุ่ม ICD อย่างเดียว (YAI เพิ่ม 4 พ.ย.69) */
+function _icdOnlyView(){return LOGGED_USER==='BOW_ANTS'||LOGGED_USER==='TARN_ANTS'||LOGGED_USER==='YAI_THIRA';}   /* แท็บรายงาน = ปุ่ม ICD อย่างเดียว (YAI_THIRA เพิ่ม 4 พ.ย.69) */
 function applyRoleRestrictions(){
   { const vp=document.getElementById('htab-profit'); if(vp) vp.style.display=(LOGGED_USER==='OAK_THIRA')?'':'none'; }   /* แท็บกำไร เฉพาะ OAK_THIRA */
   { const sp=document.getElementById('htab-skhprofit'); if(sp) sp.style.display=(LOGGED_USER==='OAK_THIRA')?'':'none'; }   /* แท็บกำไรสงขลา เฉพาะ OAK_THIRA */
