@@ -1,4 +1,4 @@
-const CACHE = 'dashboard-v3';
+const CACHE = 'dashboard-v4';
 const ASSETS = ['./', './index.html'];
 
 self.addEventListener('install', e => {
@@ -14,9 +14,24 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Network-first: ดึงข้อมูลสดเสมอ ถ้าออฟไลน์ค่อย fallback cache
+  const req = e.request;
+  // หน้า HTML (index.html / navigate) → ดึงสดเสมอ bypass แคชเบราว์เซอร์ (กันเห็นของเก่าหลัง deploy)
+  const isHTML = req.mode === 'navigate' || req.destination === 'document';
+  if (isHTML) {
+    e.respondWith(
+      fetch(new Request(req, { cache: 'reload' }))
+        .then(res => {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put('./index.html', copy)).catch(() => {});
+          return res;
+        })
+        .catch(() => caches.match(req).then(r => r || caches.match('./index.html')))
+    );
+    return;
+  }
+  // อื่นๆ: network-first ดึงสด ถ้าออฟไลน์ค่อย fallback cache
   e.respondWith(
-    fetch(e.request).catch(() => caches.match(e.request))
+    fetch(req).catch(() => caches.match(req))
   );
 });
 
