@@ -3721,7 +3721,8 @@ function _renderSkhLift(){
   let html=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
       <span style="font-size:12px;color:#64748b;">${_skhLiftFees.length} ใบ · รวม <b style="color:#b45309;">${fm(tot)}</b> บาท</span>
       <button onclick="printSkhLiftReport()" style="margin-left:auto;padding:5px 13px;border:1px solid #0f2a52;background:#0f2a52;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🖨️ ใบปะหน้า</button>
-      ${nPhoto?`<button onclick="printSkhSlips()" style="padding:5px 13px;border:1px solid #1e40af;background:#1e40af;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📄 รูป PDF</button>`:''}
+      ${nPhoto?`<button onclick="printSkhSlips()" style="padding:5px 13px;border:1px solid #1e40af;background:#1e40af;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📄 รูป ใบเสร็จ PDF</button>`:''}
+      <button onclick="printAllWhtCerts()" style="padding:5px 13px;border:1px solid #0e7490;background:#0e7490;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🧾 หัก ณ ที่จ่าย PDF</button>
       ${nPhoto?`<button onclick="skhLiftZip()" style="padding:5px 13px;border:1px solid #b45309;background:#b45309;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📥 โหลดรูป${nPhoto>1?' ZIP':''}</button>`:''}
     </div>`;
   _skhLiftFees.forEach((f,ix)=>{
@@ -3736,10 +3737,142 @@ function _renderSkhLift(){
           ${canEdit?`<button onclick="skhLiftRelink(${f.id},'${h(f.invoice_no||'').replace(/'/g,"\\'")}')" style="font-size:11px;padding:3px 10px;border:1px solid #cbd5e1;background:#f8fafc;border-radius:6px;cursor:pointer;font-family:inherit;">✏️ แก้อินวอยซ์ที่ผูก</button>
           <button onclick="skhLiftDelete(${f.id},'${h(f.receipt_no)}')" style="font-size:11px;padding:3px 10px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;border-radius:6px;cursor:pointer;font-family:inherit;">🗑 ลบ</button>`:''}
         </div>
-      </div></div>`;
+      </div>
+      <button onclick="printWhtCert(${ix})" style="align-self:center;flex-shrink:0;font-size:11px;padding:7px 11px;border:1px solid #0e7490;background:#ecfeff;color:#0e7490;border-radius:7px;cursor:pointer;font-weight:700;font-family:inherit;white-space:nowrap;line-height:1.3;text-align:center;">🧾 ออก<br>หัก ณ ที่จ่าย</button></div>`;
   });
   body.innerHTML=html;
 }
+/* ══ 🧾 ออกใบหัก ณ ที่จ่าย (ภ.ง.ด.53) จากใบเสร็จ ICD — ผู้หัก=โรงงาน · ผู้ถูกหัก=ICD · 1 ใบ/ตู้ ══ */
+const ICD_WHT={name:'บริษัท อินเตอร์ คอนเทนเนอร์ เดโป จำกัด',tax:'0905560001998',addr:'3/39 หมู่ 6 ต.ทิงหม้อ อ.สิงหนคร จ.สงขลา 90280'};
+const FAC_WHT_MAP={
+  BSW:{name:'บริษัท บ้านส้องพาราวู้ด จำกัด',tax:'0845537000779',addr:'83 ม.3 ต.เวียงสระ อ.เวียงสระ จ.สุราษฎร์ธานี 84190'},
+  KNT:{name:'บริษัท กนกทองอินเตอร์เทรด จำกัด',tax:'0925563000445',addr:'112 ม.4 ต.เกาะสะบ้า อ.เทพา จ.สงขลา 90150'},
+  NMP:{name:'บริษัท นาเมืองเพชรพาราวู้ด จำกัด',tax:'0925556000851',addr:'138/2 ม.4 ต.นาเมืองเพชร จ.ตรัง 92000'},
+  INV:{name:'บริษัท เดอะวัน พาราวู้ด จำกัด',tax:'0805565003167',addr:'308 ม.9 ต.ไสหร้า อ.ฉวาง จ.นครศรีธรรมราช 80150'},
+  OGM:{name:'บริษัท วัน โกลด์ มาร์เก็ตติ้ง จำกัด',tax:'0925562000026',addr:'111/2 ม.9 ต.โคกหล่อ อ.เมืองตรัง จ.ตรัง 92000'}
+};
+function _whtFac(inv){ const p=(String(inv||'').match(/^[A-Za-z]+/)||[''])[0].toUpperCase(); return FAC_WHT_MAP[p]||{name:'',tax:'',addr:''}; }
+function _whtDateThai(d){ if(!d)return''; const m=String(d).match(/^(\d{4})-(\d{2})-(\d{2})/); return m?`${+m[3]}/${+m[2]}/${(+m[1])+543}`:String(d); }
+function _bahtText(amount){
+  amount=Math.round((Number(amount)||0)*100)/100;
+  const baht=Math.floor(amount), satang=Math.round((amount-baht)*100);
+  const num=['ศูนย์','หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า'], unit=['','สิบ','ร้อย','พัน','หมื่น','แสน'];
+  function grp(n){ let s=String(n), r='', L=s.length; for(let i=0;i<L;i++){ const d=+s[i], p=L-1-i; if(d===0)continue; if(p===0&&d===1&&L>1)r+='เอ็ด'; else if(p===1&&d===1)r+='สิบ'; else if(p===1&&d===2)r+='ยี่สิบ'; else r+=num[d]+unit[p]; } return r; }
+  function rd(n){ if(n===0)return'ศูนย์'; let r='',mi=Math.floor(n/1000000),re=n%1000000; if(mi>0)r+=rd(mi)+'ล้าน'; if(re>0)r+=grp(re); return r; }
+  let t=baht>0?rd(baht)+'บาท':'ศูนย์บาท'; t+= satang>0?rd(satang)+'สตางค์':'ถ้วน'; return t;
+}
+const _WHT_CSS=`*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'AngsanaUPC','Angsana New',serif;background:#fff;color:#000;font-size:13pt;line-height:1.18;}
+.pg{width:200mm;background:#fff;margin:0 auto;padding:7mm 11mm 5mm;position:relative;page-break-after:always;}
+.pg:last-child{page-break-after:auto;}
+.refnote{position:absolute;top:3mm;right:11mm;font-size:10pt;color:#333;text-align:right;line-height:1.15;border:1px solid #999;border-radius:3px;padding:2px 6px;}
+.cp{font-size:13pt;font-weight:700;}
+.ti{text-align:center;font-size:18pt;font-weight:700;margin-top:1px;}
+.hd{display:flex;justify-content:space-between;align-items:baseline;font-size:13pt;font-weight:700;margin:0 2px 3px;}
+.hd .mid{font-weight:400;}
+.blk{border:1.1px solid #000;margin-top:-1.1px;}
+.blk:first-of-type{margin-top:0;}
+.psec{position:relative;padding:5px 7px 6px;}
+.sec{font-weight:700;font-size:13pt;}
+.tidbox{position:absolute;top:3px;right:5px;border:1px solid #000;text-align:center;width:180px;}
+.tidbox .l{font-size:10pt;font-weight:700;border-bottom:1px solid #000;padding:0 4px 1px;white-space:nowrap;}
+.tidbox .n{font-size:15pt;font-weight:700;letter-spacing:2px;padding:1px 6px;}
+.ln{display:flex;align-items:baseline;gap:5px;margin-top:4px;}
+.lbl{white-space:nowrap;font-size:13pt;font-weight:700;width:44px;flex:none;}
+.nm,.ad{font-size:14pt;font-weight:700;border-bottom:1px dotted #000;flex:1;padding:0 6px 1px;margin-right:190px;}
+.hint{font-size:13pt;font-weight:700;padding-left:34px;}
+.pndsec{padding:3px 7px;display:flex;flex-wrap:wrap;gap:2px 11px;font-size:13pt;align-items:center;line-height:1.35;}
+.pndsec span{white-space:nowrap;}
+.ck{display:inline-block;width:12px;height:12px;border:1px solid #000;text-align:center;line-height:10px;font-weight:700;font-size:10px;margin-right:3px;vertical-align:middle;position:relative;top:-1px;overflow:hidden;}
+table{width:100%;border-collapse:collapse;margin-top:-1.1px;}
+th{border:1px solid #000;padding:2px 6px;text-align:center;font-weight:700;font-size:13pt;}
+td{padding:2.5px 6px;font-size:12pt;vertical-align:top;line-height:1.18;}
+td.desc{border-left:1px solid #000;border-right:1px solid #000;}
+td.val{border-left:1px solid #000;border-right:1px solid #000;border-top:1px dotted #000;border-bottom:1px dotted #000;}
+.r{text-align:right;}.c{text-align:center;}
+.amt{font-size:16pt;font-weight:700;}
+.sub1{padding-left:18px;}.sub2{padding-left:34px;}
+.ni{font-size:10.5pt;font-weight:700;}
+.rowsum td{border-top:1px solid #000;border-bottom:1px solid #000;font-weight:700;font-size:13pt;}
+.botsec{padding:2px 7px;font-size:13pt;}
+.sign{margin:14px auto 4px;width:fit-content;font-size:13pt;}
+.sgrow{display:flex;align-items:baseline;}
+.slbl{width:36px;white-space:nowrap;flex:none;}
+.sline{width:275px;border-bottom:1px dotted #000;height:1.05em;flex:none;}
+.srole{font-weight:700;margin-left:7px;white-space:nowrap;}
+.sdate{margin-left:36px;width:275px;text-align:center;margin-top:2px;}
+.rem{font-size:11pt;color:#000;padding:5px 2px 0;line-height:1.3;}
+.rem .w{font-size:10.5pt;}
+@page{size:A4 portrait;margin:5mm;}
+@media print{.pg{padding:0;}}`;
+function _whtPage(f){
+  const inv=f.invoice_no||_skhLiftInv||'', fac=_whtFac(inv);
+  const base=Number(f.amount_base)||Math.round(((Number(f.amount_total)||1070)/1.07));
+  const wht=Math.round(base*0.03*100)/100;
+  const fm2=n=>Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const date=_whtDateThai(f.receipt_date);
+  return `<div class="pg">
+  <div class="refnote">INV: <b>${h(inv)}</b><br>ตู้: <b>${h(f.container_no||'')}</b><br>ใบเสร็จ ICD #${h(f.receipt_no||'')}</div>
+  <div class="cp">ฉบับที่ 1 &nbsp;(สำหรับผู้ถูกหักภาษี ณ ที่จ่ายใช้แนบพร้อมกับแบบแสดงรายการภาษี)</div>
+  <div class="cp">ฉบับที่ 2 &nbsp;(สำหรับผู้ถูกหักภาษี ณ ที่จ่ายเก็บไว้เป็นหลักฐาน)</div>
+  <div class="ti">หนังสือรับรองการหักภาษี ณ ที่จ่าย</div>
+  <div class="hd"><span>เล่มที่ ........................</span><span class="mid">ตามมาตรา 50 ทวิ แห่งประมวลรัษฎากร</span><span>เลขที่ ........................</span></div>
+  <div class="blk psec">
+    <div class="tidbox"><div class="l">เลขประจำตัวผู้เสียภาษีอากร (13 หลัก)</div><div class="n">${h(fac.tax)}</div></div>
+    <div class="sec">ผู้มีหน้าที่หักภาษี ณ ที่จ่าย :</div>
+    <div class="ln"><span class="lbl">ชื่อ</span><span class="nm">${h(fac.name)}</span></div>
+    <div class="hint">(ให้ระบุว่าเป็น บุคคล นิติบุคคล บริษัท สมาคม หรือคณะบุคคล)</div>
+    <div class="ln"><span class="lbl">ที่อยู่</span><span class="ad">${h(fac.addr)}</span></div>
+    <div class="hint">(ให้ระบุ เลขที่ ตรอก/ซอย หมู่ที่ ถนน ตำบล/แขวง อำเภอ/เขต จังหวัด)</div>
+  </div>
+  <div class="blk psec">
+    <div class="tidbox"><div class="l">เลขประจำตัวผู้เสียภาษีอากร (13 หลัก)</div><div class="n">${ICD_WHT.tax}</div></div>
+    <div class="sec">ผู้ถูกหักภาษี ณ ที่จ่าย :</div>
+    <div class="ln"><span class="lbl">ชื่อ</span><span class="nm">${ICD_WHT.name}</span></div>
+    <div class="hint">(ให้ระบุว่าเป็น บุคคล นิติบุคคล บริษัท สมาคม หรือคณะบุคคล)</div>
+    <div class="ln"><span class="lbl">ที่อยู่</span><span class="ad">${ICD_WHT.addr}</span></div>
+    <div class="hint">(ให้ระบุ เลขที่ ตรอก/ซอย หมู่ที่ ถนน ตำบล/แขวง อำเภอ/เขต จังหวัด)</div>
+  </div>
+  <div class="blk pndsec">
+    <span class="lbl" style="font-weight:400;">ลำดับที่ ............</span><span style="font-weight:400;">ในแบบ</span>
+    <span><span class="ck"></span>(1) ภ.ง.ด.1ก</span><span><span class="ck"></span>(2) ภ.ง.ด.1ก พิเศษ</span><span><span class="ck"></span>(3) ภ.ง.ด.2</span><span><span class="ck"></span>(4) ภ.ง.ด.3</span><span><span class="ck"></span>(5) ภ.ง.ด.2ก</span><span><span class="ck"></span>(6) ภ.ง.ด.3ก</span><span><span class="ck">X</span>(7) ภ.ง.ด.53</span>
+  </div>
+  <table>
+    <thead><tr><th style="width:57%;">ประเภทเงินได้พึงประเมินที่จ่าย</th><th style="width:15%;">วัน เดือน หรือ<br>ปีภาษี ที่จ่าย</th><th style="width:15%;">จำนวนเงินที่จ่าย</th><th style="width:13%;">ภาษีที่หัก<br>และนำส่งไว้</th></tr></thead>
+    <tbody>
+      <tr><td class="desc">1. เงินเดือน ค่าจ้าง เบี้ยเลี้ยง โบนัส ฯลฯ ตามมาตรา 40 (1)</td><td class="val"></td><td class="val"></td><td class="val"></td></tr>
+      <tr><td class="desc">2. ค่าธรรมเนียม ค่านายหน้า ฯลฯ ตามมาตรา 40 (2)</td><td class="val"></td><td class="val"></td><td class="val"></td></tr>
+      <tr><td class="desc">3. ค่าแห่งลิขสิทธิ์ ฯลฯ ตามมาตรา 40 (3)</td><td class="val"></td><td class="val"></td><td class="val"></td></tr>
+      <tr><td class="desc">4. (ก) ค่าดอกเบี้ย ฯลฯ ตามมาตรา 40 (4)(ก)</td><td class="val"></td><td class="val"></td><td class="val"></td></tr>
+      <tr><td class="desc">&nbsp;&nbsp;&nbsp;(ข) เงินปันผล เงินส่วนแบ่งกำไร ฯลฯ ตามมาตรา 40 (4)(ข)</td><td class="val"></td><td class="val"></td><td class="val"></td></tr>
+      <tr><td class="desc sub1">(1) กิจการที่ต้องเสียภาษีเงินได้นิติบุคคลในอัตราดังนี้</td><td class="val"></td><td class="val"></td><td class="val"></td></tr>
+      <tr><td class="desc sub2"><span class="ck"></span><span class="ni">(1.1) อัตราร้อยละ 30 ของกำไรสุทธิ</span></td><td class="val"></td><td class="val"></td><td class="val"></td></tr>
+      <tr><td class="desc sub2"><span class="ck"></span><span class="ni">(1.2) อัตราร้อยละ 25 ของกำไรสุทธิ</span></td><td class="val"></td><td class="val"></td><td class="val"></td></tr>
+      <tr><td class="desc sub2"><span class="ck"></span><span class="ni">(1.3) อัตราร้อยละ 20 ของกำไรสุทธิ</span></td><td class="val"></td><td class="val"></td><td class="val"></td></tr>
+      <tr><td class="desc sub2"><span class="ck"></span><span class="ni">(1.4) อัตราอื่น ๆ ระบุ ............ ของกำไรสุทธิ</span></td><td class="val"></td><td class="val"></td><td class="val"></td></tr>
+      <tr><td class="desc sub1"><span class="ck"></span><span class="ni">(2) กิจการที่ได้รับยกเว้นภาษีเงินได้นิติบุคคลซึ่งผู้รับเงินปันผลไม่ได้รับเครดิตภาษี</span></td><td class="val"></td><td class="val"></td><td class="val"></td></tr>
+      <tr><td class="desc sub1"><span class="ck"></span><span class="ni">(3) กำไรเฉพาะส่วนที่ได้รับยกเว้นไม่ต้องนำมารวมคำนวณภาษีเงินได้นิติบุคคล ซึ่งผู้รับเงินปันผลไม่ได้รับเครดิตภาษี</span></td><td class="val"></td><td class="val"></td><td class="val"></td></tr>
+      <tr><td class="desc">5. การจ่ายเงินได้ที่ต้องหักภาษี ณ ที่จ่ายตามคำสั่งกรมสรรพากรที่ออกตามมาตรา 3 เตรส เช่น รางวัล ส่วนลดหรือประโยชน์ใด ๆ เนื่องจากการส่งเสริมการขาย รางวัลในการประกวด การแข่งขัน การชิงโชค ค่าแสดงของนักแสดงสาธารณะ ค่าจ้างทำของ ค่าโฆษณา <b>ค่าเช่า ค่าขนส่ง <u>ค่าบริการ</u></b> ค่าเบี้ยประกันวินาศภัย ฯลฯ</td><td class="val c" style="vertical-align:bottom;">${date}</td><td class="val r amt" style="vertical-align:bottom;">${fm2(base)}</td><td class="val r amt" style="vertical-align:bottom;">${fm2(wht)}</td></tr>
+      <tr><td class="desc">6. อื่น ๆ ( ระบุ ) ................................................</td><td class="val"></td><td class="val"></td><td class="val"></td></tr>
+      <tr class="rowsum"><td class="desc r">รวมเงินที่จ่ายและภาษีที่หักนำส่ง</td><td class="val"></td><td class="val r amt">${fm2(base)}</td><td class="val r amt">${fm2(wht)}</td></tr>
+    </tbody>
+  </table>
+  <div class="blk botsec" style="display:flex;align-items:baseline;gap:6px;"><span style="white-space:nowrap;">รวมเงินภาษีที่หักนำส่ง (ตัวอักษร)</span><span style="flex:1;border-bottom:1px dotted #000;text-align:center;font-size:14pt;font-weight:700;">( ${_bahtText(wht)} )</span></div>
+  <div class="blk botsec"><b>ผู้จ่ายเงิน</b> &nbsp;<span class="ck"></span>(1) ออกภาษีให้ครั้งเดียว &nbsp;<span class="ck"></span>(2) ออกภาษีให้ตลอดไป &nbsp;<span class="ck">X</span>(3) หักภาษี ณ ที่จ่าย &nbsp;<span class="ck"></span>(4) อื่น ๆ ระบุ ............</div>
+  <div class="blk botsec" style="text-align:center;padding-bottom:5px;">ขอรับรองว่าข้อความและตัวเลขดังกล่าวข้างต้นถูกต้องตรงกับความจริงทุกประการ
+    <div class="sign"><div class="sgrow"><span class="slbl">ลงชื่อ</span><span class="sline"></span><span class="srole">ผู้มีหน้าที่หักภาษี ณ ที่จ่าย</span></div><div class="sgrow"><span class="slbl"></span><span class="sline"></span></div><div class="sdate">${date}</div></div>
+  </div>
+  <div class="rem">หมายเหตุ * ให้สามารถอ้างอิงหรือสอบยันกันได้ระหว่างลำดับที่ตามหนังสือรับรอง ฯ กับแบบยื่นรายการภาษีหัก ณ ที่จ่าย<br>
+    <span class="w">คำเตือน &nbsp;&nbsp; ผู้มีหน้าที่ออกหนังสือรับรองการหักภาษี ณ ที่จ่าย ฝ่าฝืนไม่ปฏิบัติตามมาตรา 50 ทวิ แห่งประมวลรัษฎากร ต้องรับโทษทางอาญาตามมาตรา 35 แห่งประมวลรัษฎากร</span></div>
+</div>`;
+}
+function _whtPrint(pages){
+  const w=window.open('','_blank','width=900,height=1100'); if(!w){ alert('⚠️ กรุณาอนุญาต Pop-up ก่อน'); return; }
+  w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>หนังสือรับรองหัก ณ ที่จ่าย</title><style>${_WHT_CSS}</style></head><body>${pages}</body></html>`);
+  w.document.close(); w.focus(); setTimeout(()=>{try{w.print();}catch(e){}},400);
+}
+function printWhtCert(ix){ const f=_skhLiftFees[ix]; if(!f){alert('ไม่พบใบเสร็จ');return;} _whtPrint(_whtPage(f)); }
+function printAllWhtCerts(){ if(!_skhLiftFees||!_skhLiftFees.length){alert('ยังไม่มีใบเสร็จค่ายกตู้');return;} _whtPrint(_skhLiftFees.map(_whtPage).join('')); }
 /* ใบปะหน้าค่ายกตู้ ICD (รายอินวอยซ์) — ฟอร์แมตบริษัท ICD ท่าสงขลา */
 function printSkhLiftReport(){
   if(!_skhLiftFees||!_skhLiftFees.length){ alert('ยังไม่มีใบเสร็จค่ายกตู้'); return; }
