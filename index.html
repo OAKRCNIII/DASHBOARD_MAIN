@@ -7179,6 +7179,68 @@ let _vslFilter='';let _VSL_GROUPS=[];let _VSL_DRAFT_GROUPS=[];   /* เรือ
 let _vslViewMode='list'; /* 'list' | 'cal' */
 let _vslPort='all';      /* กรองหน้าเรือตามท่า: all | PADANG | LCB | SONGKHLA */
 function setVslPort(p){_vslPort=p;renderVessel();}
+/* ══ 📧 SYNC GMAIL — ดึงใบวางบิล (OCF/TLX/CTIC/คุณวัส) จาก Gmail มาชนกับสลิปโอน (OAK_THIRA) ══ */
+const GMAIL_BILL_API = SB_URL + '/functions/v1/gmail-bill-sync';
+async function syncGmailBills(){
+  if(LOGGED_USER!=='OAK_THIRA'){ alert('เฉพาะ OAK_THIRA'); return; }
+  let bg=document.getElementById('gbillBg');
+  if(!bg){ bg=document.createElement('div'); bg.id='gbillBg';
+    bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9300;align-items:center;justify-content:center;padding:14px;';
+    bg.innerHTML=`<div style="background:#fff;border-radius:16px;max-width:900px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+      <div style="padding:14px 18px;border-bottom:1px solid #e8edf5;display:flex;align-items:center;justify-content:space-between;background:#f0fdf4;border-radius:16px 16px 0 0;">
+        <span style="font-size:14px;font-weight:800;color:#15803d;">📧 SYNC GMAIL — ชนยอดวางบิล vs สลิปโอน</span>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="gbillDays" style="font-size:12px;padding:5px 9px;border:1.5px solid #cbd5e1;border-radius:7px;"><option value="14">14 วัน</option><option value="21" selected>21 วัน</option><option value="45">45 วัน</option></select>
+          <button onclick="_runGbill()" style="padding:6px 14px;border:none;border-radius:8px;background:#16a34a;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🔄 ดึงใหม่</button>
+          <button onclick="document.getElementById('gbillBg').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:#94a3b8;">✕</button>
+        </div></div>
+      <div style="overflow-y:auto;padding:14px 18px;" id="gbillBody"></div></div>`;
+    document.body.appendChild(bg);
+  }
+  bg.style.display='flex';
+  _runGbill();
+}
+async function _runGbill(){
+  const body=document.getElementById('gbillBody'); if(!body)return;
+  const days=Number((document.getElementById('gbillDays')||{}).value)||21;
+  body.innerHTML='<div style="padding:30px;text-align:center;color:#64748b;">⏳ กำลังดึงเมล + อ่านบิล (รวม PDF ของ RCL)… อาจใช้เวลาสักครู่</div>';
+  try{
+    const r=await fetch(GMAIL_BILL_API,{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({days})});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+    body.innerHTML=_gbillHtml(j);
+  }catch(e){ body.innerHTML=`<div style="padding:24px;text-align:center;color:#b91c1c;font-weight:700;">❌ ${h(e.message)}</div>`; }
+}
+function _gbillHtml(j){
+  const bills=j.bills||[]; const fmt=n=>n==null?'—':Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const stStyle=s=>{ if(/✅/.test(s))return'background:#dcfce7;color:#166534'; if(/⚠️/.test(s))return'background:#fef3c7;color:#b45309'; if(/ยังไม่จ่าย/.test(s))return'background:#dbeafe;color:#1d4ed8'; return'background:#f1f5f9;color:#64748b'; };
+  const typeC={OCF:'#15803d',TLX:'#1d4ed8',CTIC:'#0369a1',WATR:'#b45309'};
+  const ok=bills.filter(b=>/✅/.test(b.status||'')).length, warn=bills.filter(b=>/⚠️/.test(b.status||'')).length, wait=bills.filter(b=>/ยังไม่จ่าย/.test(b.status||'')).length;
+  let rows=bills.map(b=>{
+    const inv=b.invoice_no||'<span style="color:#cbd5e1">— ไม่มี INV —</span>';
+    const vno=b.vendor_inv_no?`<div style="font-size:9px;color:#94a3b8;font-family:monospace">${h(b.vendor_inv_no)}</div>`:'';
+    const mb=b.matched_by?`<div style="font-size:9px;color:#0891b2">↳ จับจาก${h(b.matched_by)}</div>`:'';
+    return `<tr style="border-bottom:1px solid #f1f5f9;">
+      <td style="padding:6px 8px;"><span style="font-weight:800;color:${typeC[b.type]||'#475569'};font-size:11px;">${h(b.type)}</span><div style="font-size:9px;color:#94a3b8;">${h(b.vendor||'')}</div></td>
+      <td style="padding:6px 8px;font-size:12px;">${inv}${vno}${mb}</td>
+      <td style="padding:6px 8px;text-align:right;font-weight:700;">${fmt(b.grand_total)}</td>
+      <td style="padding:6px 8px;text-align:right;font-size:11px;color:#b45309;">${b.wht_amount?fmt(b.wht_amount):'—'}</td>
+      <td style="padding:6px 8px;text-align:right;">${fmt(b.slip_paid)}</td>
+      <td style="padding:6px 8px;text-align:center;"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;${stStyle(b.status||'')}">${h(b.status||'')}</span></td>
+      <td style="padding:6px 8px;color:#94a3b8;font-size:10px;">${h(b.mail_at||'')}</td></tr>`;
+  }).join('');
+  return `<div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;font-size:12px;font-weight:700;">
+      <span style="padding:5px 12px;border-radius:8px;background:#dcfce7;color:#166534;">✅ ตรง ${ok}</span>
+      <span style="padding:5px 12px;border-radius:8px;background:#fef3c7;color:#b45309;">⚠️ ไม่ตรง ${warn}</span>
+      <span style="padding:5px 12px;border-radius:8px;background:#dbeafe;color:#1d4ed8;">⏳ ยังไม่จ่าย ${wait}</span>
+      <span style="padding:5px 12px;border-radius:8px;background:#f1f5f9;color:#64748b;">รวม ${bills.length} ใบ · ${j.days} วัน</span></div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#0f2a52;color:#fff;">
+      <th style="padding:7px 8px;text-align:left;">ประเภท</th><th style="padding:7px 8px;text-align:left;">อินวอยซ์</th>
+      <th style="padding:7px 8px;text-align:right;">ยอดบิล (฿)</th><th style="padding:7px 8px;text-align:right;">หัก ณ ที่จ่าย</th>
+      <th style="padding:7px 8px;text-align:right;">สลิปโอน (฿)</th><th style="padding:7px 8px;text-align:center;">สถานะ</th><th style="padding:7px 8px;text-align:left;">วันที่</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="7" style="padding:20px;text-align:center;color:#94a3b8;">ไม่พบใบวางบิลในช่วงนี้</td></tr>'}</tbody></table>
+    <div style="margin-top:10px;font-size:11px;color:#94a3b8;">หมายเหตุ: v1 = ดูผลชนยอดอย่างเดียว (ยังไม่เขียนลงระบบ) · CTIC จับ INV จากยอดสลิปที่ตรง</div>`;
+}
 const ICD_PER_CTR=1070;  /* ค่ายกตู้ ICD สงขลา = 1,070 ฿/ตู้ (คงที่) — คอลัมน์ ICD = 1070 × จำนวนตู้ */
 let _vslCalYear=new Date().getFullYear();
 let _vslCalMonth=new Date().getMonth(); /* 0-indexed */
@@ -7260,7 +7322,7 @@ function renderVessel(){
   draftNames.forEach(v=>{opts+=`<option value="${h(v)}"${v===_vslFilter?' selected':''}>🗓️ ${h(v)} (ยังไม่ FINAL)</option>`;});
   const _vpBar=(p,l)=>`<button onclick="setVslPort('${p}')" style="padding:6px 12px;border-radius:8px;border:1.5px solid ${_vslPort===p?'#0d9488':'#cbd5e1'};background:${_vslPort===p?'#0d9488':'#fff'};color:${_vslPort===p?'#fff':'#475569'};font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">${l}</button>`;
   const _portBar=`${_vpBar('all','🌐 ทุกท่า')}${_vpBar('PADANG','ปาดัง')}${_vpBar('LCB','แหลมฉบัง')}${_vpBar('SONGKHLA','สงขลา')}<span style="width:1px;height:22px;background:#e2e8f0;margin:0 2px;"></span>`;
-  let out=`<div style="padding:4px 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">${_portBar}<label style="font-size:12px;color:#475569;font-weight:600;">กรองเรือ:</label><select id="vslSel" onchange="_vslFilter=this.value;renderVessel();" style="padding:6px 12px;border:1.5px solid #bfdbfe;border-radius:8px;font-size:13px;background:#fff;color:#1e40af;cursor:pointer;min-width:220px;">${opts}</select><button onclick="showVesselPdfModal()" style="padding:6px 14px;border:1.5px solid #0ea5e9;border-radius:8px;background:#eff6ff;color:#0369a1;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;">🖨️ PDF</button><button onclick="_vslViewMode='cal';_vslCalYear=new Date().getFullYear();_vslCalMonth=new Date().getMonth();renderVessel();" style="padding:6px 14px;border:1.5px solid #8b5cf6;border-radius:8px;background:#f5f3ff;color:#6d28d9;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📅 มุมมองปฏิทิน</button></div>`;
+  let out=`<div style="padding:4px 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">${_portBar}<label style="font-size:12px;color:#475569;font-weight:600;">กรองเรือ:</label><select id="vslSel" onchange="_vslFilter=this.value;renderVessel();" style="padding:6px 12px;border:1.5px solid #bfdbfe;border-radius:8px;font-size:13px;background:#fff;color:#1e40af;cursor:pointer;min-width:220px;">${opts}</select><button onclick="showVesselPdfModal()" style="padding:6px 14px;border:1.5px solid #0ea5e9;border-radius:8px;background:#eff6ff;color:#0369a1;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;">🖨️ PDF</button><button onclick="_vslViewMode='cal';_vslCalYear=new Date().getFullYear();_vslCalMonth=new Date().getMonth();renderVessel();" style="padding:6px 14px;border:1.5px solid #8b5cf6;border-radius:8px;background:#f5f3ff;color:#6d28d9;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📅 มุมมองปฏิทิน</button>${LOGGED_USER==='OAK_THIRA'?`<button onclick="syncGmailBills()" title="ดึงใบวางบิลจาก Gmail มาชนกับสลิปโอน" style="padding:6px 14px;border:1.5px solid #16a34a;border-radius:8px;background:#f0fdf4;color:#15803d;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📧 SYNC GMAIL</button>`:''}</div>`;
 
   /* ── การ์ด DRAFT (โปร่งๆ มีป้าย) แสดงบนสุด ── */
   if(draftStandalone.length){
