@@ -3746,7 +3746,10 @@ function _renderSkhLift(){
           <button onclick="skhLiftDelete(${f.id},'${h(f.receipt_no)}')" style="font-size:11px;padding:3px 10px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;border-radius:6px;cursor:pointer;font-family:inherit;">🗑 ลบ</button>`:''}
         </div>
       </div>
-      <button onclick="printWhtCert(${ix})" style="align-self:center;flex-shrink:0;font-size:11px;padding:7px 11px;border:1px solid #0e7490;background:#ecfeff;color:#0e7490;border-radius:7px;cursor:pointer;font-weight:700;font-family:inherit;white-space:nowrap;line-height:1.3;text-align:center;">🧾 ออก<br>หัก ณ ที่จ่าย</button></div>`;
+      <div style="align-self:center;flex-shrink:0;display:flex;flex-direction:column;gap:5px;">
+        <button onclick="printWhtCert(${ix})" style="font-size:11px;padding:7px 11px;border:1px solid #0e7490;background:#ecfeff;color:#0e7490;border-radius:7px;cursor:pointer;font-weight:700;font-family:inherit;white-space:nowrap;line-height:1.3;text-align:center;">🧾 ออก<br>หัก ณ ที่จ่าย</button>
+        <button onclick="whtCertExcel(${ix})" style="font-size:11px;padding:6px 11px;border:1px solid #107c41;background:#eafaf0;color:#107c41;border-radius:7px;cursor:pointer;font-weight:700;font-family:inherit;white-space:nowrap;text-align:center;">📊 Excel</button>
+      </div></div>`;
   });
   body.innerHTML=html;
 }
@@ -3887,6 +3890,60 @@ function _whtPrint(pages){
 }
 function printWhtCert(ix){ const f=_skhLiftFees[ix]; if(!f){alert('ไม่พบใบเสร็จ');return;} _whtPrint(_whtPage(f)); }
 function printAllWhtCerts(){ if(!_skhLiftFees||!_skhLiftFees.length){alert('ยังไม่มีใบเสร็จค่ายกตู้');return;} _whtPrint(_skhLiftFees.map(_whtPage).join('')); }
+/* 📊 ออกไฟล์ Excel (.xlsx) หนังสือรับรองหัก ณ ที่จ่าย รายใบ — แก้แมนวลได้ (RCN 5 พ.ย.) */
+async function _whtExcel(f){
+  await _lazyScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
+  const inv=f.invoice_no||_skhLiftInv||'', fac=_whtWithholder(inv);
+  const base=Number(f.amount_base)||Math.round(((Number(f.amount_total)||1070)/1.07));
+  const wht=Math.round(base*0.03*100)/100;
+  const date=_whtDateThai(f.receipt_date);
+  const AN='AngsanaUPC', thin={style:'thin',color:{rgb:'FF000000'}};
+  const ws={}, merges=[]; let maxR=0;
+  const put=(r,c,v,o)=>{ o=o||{}; const ref=XLSX.utils.encode_cell({r,c}); const isN=(typeof v==='number');
+    ws[ref]={t:isN?'n':'s', v:(v==null?'':v)};
+    ws[ref].s={font:{name:AN,sz:o.z||15,bold:!!o.b,underline:!!o.u},
+      alignment:{vertical:'center',horizontal:o.a||'left',wrapText:!!o.wrap},
+      border:{left:o.L?thin:undefined,right:o.R?thin:undefined,top:o.T?thin:undefined,bottom:o.B?thin:undefined}};
+    if(o.nf) ws[ref].z=o.nf; if(r>maxR)maxR=r; };
+  const mg=(r1,c1,r2,c2)=>merges.push({s:{r:r1,c:c1},e:{r:r2,c:c2}});
+  let r=0;
+  put(r,0,'หนังสือรับรองการหักภาษี ณ ที่จ่าย',{z:20,b:true,a:'center'}); mg(r,0,r,3); r++;
+  put(r,0,'ตามมาตรา 50 ทวิ แห่งประมวลรัษฎากร',{a:'center'}); mg(r,0,r,3); r+=2;
+  put(r,0,'ผู้มีหน้าที่หักภาษี ณ ที่จ่าย',{b:true}); mg(r,0,r,3); r++;
+  put(r,0,'ชื่อ',{}); put(r,1,fac.name,{}); mg(r,1,r,3); r++;
+  put(r,0,'เลขประจำตัวผู้เสียภาษี (13 หลัก)',{}); put(r,1,fac.tax,{}); mg(r,1,r,3); r++;
+  put(r,0,'ที่อยู่',{}); put(r,1,fac.addr,{wrap:true}); mg(r,1,r,3); r+=2;
+  put(r,0,'ผู้ถูกหักภาษี ณ ที่จ่าย',{b:true}); mg(r,0,r,3); r++;
+  put(r,0,'ชื่อ',{}); put(r,1,ICD_WHT.name,{}); mg(r,1,r,3); r++;
+  put(r,0,'เลขประจำตัวผู้เสียภาษี (13 หลัก)',{}); put(r,1,ICD_WHT.tax,{}); mg(r,1,r,3); r++;
+  put(r,0,'ที่อยู่',{}); put(r,1,ICD_WHT.addr,{wrap:true}); mg(r,1,r,3); r+=2;
+  put(r,0,'ประเภทแบบที่ยื่น',{}); put(r,1,'ภ.ง.ด.53   (ผู้จ่ายเงิน: (3) หักภาษี ณ ที่จ่าย)',{b:true}); mg(r,1,r,3); r+=2;
+  put(r,0,'ประเภทเงินได้พึงประเมินที่จ่าย',{b:true,a:'center',L:1,R:1,T:1,B:1});
+  put(r,1,'วัน เดือน ปีที่จ่าย',{b:true,a:'center',R:1,T:1,B:1});
+  put(r,2,'จำนวนเงินที่จ่าย',{b:true,a:'center',R:1,T:1,B:1});
+  put(r,3,'ภาษีที่หักและนำส่ง',{b:true,a:'center',R:1,T:1,B:1}); r++;
+  put(r,0,'5. ค่าจ้างทำของ ค่าขนส่ง ค่าบริการ ฯลฯ (คำสั่งกรมสรรพากรตาม ม.3 เตรส)',{wrap:true,L:1,R:1,B:1});
+  put(r,1,date,{a:'center',R:1,B:1});
+  put(r,2,base,{a:'right',nf:'#,##0.00',R:1,B:1});
+  put(r,3,wht,{a:'right',nf:'#,##0.00',R:1,B:1}); r++;
+  put(r,0,'รวมเงินที่จ่ายและภาษีที่หักนำส่ง',{b:true,a:'right',L:1,R:1,B:1});
+  put(r,1,'',{R:1,B:1});
+  put(r,2,base,{b:true,a:'right',nf:'#,##0.00',R:1,B:1});
+  put(r,3,wht,{b:true,a:'right',nf:'#,##0.00',R:1,B:1}); r+=2;
+  put(r,0,'รวมเงินภาษีที่หักนำส่ง (ตัวอักษร)',{}); put(r,1,'( '+_bahtText(wht)+' )',{b:true}); mg(r,1,r,3); r+=2;
+  put(r,0,'ขอรับรองว่าข้อความและตัวเลขข้างต้นถูกต้องตรงกับความจริงทุกประการ',{}); mg(r,0,r,3); r+=2;
+  put(r,0,'ลงชื่อ ...................................................... ผู้มีหน้าที่หักภาษี ณ ที่จ่าย',{}); mg(r,0,r,3); r++;
+  put(r,0,'วันที่ '+date,{a:'center'}); mg(r,0,r,3); r+=2;
+  put(r,0,'[ อ้างอิง ]  INV: '+inv+'   ตู้: '+(f.container_no||'-')+'   ใบเสร็จ ICD #'+(f.receipt_no||'(ยังไม่มีใบเสร็จ)'),{z:12}); mg(r,0,r,3);
+  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:maxR,c:3}});
+  ws['!cols']=[{wch:52},{wch:18},{wch:16},{wch:16}];
+  ws['!merges']=merges;
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'WHT53');
+  const safe=s=>String(s||'').replace(/[\\/:*?\[\]]/g,'-');
+  XLSX.writeFile(wb,`หัก ณ ที่จ่าย ${safe(inv)} ${safe(f.container_no||'')}.xlsx`);
+}
+function whtCertExcel(ix){ const f=_skhLiftFees[ix]; if(!f){alert('ไม่พบใบเสร็จ');return;} _whtExcel(f).catch(e=>alert('สร้าง Excel ไม่ได้: '+(e.message||e))); }
 /* ใบปะหน้าค่ายกตู้ ICD (รายอินวอยซ์) — ฟอร์แมตบริษัท ICD ท่าสงขลา */
 function printSkhLiftReport(){
   if(!_skhLiftFees||!_skhLiftFees.length){ alert('ยังไม่มีใบเสร็จค่ายกตู้'); return; }
