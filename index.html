@@ -3708,6 +3708,11 @@ async function openSkhLift(inv){
       const rank=f=>{const c=(f.container_no||'').trim().toUpperCase();return ord.has(c)?ord.get(c):9999;};
       _skhLiftFees=_skhLiftFees.map((f,i)=>({f,i})).sort((a,b)=>rank(a.f)-rank(b.f)||a.i-b.i).map(x=>x.f);
     }catch(e){}
+    /* ตู้ของอินวอยซ์นี้ที่ยังไม่มีใบเสร็จ ICD → แสดงต่อท้าย ให้ออกหัก ณ ที่จ่ายได้เป็นกรณีพิเศษ (RCN 5 พ.ย.) */
+    try{
+      const pend=(await _skhIcdPendingRows(_skhLiftFees)).filter(p=>normInv(p.invoice_no)===normInv(inv));
+      if(pend.length) _skhLiftFees=_skhLiftFees.concat(pend);
+    }catch(e){}
     _renderSkhLift();
   }catch(e){ const b=document.getElementById('skhLiftBody'); if(b)b.innerHTML=`<div style="padding:26px;text-align:center;color:#b91c1c;font-weight:700;">${h(e.message)}</div>`; }
 }
@@ -3716,25 +3721,28 @@ function _renderSkhLift(){
   const canEdit=LOGGED_USER==='OAK_THIRA';
   const fm=n=>n!=null&&n!==''?Number(n).toLocaleString('th-TH'):'—';
   if(!_skhLiftFees.length){ body.innerHTML='<div style="padding:26px;text-align:center;color:#64748b;">ยังไม่มีใบเสร็จค่ายกตู้<br><span style="font-size:11px">(ส่งรูปใบ ICD ผ่านบอท LINE สงขลา)</span></div>'; return; }
-  const tot=_skhLiftFees.reduce((s,x)=>s+(Number(x.amount_total)||0),0);
-  const nPhoto=_skhLiftFees.filter(f=>f.photo_url).length;
+  const realFees=_skhLiftFees.filter(f=>!f._pending);
+  const nPend=_skhLiftFees.length-realFees.length;
+  const tot=realFees.reduce((s,x)=>s+(Number(x.amount_total)||0),0);
+  const nPhoto=realFees.filter(f=>f.photo_url).length;
   let html=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
-      <span style="font-size:12px;color:#64748b;">${_skhLiftFees.length} ใบ · รวม <b style="color:#b45309;">${fm(tot)}</b> บาท</span>
+      <span style="font-size:12px;color:#64748b;">${realFees.length} ใบ · รวม <b style="color:#b45309;">${fm(tot)}</b> บาท${nPend?` · <b style="color:#b45309;">⏳ ${nPend}</b> ยังไม่มีใบเสร็จ`:''}</span>
       <button onclick="printSkhLiftReport()" style="margin-left:auto;padding:5px 13px;border:1px solid #0f2a52;background:#0f2a52;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🖨️ ใบปะหน้า</button>
       ${nPhoto?`<button onclick="printSkhSlips()" style="padding:5px 13px;border:1px solid #1e40af;background:#1e40af;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📄 รูป ใบเสร็จ PDF</button>`:''}
       <button onclick="printAllWhtCerts()" style="padding:5px 13px;border:1px solid #0e7490;background:#0e7490;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🧾 หัก ณ ที่จ่าย PDF</button>
       ${nPhoto?`<button onclick="skhLiftZip()" style="padding:5px 13px;border:1px solid #b45309;background:#b45309;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📥 โหลดรูป${nPhoto>1?' ZIP':''}</button>`:''}
     </div>`;
   _skhLiftFees.forEach((f,ix)=>{
-    html+=`<div style="border:1px solid #fde68a;border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;">
+    const pend=!!f._pending;
+    html+=`<div style="border:1px ${pend?'dashed #f59e0b':'solid #fde68a'};border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;${pend?'background:#fffdf5;':''}">
       ${f.photo_url?`<img src="${f.photo_url}" onclick="window.open('${f.photo_url}','_blank')" style="width:72px;height:72px;object-fit:cover;border-radius:7px;cursor:zoom-in;border:1px solid #e2e8f0;flex-shrink:0;">`:''}
       <div style="flex:1;min-width:0;font-size:12px;line-height:1.7;">
-        <div><b>#${h(f.receipt_no)}</b> · ${h(f.receipt_date||'—')}</div>
+        <div>${pend?'<b style="color:#b45309;">⏳ ยังไม่มีใบเสร็จ</b>':`<b>#${h(f.receipt_no)}</b>`} · ${h(f.receipt_date||'—')}</div>
         <div style="color:#475569;">ตู้ ${h(f.container_no||'—')} · ทะเบียน ${h(f.truck_plate||'—')}</div>
-        <div style="color:#b45309;font-weight:700;">${fm(f.amount_total)} บาท <span style="font-size:10px;color:#94a3b8;font-weight:400;">(ก่อน VAT ${fm(f.amount_base)} · VAT ${fm(f.vat)})</span></div>
+        <div style="color:#b45309;font-weight:700;">${pend?'~':''}${fm(f.amount_total)} บาท <span style="font-size:10px;color:#94a3b8;font-weight:400;">(ก่อน VAT ${fm(f.amount_base)} · VAT ${fm(f.vat)})</span></div>
         <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
-          ${f.photo_url?`<button onclick="skhLiftDownOne(${ix})" style="font-size:11px;padding:3px 10px;border:1px solid #fcd34d;background:#fffbeb;color:#b45309;border-radius:6px;cursor:pointer;font-family:inherit;">📥 โหลดรูป</button>`:''}
-          ${canEdit?`<button onclick="skhLiftRelink(${f.id},'${h(f.invoice_no||'').replace(/'/g,"\\'")}')" style="font-size:11px;padding:3px 10px;border:1px solid #cbd5e1;background:#f8fafc;border-radius:6px;cursor:pointer;font-family:inherit;">✏️ แก้อินวอยซ์ที่ผูก</button>
+          ${!pend&&f.photo_url?`<button onclick="skhLiftDownOne(${ix})" style="font-size:11px;padding:3px 10px;border:1px solid #fcd34d;background:#fffbeb;color:#b45309;border-radius:6px;cursor:pointer;font-family:inherit;">📥 โหลดรูป</button>`:''}
+          ${!pend&&canEdit?`<button onclick="skhLiftRelink(${f.id},'${h(f.invoice_no||'').replace(/'/g,"\\'")}')" style="font-size:11px;padding:3px 10px;border:1px solid #cbd5e1;background:#f8fafc;border-radius:6px;cursor:pointer;font-family:inherit;">✏️ แก้อินวอยซ์ที่ผูก</button>
           <button onclick="skhLiftDelete(${f.id},'${h(f.receipt_no)}')" style="font-size:11px;padding:3px 10px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;border-radius:6px;cursor:pointer;font-family:inherit;">🗑 ลบ</button>`:''}
         </div>
       </div>
@@ -3749,7 +3757,8 @@ const FAC_WHT_MAP={
   KNT:{name:'บริษัท กนกทองอินเตอร์เทรด จำกัด',tax:'0925563000445',addr:'112 ม.4 ต.เกาะสะบ้า อ.เทพา จ.สงขลา 90150'},
   NMP:{name:'บริษัท นาเมืองเพชรพาราวู้ด จำกัด',tax:'0925556000851',addr:'138/2 ม.4 ต.นาเมืองเพชร จ.ตรัง 92000'},
   INV:{name:'บริษัท เดอะวัน พาราวู้ด จำกัด',tax:'0805565003167',addr:'308 ม.9 ต.ไสหร้า อ.ฉวาง จ.นครศรีธรรมราช 80150'},
-  OGM:{name:'บริษัท วัน โกลด์ มาร์เก็ตติ้ง จำกัด',tax:'0925562000026',addr:'111/2 ม.9 ต.โคกหล่อ อ.เมืองตรัง จ.ตรัง 92000'}
+  OGM:{name:'บริษัท วัน โกลด์ มาร์เก็ตติ้ง จำกัด',tax:'0925562000026',addr:'111/2 ม.9 ต.โคกหล่อ อ.เมืองตรัง จ.ตรัง 92000'},
+  PTN:{name:'บริษัท ปัตตานีอุตสาหกรรม(1971) จำกัด',tax:'0945522000025',addr:'76-82 ถ.ปรีดา ต.อาเนาะรู อ.เมืองปัตตานี จ.ปัตตานี 94000'}
 };
 const ANTS_WHT={name:'บริษัท เอ.เอ็น.ที.เอส สตาร์ ทรานสิท จำกัด',tax:'0905544001113',addr:'85 ซอย 8 ถนนคลองเรียน 2 ต.หาดใหญ่ อ.หาดใหญ่ จ.สงขลา 90110'};
 /* อินวอยซ์ที่ ANTS จ่าย ICD เอง → ผู้หัก=ANTS (ไม่ใช่โรงงาน) · ดูช่อง "ได้รับเงินจาก" ในใบเสร็จ · key=normInv */
