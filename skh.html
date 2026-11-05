@@ -351,7 +351,7 @@ function renderExpense(d, invoices, paid){
       </div>
       <div class="card">
         <div class="fld"><label>ประเภทค่าใช้จ่าย <span class="req">*</span></label><select id="exp_type" onchange="_fillExpInv()">${opts}</select></div>
-        <div class="fld hl"><label>อินวอยซ์ที่ชำระ <span class="req">*</span> <span style="font-weight:400;color:#94a3b8;font-size:10px">(ใบที่จ่ายประเภทนี้แล้วจะไม่ขึ้น)</span></label><select id="exp_inv"><option value="">— เลือกอินวอยซ์ —</option></select></div>
+        <div class="fld hl"><label>อินวอยซ์ที่ชำระ <span class="req">*</span> <span style="font-weight:400;color:#94a3b8;font-size:10px">(OCF/CTIC ที่จ่ายแล้วไม่ขึ้น · คุณวัสเลือกซ้ำได้ เฉพาะไม่เกิน 30 วัน)</span></label><select id="exp_inv"><option value="">— เลือกอินวอยซ์ —</option></select></div>
         <div class="fld"><label>ยอดเงิน (บาท) <span class="req">*</span></label><input id="exp_amt" type="number" step="0.01" value="${amt}"></div>
       </div>
     </div>
@@ -362,9 +362,13 @@ function renderExpense(d, invoices, paid){
 function _fillExpInv(){
   const sel = $('exp_inv'); if(!sel) return;
   const type = $('exp_type') ? $('exp_type').value : '';
-  const taken = new Set(_expPaid[type]||[]);
+  const taken = new Set(type==='WATR' ? [] : (_expPaid[type]||[]));   /* คุณวัสเลือกซ้ำได้ (จ่ายหลายสลิปต่ออินวอยซ์) */
   const cur = sel.value;
-  const avail = _expInvoices.filter(i=>!taken.has(i.invoice_no));
+  let avail = _expInvoices.filter(i=>!taken.has(i.invoice_no));
+  if(type==='WATR'){   /* คุณวัส: ซ่อนอินวอยซ์เกิน 30 วัน (จ่ายช่วงรับตู้ เกินเดือนไม่มีสลิปเพิ่ม) — RCN 5 พ.ย.69 */
+    const cut = Date.now() - 30*24*3600*1000;
+    avail = avail.filter(i=>{ const t = i.created_at ? Date.parse(i.created_at) : NaN; return isNaN(t) || t >= cut; });
+  }
   sel.innerHTML = '<option value="">— เลือกอินวอยซ์ —</option>' +
     avail.map(i=>`<option value="${esc(i.invoice_no)}">${esc(i.invoice_no)}${i.destination?' · '+esc(i.destination):''}</option>`).join('');
   sel.value = (cur && avail.some(i=>i.invoice_no===cur)) ? cur : '';
