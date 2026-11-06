@@ -3822,14 +3822,18 @@ td.val{border-left:1px solid #000;border-right:1px solid #000;border-top:1px dot
 .rem .w{font-size:10.5pt;}
 @page{size:A4 portrait;margin:5mm;}
 @media print{.pg{padding:0;}}`;
-function _whtPage(f){
-  const inv=f.invoice_no||_skhLiftInv||'', fac=_whtWithholder(inv);
-  const base=Number(f.amount_base)||Math.round(((Number(f.amount_total)||1070)/1.07));
-  const wht=Math.round(base*0.03*100)/100;
+function _whtPage(f,opts){
+  opts=opts||{};
+  const inv=f.invoice_no||_skhLiftInv||'', fac=opts.fac||_whtWithholder(inv), payee=opts.payee||ICD_WHT;
+  const base=opts.base!=null?Number(opts.base):(Number(f.amount_base)||Math.round(((Number(f.amount_total)||1070)/1.07)));
+  const wht=opts.wht!=null?Number(opts.wht):Math.round(base*0.03*100)/100;
   const fm2=n=>Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const date=_whtDateThai(f.receipt_date);
+  const date=opts.date||_whtDateThai(f.receipt_date);
+  const uw=opts.incomeWord||'ค่าบริการ';   /* ขีดเส้นใต้คำในข้อ 5: ICD/TLX/CTIC=ค่าบริการ · OCF=ค่าขนส่ง */
+  const inc5='<b>ค่าเช่า '+(uw==='ค่าขนส่ง'?'<u>ค่าขนส่ง</u>':'ค่าขนส่ง')+' '+(uw==='ค่าขนส่ง'?'ค่าบริการ':'<u>ค่าบริการ</u>')+'</b>';
+  const refnote=opts.refnote||('INV: <b>'+h(inv)+'</b><br>ตู้: <b>'+h(f.container_no||'')+'</b><br>ใบเสร็จ ICD #'+h(f.receipt_no||''));
   return `<div class="pg">
-  <div class="refnote">INV: <b>${h(inv)}</b><br>ตู้: <b>${h(f.container_no||'')}</b><br>ใบเสร็จ ICD #${h(f.receipt_no||'')}</div>
+  <div class="refnote">${refnote}</div>
   <div class="cp">ฉบับที่ 1 &nbsp;(สำหรับผู้ถูกหักภาษี ณ ที่จ่ายใช้แนบพร้อมกับแบบแสดงรายการภาษี)</div>
   <div class="cp">ฉบับที่ 2 &nbsp;(สำหรับผู้ถูกหักภาษี ณ ที่จ่ายเก็บไว้เป็นหลักฐาน)</div>
   <div class="ti">หนังสือรับรองการหักภาษี ณ ที่จ่าย</div>
@@ -3843,11 +3847,11 @@ function _whtPage(f){
     <div class="hint">(ให้ระบุ เลขที่ ตรอก/ซอย หมู่ที่ ถนน ตำบล/แขวง อำเภอ/เขต จังหวัด)</div>
   </div>
   <div class="blk psec">
-    <div class="tidbox"><div class="l">เลขประจำตัวผู้เสียภาษีอากร (13 หลัก)</div><div class="n">${ICD_WHT.tax}</div></div>
+    <div class="tidbox"><div class="l">เลขประจำตัวผู้เสียภาษีอากร (13 หลัก)</div><div class="n">${h(payee.tax)}</div></div>
     <div class="sec">ผู้ถูกหักภาษี ณ ที่จ่าย :</div>
-    <div class="ln"><span class="lbl">ชื่อ</span><span class="nm">${ICD_WHT.name}</span></div>
-    <div class="hint">(ให้ระบุว่าเป็น บุคคล นิติบุคคล บริษัท สมาคม หรือคณะบุคคล)</div>
-    <div class="ln"><span class="lbl">ที่อยู่</span><span class="ad">${ICD_WHT.addr}</span></div>
+    <div class="ln"><span class="lbl">ชื่อ</span><span class="nm">${h(payee.name)}</span></div>
+    ${payee.sub?`<div class="ln"><span class="lbl"></span><span class="nm">${h(payee.sub)}</span></div>`:'<div class="hint">(ให้ระบุว่าเป็น บุคคล นิติบุคคล บริษัท สมาคม หรือคณะบุคคล)</div>'}
+    <div class="ln"><span class="lbl">ที่อยู่</span><span class="ad">${h(payee.addr)}</span></div>
     <div class="hint">(ให้ระบุ เลขที่ ตรอก/ซอย หมู่ที่ ถนน ตำบล/แขวง อำเภอ/เขต จังหวัด)</div>
   </div>
   <div class="blk pndsec">
@@ -3869,7 +3873,7 @@ function _whtPage(f){
       <tr><td class="desc sub2"><span class="ck"></span><span class="ni">(1.4) อัตราอื่น ๆ ระบุ ............ ของกำไรสุทธิ</span></td><td class="val"></td><td class="val"></td><td class="val"></td></tr>
       <tr><td class="desc sub1"><span class="ck"></span><span class="ni">(2) กิจการที่ได้รับยกเว้นภาษีเงินได้นิติบุคคลซึ่งผู้รับเงินปันผลไม่ได้รับเครดิตภาษี</span></td><td class="val"></td><td class="val"></td><td class="val"></td></tr>
       <tr><td class="desc sub1"><span class="ck"></span><span class="ni">(3) กำไรเฉพาะส่วนที่ได้รับยกเว้นไม่ต้องนำมารวมคำนวณภาษีเงินได้นิติบุคคล ซึ่งผู้รับเงินปันผลไม่ได้รับเครดิตภาษี</span></td><td class="val"></td><td class="val"></td><td class="val"></td></tr>
-      <tr><td class="desc">5. การจ่ายเงินได้ที่ต้องหักภาษี ณ ที่จ่ายตามคำสั่งกรมสรรพากรที่ออกตามมาตรา 3 เตรส เช่น รางวัล ส่วนลดหรือประโยชน์ใด ๆ เนื่องจากการส่งเสริมการขาย รางวัลในการประกวด การแข่งขัน การชิงโชค ค่าแสดงของนักแสดงสาธารณะ ค่าจ้างทำของ ค่าโฆษณา <b>ค่าเช่า ค่าขนส่ง <u>ค่าบริการ</u></b> ค่าเบี้ยประกันวินาศภัย ฯลฯ</td><td class="val c" style="vertical-align:bottom;">${date}</td><td class="val r amt" style="vertical-align:bottom;">${fm2(base)}</td><td class="val r amt" style="vertical-align:bottom;">${fm2(wht)}</td></tr>
+      <tr><td class="desc">5. การจ่ายเงินได้ที่ต้องหักภาษี ณ ที่จ่ายตามคำสั่งกรมสรรพากรที่ออกตามมาตรา 3 เตรส เช่น รางวัล ส่วนลดหรือประโยชน์ใด ๆ เนื่องจากการส่งเสริมการขาย รางวัลในการประกวด การแข่งขัน การชิงโชค ค่าแสดงของนักแสดงสาธารณะ ค่าจ้างทำของ ค่าโฆษณา ${inc5} ค่าเบี้ยประกันวินาศภัย ฯลฯ</td><td class="val c" style="vertical-align:bottom;">${date}</td><td class="val r amt" style="vertical-align:bottom;">${fm2(base)}</td><td class="val r amt" style="vertical-align:bottom;">${fm2(wht)}</td></tr>
       <tr><td class="desc">6. อื่น ๆ ( ระบุ ) ................................................</td><td class="val"></td><td class="val"></td><td class="val"></td></tr>
       <tr class="rowsum"><td class="desc r">รวมเงินที่จ่ายและภาษีที่หักนำส่ง</td><td class="val"></td><td class="val r amt">${fm2(base)}</td><td class="val r amt">${fm2(wht)}</td></tr>
     </tbody>
@@ -7413,8 +7417,25 @@ async function _gbillPdf(msg,att,name){
     window.open(url,'_blank'); setTimeout(()=>URL.revokeObjectURL(url),60000);
   }catch(e){ alert('เปิด PDF ไม่ได้: '+(e.message||e)); }
 }
+/* ผู้ถูกหักภาษี ต่อประเภทบิล SYNC (ผู้หัก = โรงงานตาม prefix ใช้ _whtFac) */
+const SYNC_WHT_PAYEE={
+  OCF:{name:'บริษัท อาร์ซีแอล ฟีดเดอร์ พีทีอี จำกัด / สำนักงานใหญ่',sub:'กระทำการแทน โดย บริษัท สงขลาชิปปิ้ง เอเยนซี่ จำกัด',tax:'0993000276051',addr:'9/16-17 ถ.รัถการ อ.หาดใหญ่ จ.สงขลา 90110'},
+  TLX:{name:'บริษัท สงขลาชิปปิ้ง เอเยนซี่ จำกัด',tax:'0905542001434',addr:'9/16-17 ถ.รัถการ อ.หาดใหญ่ จ.สงขลา 90110'},
+  CTIC:{name:'บริษัท เจ้าพระยาท่าเรือสากล จำกัด สาขา 00001',tax:'0105527011723',addr:'ซ.ท่าเรือสงขลา ต.หัวเขา อ.สิงหนคร จ.สงขลา 90280'}
+};
+function _gbillWht(ix){
+  const b=(window._GBILL||[])[ix]; if(!b){alert('ไม่พบรายการ');return;}
+  if(!b.wht_amount){alert('รายการนี้ไม่มียอดหัก ณ ที่จ่าย');return;}
+  const payee=SYNC_WHT_PAYEE[b.type]; if(!payee){alert('ยังไม่มีข้อมูลผู้ถูกหักของ '+b.type);return;}
+  const fac=_whtFac(b.invoice_no);   /* ผู้หัก = โรงงานตาม prefix (ไม่ใช้ ANTS override) */
+  if(!fac.name){ if(!confirm('ไม่พบข้อมูลโรงงานของ '+b.invoice_no+' (prefix ไม่อยู่ใน map) — ออกต่อโดยเว้นช่องผู้หักไหม?')) return; }
+  const uw=(b.type==='OCF')?'ค่าขนส่ง':'ค่าบริการ';
+  const refnote='INV: <b>'+h(b.invoice_no)+'</b><br>'+h(b.type)+(b.vendor_inv_no?' · '+h(b.vendor_inv_no):'')+'<br>'+h(b.mail_at||'');
+  _whtPrint(_whtPage({invoice_no:b.invoice_no},{fac,payee,base:b.wht_base,wht:b.wht_amount,date:_whtDateThai(b.mail_at),incomeWord:uw,refnote}));
+}
 function _gbillHtml(j){
-  const bills=j.bills||[]; const fmt=n=>n==null?'—':Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const bills=j.bills||[]; window._GBILL=bills; bills.forEach((b,i)=>{ b.__ix=i; });
+  const fmt=n=>n==null?'—':Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
   const stStyle=s=>{ if(/✅/.test(s))return'background:#dcfce7;color:#166534'; if(/⚠️/.test(s))return'background:#fef3c7;color:#b45309'; if(/ยังไม่จ่าย/.test(s))return'background:#dbeafe;color:#1d4ed8'; return'background:#f1f5f9;color:#64748b'; };
   const typeC={OCF:'#15803d',TLX:'#1d4ed8',CTIC:'#0369a1',WATR:'#b45309'};
   const ok=bills.filter(b=>/✅/.test(b.status||'')).length, warn=bills.filter(b=>/⚠️/.test(b.status||'')).length, wait=bills.filter(b=>/ยังไม่จ่าย/.test(b.status||'')).length;
@@ -7437,7 +7458,9 @@ function _gbillHtml(j){
     const mb=b.matched_by?`<div style="font-size:9px;color:#0891b2">↳ จับจาก${h(b.matched_by)}</div>`:'';
     const pdfs=Array.isArray(b.pdfs)?b.pdfs:[];
     const _q=s=>String(s==null?'':s).replace(/['"\\<>]/g,'');
-    const pdfBtns=pdfs.length?`<div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;">${pdfs.map(p=>`<button onclick="_gbillPdf('${_q(p.msg)}','${_q(p.att)}','${_q(p.name||'bill.pdf')}')" style="font-size:9px;padding:1px 8px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:5px;cursor:pointer;color:#1d4ed8;font-weight:700;font-family:inherit;">📄 ดู PDF${p.sub?' '+h(p.sub):''}</button>`).join('')}</div>`:'';
+    const _btns=pdfs.map(p=>`<button onclick="_gbillPdf('${_q(p.msg)}','${_q(p.att)}','${_q(p.name||'bill.pdf')}')" style="font-size:9px;padding:1px 8px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:5px;cursor:pointer;color:#1d4ed8;font-weight:700;font-family:inherit;">📄 ดู PDF${p.sub?' '+h(p.sub):''}</button>`);
+    if(b.wht_amount&&SYNC_WHT_PAYEE[b.type]) _btns.push(`<button onclick="_gbillWht(${b.__ix})" style="font-size:9px;padding:1px 8px;border:1px solid #99f6e4;background:#ecfeff;border-radius:5px;cursor:pointer;color:#0e7490;font-weight:700;font-family:inherit;">🧾 หัก ณ ที่จ่าย</button>`);
+    const pdfBtns=_btns.length?`<div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;">${_btns.join('')}</div>`:'';
     return `<tr style="border-top:1px solid #f1f5f9;">
       <td style="padding:5px 12px;"><span style="font-weight:800;color:${typeC[b.type]||'#475569'};font-size:11px;">${h(b.type)}</span>${multi}${vno}${subs}${mb}<div style="font-size:9px;color:#cbd5e1;">${h(b.vendor||'')} · ${h(b.mail_at||'')}</div>${pdfBtns}</td>
       <td style="padding:5px 12px;text-align:right;font-weight:700;">${b.grand_total==null?'—':fmt((Number(b.grand_total)||0)+(Number(b.wht_amount)||0))}</td>
