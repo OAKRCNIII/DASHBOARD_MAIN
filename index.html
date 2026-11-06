@@ -3619,7 +3619,7 @@ async function openIcdCarrier(){
     try{ rows=await sbFetch('skh_lift_fees','select='+base+',billed_date,reimbursed_date,settle_bill_no,settle_bill_path,settle_slip_path,settle_slip_ref&order=receipt_date.asc'); }
     catch(e){ try{ rows=await sbFetch('skh_lift_fees','select='+base+',billed_date,reimbursed_date,settle_bill_no&order=receipt_date.asc'); }
     catch(e2){ rows=await sbFetch('skh_lift_fees','select='+base+'&order=receipt_date.asc'); } }
-    _icdCarRows=(rows||[]).filter(r=>r.receipt_date);
+    _icdCarRows=(rows||[]).filter(r=>r.receipt_date && !/^ค่าแก้ใบเสร็จ/.test(String(r.container_no||'')));   /* ไม่เอาค่าแก้ใบเสร็จ — จ่าย ICD ตรง ไม่ใช่ขนส่งจ่ายแทน */
     try{ _icdCarRows=_icdCarRows.concat((await _skhIcdPendingRows(rows)).filter(p=>p.receipt_date)); }catch(e){}
     const months=[...new Set(_icdCarRows.map(r=>_icdYm(r.receipt_date)).filter(Boolean))].sort().reverse();
     const sel=document.getElementById('icdCarMoSel');
@@ -3705,7 +3705,7 @@ async function openSkhLift(inv){
       if(!rec){const f=nk.replace(/[-_\/]/g,'');rec=FLAT.find(x=>normInv(x.inv).replace(/[-_\/]/g,'')===f);}
       const ord=new Map();
       ((rec&&rec.details)||[]).forEach((r,i)=>{const c=(r.เบอร์ตู้||'').trim().toUpperCase();if(c&&!ord.has(c))ord.set(c,i);});
-      const rank=f=>{const c=(f.container_no||'').trim().toUpperCase();return ord.has(c)?ord.get(c):9999;};
+      const rank=f=>{if(/^ค่าแก้ใบเสร็จ/.test(f.container_no||''))return 1e9;/* ค่าแก้ใบเสร็จ = ล่างสุดเสมอ */ const c=(f.container_no||'').trim().toUpperCase();return ord.has(c)?ord.get(c):9999;};
       _skhLiftFees=_skhLiftFees.map((f,i)=>({f,i})).sort((a,b)=>rank(a.f)-rank(b.f)||a.i-b.i).map(x=>x.f);
     }catch(e){}
     /* ตู้ของอินวอยซ์นี้ที่ยังไม่มีใบเสร็จ ICD → แสดงต่อท้าย ให้ออกหัก ณ ที่จ่ายได้เป็นกรณีพิเศษ (RCN 5 พ.ย.) */
@@ -3734,11 +3734,12 @@ function _renderSkhLift(){
     </div>`;
   _skhLiftFees.forEach((f,ix)=>{
     const pend=!!f._pending;
-    html+=`<div style="border:1px ${pend?'dashed #f59e0b':'solid #fde68a'};border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;${pend?'background:#fffdf5;':''}">
+    const corr=/^ค่าแก้ใบเสร็จ/.test(f.container_no||'');   /* ค่าแก้ใบเสร็จ — ไม่ใช่ยกตู้ ไม่มี WHT */
+    html+=`<div style="border:1px ${pend?'dashed #f59e0b':(corr?'solid #ddd6fe':'solid #fde68a')};border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;${pend?'background:#fffdf5;':(corr?'background:#faf5ff;':'')}">
       ${f.photo_url?`<img src="${f.photo_url}" onclick="window.open('${f.photo_url}','_blank')" style="width:72px;height:72px;object-fit:cover;border-radius:7px;cursor:zoom-in;border:1px solid #e2e8f0;flex-shrink:0;">`:''}
       <div style="flex:1;min-width:0;font-size:12px;line-height:1.7;">
         <div>${pend?'<b style="color:#b45309;">⏳ ยังไม่มีใบเสร็จ</b>':`<b>#${h(f.receipt_no)}</b>`} · ${h(f.receipt_date||'—')}</div>
-        <div style="color:#475569;">ตู้ ${h(f.container_no||'—')} · ทะเบียน ${h(f.truck_plate||'—')}</div>
+        ${corr?`<div style="color:#7c3aed;font-weight:700;">🧾 ${h(f.container_no)}</div>`:`<div style="color:#475569;">ตู้ ${h(f.container_no||'—')} · ทะเบียน ${h(f.truck_plate||'—')}</div>`}
         <div style="color:#b45309;font-weight:700;">${pend?'~':''}${fm(f.amount_total)} บาท <span style="font-size:10px;color:#94a3b8;font-weight:400;">(ก่อน VAT ${fm(f.amount_base)} · VAT ${fm(f.vat)})</span></div>
         <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
           ${!pend&&f.photo_url?`<button onclick="skhLiftDownOne(${ix})" style="font-size:11px;padding:3px 10px;border:1px solid #fcd34d;background:#fffbeb;color:#b45309;border-radius:6px;cursor:pointer;font-family:inherit;">📥 โหลดรูป</button>`:''}
@@ -3746,10 +3747,10 @@ function _renderSkhLift(){
           <button onclick="skhLiftDelete(${f.id},'${h(f.receipt_no)}')" style="font-size:11px;padding:3px 10px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;border-radius:6px;cursor:pointer;font-family:inherit;">🗑 ลบ</button>`:''}
         </div>
       </div>
-      <div style="align-self:center;flex-shrink:0;display:flex;flex-direction:column;gap:5px;">
+      ${(pend||!corr)?`<div style="align-self:center;flex-shrink:0;display:flex;flex-direction:column;gap:5px;">
         <button onclick="printWhtCert(${ix})" style="font-size:11px;padding:7px 11px;border:1px solid #0e7490;background:#ecfeff;color:#0e7490;border-radius:7px;cursor:pointer;font-weight:700;font-family:inherit;white-space:nowrap;line-height:1.3;text-align:center;">🧾 ออก<br>หัก ณ ที่จ่าย</button>
         <button onclick="whtCertExcel(${ix})" style="font-size:11px;padding:6px 11px;border:1px solid #107c41;background:#eafaf0;color:#107c41;border-radius:7px;cursor:pointer;font-weight:700;font-family:inherit;white-space:nowrap;text-align:center;">📊 Excel</button>
-      </div></div>`;
+      </div>`:''}</div>`;
   });
   body.innerHTML=html;
 }
