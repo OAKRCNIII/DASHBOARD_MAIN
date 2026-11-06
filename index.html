@@ -7464,7 +7464,8 @@ async function renderSkhAccount(){
     wrap.innerHTML=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
         <span style="font-size:17px;font-weight:800;color:#0f2a52;">💸 บัญชีค่าใช้จ่ายสงขลา</span>
         <select onchange="_skhAcctMonth=this.value;renderSkhAccount();" style="font-size:13px;padding:6px 10px;border:1.5px solid #cbd5e1;border-radius:8px;font-family:inherit;">${moOpts||'<option>— ไม่มีข้อมูล —</option>'}</select>
-        <button onclick="_skhAcctSync(this)" style="margin-left:auto;padding:7px 16px;border:none;border-radius:8px;background:#16a34a;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🔄 SYNC Gmail</button>
+        <button onclick="_skhAcctPrint()" style="margin-left:auto;padding:7px 14px;border:1.5px solid #0f2a52;border-radius:8px;background:#fff;color:#0f2a52;font-size:12px;font-weight:700;cursor:pointer;">🖨️ พิมพ์รีพอร์ต</button>
+        <button onclick="_skhAcctSync(this)" style="padding:7px 16px;border:none;border-radius:8px;background:#16a34a;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🔄 SYNC Gmail</button>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;font-size:12px;font-weight:700;">
         <span style="padding:5px 12px;border-radius:8px;background:#dcfce7;color:#166534;">✅ จ่ายครบ ${c3}</span>
@@ -7476,6 +7477,49 @@ async function renderSkhAccount(){
       ${cards||'<div style="padding:24px;text-align:center;color:#94a3b8;">ไม่มีใบสงขลาในเดือนนี้</div>'}
       <div style="margin-top:4px;font-size:11px;color:#94a3b8;">อ่านจากฐานข้อมูล (skh_expense_bills) · กด 🔄 SYNC เพื่อดึงบิลใหม่จาก Gmail มาเก็บ · ค่าใช้จ่าย = OCF/TLX/CTIC/คุณวัส + ICD</div>`;
   }catch(e){ wrap.innerHTML=`<div style="padding:24px;text-align:center;color:#b91c1c;font-weight:700;">❌ ${h(e.message)}</div>`; }
+}
+function _skhAcctPrint(){
+  if(!_skhAcctCache){ alert('ยังไม่มีข้อมูล — กด SYNC ก่อน'); return; }
+  const {invs,bills,lifts}=_skhAcctCache;
+  const [cy,cm]=(_skhAcctMonth||'0-0').split('-').map(Number);
+  const monthInvs=invs.filter(i=>i.year===cy&&i.month===cm);
+  if(!monthInvs.length){ alert('ไม่มีใบสงขลาในเดือนนี้'); return; }
+  const bByInv=new Map(); bills.forEach(b=>{const k=normInv(b.invoice_no);if(!bByInv.has(k))bByInv.set(k,[]);bByInv.get(k).push(b);});
+  const lByInv=new Map(); lifts.forEach(l=>{const k=normInv(l.invoice_no);lByInv.set(k,(lByInv.get(k)||0)+(Number(l.amount_total)||0));});
+  const fmt=n=>(n==null||n==='')?'-':Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const etd=inv=>{let d='';const vr=VESSEL.find(r=>normInv(r.inv)===normInv(inv));if(vr&&vr.date)d=vr.date;else{const vp=VESSEL_PLAN[String(inv||'').toUpperCase()];if(vp&&vp.etd)d=vp.etd;}if(!d)return Infinity;const t=pDate(d);return(t&&!isNaN(t))?t:Infinity;};
+  const stTxt=lines=>{ if(!lines.length)return 'ยังไม่มีบิล'; if(lines.some(b=>/⚠️|ไม่ตรง/.test(b.status||'')))return 'ยอดไม่ตรง'; if(lines.some(b=>b.slip_paid==null||/ยังไม่จ่าย/.test(b.status||'')))return 'วางบิลแล้ว·รอจ่าย'; return 'จ่ายครบ ยอดตรง'; };
+  const rowTxt=b=>{ if(!b)return 'ยังไม่วางบิล'; if(/⚠️|ไม่ตรง/.test(b.status||''))return 'ไม่ตรง'; if(b.slip_paid==null||/ยังไม่จ่าย/.test(b.status||''))return 'รอจ่าย'; return 'จ่ายแล้ว'; };
+  let grand=0;
+  const sections=monthInvs.slice().sort((a,b)=>(etd(b.invoice_no)-etd(a.invoice_no))||String(a.invoice_no).localeCompare(String(b.invoice_no))).map(inv=>{
+    const k=normInv(inv.invoice_no); const lines=bByInv.get(k)||[]; const icd=lByInv.get(k)||0;
+    let sub=0;
+    const trs=['OCF','TLX','CTIC','WATR'].map(T=>{
+      const b=lines.find(l=>l.type===T); const net=(b&&b.grand_total!=null)?Number(b.grand_total):null; if(net!=null)sub+=net;
+      const gross=(b&&b.grand_total!=null)?(Number(b.grand_total)||0)+(Number(b.wht_amount)||0):null;
+      return `<tr${b?'':' class="dim"'}><td>${T}</td><td class="r">${fmt(gross)}</td><td class="r">${b&&b.wht_amount?fmt(b.wht_amount):'-'}</td><td class="r">${fmt(b?b.grand_total:null)}</td><td class="r">${fmt(b?b.slip_paid:null)}</td><td class="c">${rowTxt(b)}</td></tr>`;
+    }).join('');
+    sub+=Number(icd)||0; grand+=sub;
+    const icdTr=`<tr${icd>0?'':' class="dim"'}><td>ICD <span class="mut">ค่ายกตู้</span></td><td class="r">-</td><td class="r">-</td><td class="r">${fmt(icd||null)}</td><td class="r">-</td><td class="c">${icd>0?'จ่ายแล้ว':'ยังไม่วางบิล'}</td></tr>`;
+    return `<div class="sec"><div class="inv">${h(inv.invoice_no)} <span class="badge">${stTxt(lines)}</span></div>
+      <table><thead><tr><th>ประเภท</th><th class="r">ยอดก่อนหัก</th><th class="r">หัก</th><th class="r">สุทธิ</th><th class="r">สลิป</th><th class="c">สถานะ</th></tr></thead>
+      <tbody>${trs}${icdTr}<tr class="sub"><td>รวมค่าใช้จ่าย</td><td></td><td></td><td class="r">${fmt(sub)}</td><td></td><td></td></tr></tbody></table></div>`;
+  }).join('');
+  const moTxt=(()=>{const[y,mm]=(_skhAcctMonth||'-').split('-');return (_ICD_MON[(+mm)-1]||'')+' '+((+y)+543);})();
+  const html=`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>บัญชีสงขลา ${moTxt}</title><style>
+    *{font-family:'Sarabun','TH Sarabun New','Leelawadee UI',sans-serif;box-sizing:border-box;}body{margin:18px;color:#111;}
+    h1{font-size:18px;margin:0 0 2px;}.mo{color:#555;font-size:12.5px;margin-bottom:12px;}
+    .sec{margin-bottom:13px;break-inside:avoid;}.inv{font-weight:700;font-size:14px;margin-bottom:3px;}
+    .badge{font-size:11px;font-weight:700;padding:1px 9px;border-radius:6px;border:1px solid #bbb;margin-left:6px;}
+    table{width:100%;border-collapse:collapse;font-size:12px;}th,td{border:1px solid #ccc;padding:3px 8px;}
+    .r{text-align:right;}.c{text-align:center;}th{background:#eef2f7;}.dim{color:#999;}.mut{color:#999;font-size:10px;}
+    tr.sub td{font-weight:700;background:#f7f7f7;}.grand{font-weight:800;font-size:15px;margin-top:12px;text-align:right;border-top:2px solid #333;padding-top:6px;}
+    @page{size:A4;margin:12mm;}</style></head><body>
+    <h1>รายงานบัญชีค่าใช้จ่ายสงขลา</h1><div class="mo">ประจำเดือน ${moTxt} · ${monthInvs.length} อินวอยซ์</div>
+    ${sections}
+    <div class="grand">รวมทั้งเดือน: ${fmt(grand)} บาท</div></body></html>`;
+  const w=window.open('','_blank','width=900,height=1100'); if(!w){ alert('⚠️ กรุณาอนุญาต Pop-up ก่อน'); return; }
+  w.document.write(html); w.document.close(); w.focus(); setTimeout(()=>{try{w.print();}catch(e){}},400);
 }
 async function syncGmailBills(){
   if(LOGGED_USER!=='OAK_THIRA'){ alert('เฉพาะ OAK_THIRA'); return; }
