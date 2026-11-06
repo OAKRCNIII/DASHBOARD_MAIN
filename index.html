@@ -7490,7 +7490,8 @@ function _skhAcctPrint(){
   const etd=inv=>{let d='';const vr=VESSEL.find(r=>normInv(r.inv)===normInv(inv));if(vr&&vr.date)d=vr.date;else{const vp=VESSEL_PLAN[String(inv||'').toUpperCase()];if(vp&&vp.etd)d=vp.etd;}if(!d)return Infinity;const t=pDate(d);return(t&&!isNaN(t))?t:Infinity;};
   const stTxt=lines=>{ if(!lines.length)return 'ยังไม่มีบิล'; if(lines.some(b=>/⚠️|ไม่ตรง/.test(b.status||'')))return 'ยอดไม่ตรง'; if(lines.some(b=>b.slip_paid==null||/ยังไม่จ่าย/.test(b.status||'')))return 'วางบิลแล้ว·รอจ่าย'; return 'จ่ายครบ ยอดตรง'; };
   const rowTxt=b=>{ if(!b)return 'ยังไม่วางบิล'; if(/⚠️|ไม่ตรง/.test(b.status||''))return 'ไม่ตรง'; if(b.slip_paid==null||/ยังไม่จ่าย/.test(b.status||''))return 'รอจ่าย'; return 'จ่ายแล้ว'; };
-  let grand=0;
+  const moTxt=(()=>{const[y,mm]=(_skhAcctMonth||'-').split('-');return (_ICD_MON[(+mm)-1]||'')+' '+((+y)+543);})();
+  let grand=0; const summ=[];
   const sections=monthInvs.slice().sort((a,b)=>(etd(b.invoice_no)-etd(a.invoice_no))||String(a.invoice_no).localeCompare(String(b.invoice_no))).map(inv=>{
     const k=normInv(inv.invoice_no); const lines=bByInv.get(k)||[]; const icd=lByInv.get(k)||0;
     let sub=0;
@@ -7499,25 +7500,28 @@ function _skhAcctPrint(){
       const gross=(b&&b.grand_total!=null)?(Number(b.grand_total)||0)+(Number(b.wht_amount)||0):null;
       return `<tr${b?'':' class="dim"'}><td>${T}</td><td class="r">${fmt(gross)}</td><td class="r">${b&&b.wht_amount?fmt(b.wht_amount):'-'}</td><td class="r">${fmt(b?b.grand_total:null)}</td><td class="r">${fmt(b?b.slip_paid:null)}</td><td class="c">${rowTxt(b)}</td></tr>`;
     }).join('');
-    sub+=Number(icd)||0; grand+=sub;
+    sub+=Number(icd)||0; grand+=sub; summ.push({inv:inv.invoice_no,st:stTxt(lines),sub});
     const icdTr=`<tr${icd>0?'':' class="dim"'}><td>ICD <span class="mut">ค่ายกตู้</span></td><td class="r">-</td><td class="r">-</td><td class="r">${fmt(icd||null)}</td><td class="r">-</td><td class="c">${icd>0?'จ่ายแล้ว':'ยังไม่วางบิล'}</td></tr>`;
-    return `<div class="sec"><div class="inv">${h(inv.invoice_no)} <span class="badge">${stTxt(lines)}</span></div>
+    return `<div class="sec"><div class="phd">รายงานบัญชีค่าใช้จ่ายสงขลา · ${moTxt}</div>
+      <div class="inv">${h(inv.invoice_no)} <span class="badge">${stTxt(lines)}</span></div>
       <table><thead><tr><th>ประเภท</th><th class="r">ยอดก่อนหัก</th><th class="r">หัก</th><th class="r">สุทธิ</th><th class="r">สลิป</th><th class="c">สถานะ</th></tr></thead>
-      <tbody>${trs}${icdTr}<tr class="sub"><td>รวมค่าใช้จ่าย</td><td></td><td></td><td class="r">${fmt(sub)}</td><td></td><td></td></tr></tbody></table></div>`;
+      <tbody>${trs}${icdTr}<tr class="sub"><td>รวมค่าใช้จ่าย (สุทธิ)</td><td></td><td></td><td class="r">${fmt(sub)}</td><td></td><td></td></tr></tbody></table></div>`;
   }).join('');
-  const moTxt=(()=>{const[y,mm]=(_skhAcctMonth||'-').split('-');return (_ICD_MON[(+mm)-1]||'')+' '+((+y)+543);})();
+  const summRows=summ.map((s,i)=>`<tr><td class="c">${i+1}</td><td>${h(s.inv)}</td><td class="c">${s.st}</td><td class="r">${fmt(s.sub)}</td></tr>`).join('');
+  const summaryPage=`<div class="sec last"><div class="phd">สรุป · ${moTxt}</div>
+    <div class="inv">สรุปรวมทุกอินวอยซ์ (${summ.length} ใบ)</div>
+    <table><thead><tr><th class="c">#</th><th>อินวอยซ์</th><th class="c">สถานะ</th><th class="r">รวมสุทธิ (฿)</th></tr></thead>
+    <tbody>${summRows}<tr class="sub"><td></td><td>รวมทั้งเดือน</td><td></td><td class="r">${fmt(grand)}</td></tr></tbody></table></div>`;
   const html=`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>บัญชีสงขลา ${moTxt}</title><style>
-    *{font-family:'Sarabun','TH Sarabun New','Leelawadee UI',sans-serif;box-sizing:border-box;}body{margin:18px;color:#111;}
-    h1{font-size:18px;margin:0 0 2px;}.mo{color:#555;font-size:12.5px;margin-bottom:12px;}
-    .sec{margin-bottom:13px;break-inside:avoid;}.inv{font-weight:700;font-size:14px;margin-bottom:3px;}
+    *{font-family:'Sarabun','TH Sarabun New','Leelawadee UI',sans-serif;box-sizing:border-box;}body{margin:0;color:#111;}
+    .sec{break-after:page;padding:2px;}.sec.last{break-after:auto;}
+    .phd{font-size:12px;color:#555;border-bottom:1px solid #ddd;padding-bottom:4px;margin-bottom:9px;font-weight:700;}
+    .inv{font-weight:700;font-size:15px;margin-bottom:5px;}
     .badge{font-size:11px;font-weight:700;padding:1px 9px;border-radius:6px;border:1px solid #bbb;margin-left:6px;}
-    table{width:100%;border-collapse:collapse;font-size:12px;}th,td{border:1px solid #ccc;padding:3px 8px;}
+    table{width:100%;border-collapse:collapse;font-size:12.5px;}th,td{border:1px solid #ccc;padding:4px 8px;}
     .r{text-align:right;}.c{text-align:center;}th{background:#eef2f7;}.dim{color:#999;}.mut{color:#999;font-size:10px;}
-    tr.sub td{font-weight:700;background:#f7f7f7;}.grand{font-weight:800;font-size:15px;margin-top:12px;text-align:right;border-top:2px solid #333;padding-top:6px;}
-    @page{size:A4;margin:12mm;}</style></head><body>
-    <h1>รายงานบัญชีค่าใช้จ่ายสงขลา</h1><div class="mo">ประจำเดือน ${moTxt} · ${monthInvs.length} อินวอยซ์</div>
-    ${sections}
-    <div class="grand">รวมทั้งเดือน: ${fmt(grand)} บาท</div></body></html>`;
+    tr.sub td{font-weight:700;background:#f7f7f7;}
+    @page{size:A4;margin:14mm;}</style></head><body>${sections}${summaryPage}</body></html>`;
   const w=window.open('','_blank','width=900,height=1100'); if(!w){ alert('⚠️ กรุณาอนุญาต Pop-up ก่อน'); return; }
   w.document.write(html); w.document.close(); w.focus(); setTimeout(()=>{try{w.print();}catch(e){}},400);
 }
