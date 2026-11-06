@@ -844,6 +844,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     <button class="htab" id="htab-report" onclick="switchTab('report')">📈 รายงานตู้</button>
     <button class="htab" id="htab-profit" onclick="switchTab('profit')" style="display:none;">💰 กำไรต่อใบ</button>
     <button class="htab" id="htab-skhprofit" onclick="switchTab('skhprofit')" style="display:none;">💰 กำไรสงขลา</button>
+    <button class="htab" id="htab-skhacct" onclick="switchTab('skhacct')" style="display:none;">💸 บัญชีสงขลา</button>
   </div>
   <div class="stats-bar" id="sBar"></div>
   <!-- BKG modal -->
@@ -1004,6 +1005,9 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
     </div>
     <div class="view" id="skhprofitView" style="flex-direction:column;overflow-y:auto;background:#f0fdf4;">
       <div id="skhProfitWrap" style="max-width:1200px;margin:0 auto;padding:16px;width:100%;box-sizing:border-box;"></div>
+    </div>
+    <div class="view" id="skhacctView" style="flex-direction:column;overflow-y:auto;background:#f0fdf7;">
+      <div id="skhAcctWrap" style="max-width:1100px;margin:0 auto;padding:16px;width:100%;box-sizing:border-box;"></div>
     </div>
     <!-- MOBILE HOME VIEW (mobile only) -->
     <div class="view" id="mhomeView" style="flex-direction:column;overflow-y:auto;background:#f4f6fb;">
@@ -5494,6 +5498,7 @@ function _icdOnlyView(){return LOGGED_USER==='BOW_ANTS'||LOGGED_USER==='TARN_ANT
 function applyRoleRestrictions(){
   { const vp=document.getElementById('htab-profit'); if(vp) vp.style.display='none'; }   /* แท็บกำไรต่อใบ — ซ่อน ไม่ได้ใช้ (RCN 6 พ.ย.69) */
   { const sp=document.getElementById('htab-skhprofit'); if(sp) sp.style.display=(LOGGED_USER==='OAK_THIRA')?'':'none'; }   /* แท็บกำไรสงขลา เฉพาะ OAK_THIRA */
+  { const sa=document.getElementById('htab-skhacct'); if(sa) sa.style.display=(LOGGED_USER==='OAK_THIRA')?'':'none'; }   /* แท็บบัญชีสงขลา เฉพาะ OAK_THIRA */
   { const ib=document.getElementById('icdRptBar'); if(ib) ib.style.display=(_canSeeFees()||_icdOnlyView())?'':'none'; }   /* ปุ่มรายงานค่ายกตู้ ICD รายเดือน — admin + BOW/TARN (RCN 4 พ.ย.69) */
   const dashBtn=document.getElementById('dashToggleBtn');
   const debtBtn=document.getElementById('debtDashBtn');
@@ -5711,7 +5716,7 @@ function switchTab(tab){
     document.getElementById('mainDash').style.display='flex';
     document.getElementById('trDash').style.display='none';
   }
-  const allViews=['main','pending','stock','factory','vessel','billing','finance','price','report','profit','skhprofit','mhome','mmonth','mtr','mvessel'];
+  const allViews=['main','pending','stock','factory','vessel','billing','finance','price','report','profit','skhprofit','skhacct','mhome','mmonth','mtr','mvessel'];
   allViews.forEach(t=>{
     const v=document.getElementById(t+'View');if(v)v.classList.toggle('active',t===tab);
     const h2=document.getElementById('htab-'+t);if(h2)h2.classList.toggle('active',t===tab);
@@ -5728,6 +5733,7 @@ function switchTab(tab){
   if(tab==='report'){renderReport();}
   if(tab==='profit'){renderTrProfit();}
   if(tab==='skhprofit'){renderSkhProfit();}
+  if(tab==='skhacct'){renderSkhAccount();}
   if(tab==='mhome'){renderMobileHome();renderStatsMain();}
   if(tab==='mmonth'){renderMobileMonthView();}
   if(tab==='mvessel'){renderMobileVesselView();}
@@ -7379,6 +7385,86 @@ let _vslPort='all';      /* กรองหน้าเรือตามท่�
 function setVslPort(p){_vslPort=p;renderVessel();}
 /* ══ 📧 SYNC GMAIL — ดึงใบวางบิล (OCF/TLX/CTIC/คุณวัส) จาก Gmail มาชนกับสลิปโอน (OAK_THIRA) ══ */
 const GMAIL_BILL_API = SB_URL + '/functions/v1/gmail-bill-sync';
+/* ══ 💸 แท็บบัญชีค่าใช้จ่ายสงขลา — ลิสต์ทุกใบสงขลาต่อเดือน + สถานะ 4 ระดับ (อ่านจาก DB skh_expense_bills) ══ */
+let _skhAcctMonth='', _skhAcctCache=null;
+async function _skhAcctSync(btn){
+  if(btn){btn.disabled=true;btn.textContent='⏳ กำลังดึง…';}
+  try{
+    const r=await fetch(GMAIL_BILL_API,{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({days:60})});
+    const j=await r.json(); if(!r.ok)throw new Error(j.error||('HTTP '+r.status));
+    _skhAcctCache=null; await renderSkhAccount();
+    alert('SYNC เสร็จ — บันทึก/อัปเดต '+(j.saved||0)+' รายการ');
+  }catch(e){ alert('SYNC ไม่สำเร็จ: '+(e.message||e)); if(btn){btn.disabled=false;btn.textContent='🔄 SYNC Gmail';} }
+}
+async function renderSkhAccount(){
+  const wrap=document.getElementById('skhAcctWrap'); if(!wrap)return;
+  wrap.innerHTML='<div style="padding:30px;text-align:center;color:#64748b;">⏳ กำลังโหลด…</div>';
+  try{
+    if(!_skhAcctCache){
+      const invs=await sbFetch('invoices','select=invoice_no,month,year&port=eq.SONGKHLA');
+      let bills=[]; try{ bills=await sbFetch('skh_expense_bills','select=invoice_no,type,vendor,vendor_inv_no,bill_date,wht_rate,wht_base,wht_amount,grand_total,slip_paid,status,pdf_msg,pdf_att,pdf_name&order=bill_date.desc'); }catch(e){}
+      let lifts=[]; try{ lifts=await sbFetch('skh_lift_fees','select=invoice_no,amount_total'); }catch(e){}
+      _skhAcctCache={invs:invs||[],bills:bills||[],lifts:lifts||[]};
+    }
+    const {invs,bills,lifts}=_skhAcctCache;
+    const months=[...new Set(invs.filter(i=>i.year&&i.month).map(i=>i.year+'-'+i.month))].sort((a,b)=>{const[ay,am]=a.split('-').map(Number),[by,bm]=b.split('-').map(Number);return by!==ay?by-ay:bm-am;});
+    if(!_skhAcctMonth||!months.includes(_skhAcctMonth)) _skhAcctMonth=months[0]||'';
+    const [cy,cm]=(_skhAcctMonth||'0-0').split('-').map(Number);
+    const monthInvs=invs.filter(i=>i.year===cy&&i.month===cm);
+    const bByInv=new Map(); bills.forEach(b=>{const k=normInv(b.invoice_no);if(!bByInv.has(k))bByInv.set(k,[]);bByInv.get(k).push(b);});
+    const lByInv=new Map(); lifts.forEach(l=>{const k=normInv(l.invoice_no);lByInv.set(k,(lByInv.get(k)||0)+(Number(l.amount_total)||0));});
+    window._GBILL=bills; bills.forEach((b,i)=>{b.__ix=i; b.mail_at=b.bill_date;});   /* ให้ _gbillPdf/_gbillWht ใช้ได้ */
+    const fmt=n=>n==null?'—':Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const typeC={OCF:'#15803d',TLX:'#1d4ed8',CTIC:'#0369a1',WATR:'#b45309'};
+    const stOf=(lines)=>{   /* สถานะดูจากบิลผู้ขาย (OCF/TLX/CTIC/คุณวัส) · ICD เป็นข้อมูลเสริม ไม่คิดสถานะ */
+      if(!lines.length) return {k:'none',t:'⚪ ยังไม่มีบิล',c:'#64748b',bg:'#f1f5f9'};
+      if(lines.some(b=>/⚠️|ไม่ตรง/.test(b.status||''))) return {k:'mismatch',t:'⚠️ ยอดไม่ตรง',c:'#b45309',bg:'#fef3c7'};
+      if(lines.some(b=>b.slip_paid==null||/ยังไม่จ่าย/.test(b.status||''))) return {k:'wait',t:'📋 วางบิลแล้ว · รอจ่าย',c:'#1d4ed8',bg:'#dbeafe'};
+      return {k:'full',t:'✅ จ่ายครบ ยอดตรง',c:'#166534',bg:'#dcfce7'};
+    };
+    let c0=0,c1=0,c2=0,c3=0;
+    const cards=monthInvs.slice().sort((a,b)=>String(a.invoice_no).localeCompare(String(b.invoice_no))).map(inv=>{
+      const k=normInv(inv.invoice_no); const lines=bByInv.get(k)||[]; const icd=lByInv.get(k)||0;
+      const st=stOf(lines);
+      if(st.k==='none')c0++; else if(st.k==='mismatch')c1++; else if(st.k==='wait')c2++; else c3++;
+      const rows=lines.map(b=>{
+        const gross=b.grand_total==null?null:(Number(b.grand_total)||0)+(Number(b.wht_amount)||0);
+        const _q=s=>String(s==null?'':s).replace(/['"\\<>]/g,'');
+        const pdfBtn=b.pdf_att?`<button onclick="_gbillPdf('${_q(b.pdf_msg)}','${_q(b.pdf_att)}','${_q(b.pdf_name||'bill.pdf')}')" style="font-size:9px;padding:1px 7px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:5px;cursor:pointer;color:#1d4ed8;font-weight:700;font-family:inherit;">📄</button>`:'';
+        const whtBtn=(b.wht_amount&&SYNC_WHT_PAYEE[b.type])?`<button onclick="_gbillWht(${b.__ix})" style="font-size:9px;padding:1px 7px;border:1px solid #99f6e4;background:#ecfeff;border-radius:5px;cursor:pointer;color:#0e7490;font-weight:700;font-family:inherit;">🧾</button>`:'';
+        return `<tr style="border-top:1px solid #f1f5f9;">
+          <td style="padding:4px 10px;"><b style="color:${typeC[b.type]||'#475569'};font-size:11px;">${h(b.type)}</b> ${pdfBtn}${whtBtn}</td>
+          <td style="padding:4px 10px;text-align:right;font-weight:700;">${fmt(gross)}</td>
+          <td style="padding:4px 10px;text-align:right;color:#b45309;font-size:11px;">${b.wht_amount?fmt(b.wht_amount):'—'}</td>
+          <td style="padding:4px 10px;text-align:right;color:#475569;">${fmt(b.grand_total)}</td>
+          <td style="padding:4px 10px;text-align:right;">${fmt(b.slip_paid)}</td>
+          <td style="padding:4px 10px;text-align:center;font-size:10px;">${h(b.status||'—')}</td></tr>`;
+      }).join('');
+      const icdRow=icd?`<tr style="border-top:1px solid #f1f5f9;background:#fffdf5;"><td style="padding:4px 10px;"><b style="color:#b45309;font-size:11px;">ICD</b> <span style="font-size:9px;color:#94a3b8;">ค่ายกตู้</span></td><td style="padding:4px 10px;text-align:right;">—</td><td style="padding:4px 10px;text-align:right;">—</td><td style="padding:4px 10px;text-align:right;color:#475569;">${fmt(icd)}</td><td style="padding:4px 10px;text-align:right;">—</td><td style="padding:4px 10px;text-align:center;font-size:10px;color:#94a3b8;">—</td></tr>`:'';
+      return `<div style="border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;overflow:hidden;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #eef2f7;">
+          <span style="font-weight:800;font-size:13px;color:#0f2a52;">📄 ${h(inv.invoice_no)}</span>
+          <span style="font-weight:700;padding:2px 10px;border-radius:8px;font-size:11px;background:${st.bg};color:${st.c};">${st.t}</span></div>
+        ${(lines.length||icd)?`<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#eef2f7;color:#64748b;font-size:9.5px;"><th style="padding:3px 10px;text-align:left;">ประเภท</th><th style="padding:3px 10px;text-align:right;">ยอดก่อนหัก</th><th style="padding:3px 10px;text-align:right;">หัก</th><th style="padding:3px 10px;text-align:right;">สุทธิ</th><th style="padding:3px 10px;text-align:right;">สลิป</th><th style="padding:3px 10px;text-align:center;">สถานะ</th></tr></thead><tbody>${rows}${icdRow}</tbody></table>`:'<div style="padding:10px 12px;color:#94a3b8;font-size:12px;">ยังไม่มีบิลค่าใช้จ่ายเข้ามา</div>'}
+      </div>`;
+    }).join('');
+    const moOpts=months.map(m=>{const[y,mm]=m.split('-');return `<option value="${m}"${m===_skhAcctMonth?' selected':''}>${_ICD_MON[(+mm)-1]} ${(+y)+543}</option>`;}).join('');
+    wrap.innerHTML=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+        <span style="font-size:17px;font-weight:800;color:#0f2a52;">💸 บัญชีค่าใช้จ่ายสงขลา</span>
+        <select onchange="_skhAcctMonth=this.value;renderSkhAccount();" style="font-size:13px;padding:6px 10px;border:1.5px solid #cbd5e1;border-radius:8px;font-family:inherit;">${moOpts||'<option>— ไม่มีข้อมูล —</option>'}</select>
+        <button onclick="_skhAcctSync(this)" style="margin-left:auto;padding:7px 16px;border:none;border-radius:8px;background:#16a34a;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🔄 SYNC Gmail</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;font-size:12px;font-weight:700;">
+        <span style="padding:5px 12px;border-radius:8px;background:#dcfce7;color:#166534;">✅ จ่ายครบ ${c3}</span>
+        <span style="padding:5px 12px;border-radius:8px;background:#dbeafe;color:#1d4ed8;">📋 รอจ่าย ${c2}</span>
+        <span style="padding:5px 12px;border-radius:8px;background:#fef3c7;color:#b45309;">⚠️ ไม่ตรง ${c1}</span>
+        <span style="padding:5px 12px;border-radius:8px;background:#f1f5f9;color:#64748b;">⚪ ยังไม่มีบิล ${c0}</span>
+        <span style="padding:5px 12px;border-radius:8px;background:#eef2f7;color:#0f2a52;">รวม ${monthInvs.length} ใบ</span>
+      </div>
+      ${cards||'<div style="padding:24px;text-align:center;color:#94a3b8;">ไม่มีใบสงขลาในเดือนนี้</div>'}
+      <div style="margin-top:4px;font-size:11px;color:#94a3b8;">อ่านจากฐานข้อมูล (skh_expense_bills) · กด 🔄 SYNC เพื่อดึงบิลใหม่จาก Gmail มาเก็บ · ค่าใช้จ่าย = OCF/TLX/CTIC/คุณวัส + ICD</div>`;
+  }catch(e){ wrap.innerHTML=`<div style="padding:24px;text-align:center;color:#b91c1c;font-weight:700;">❌ ${h(e.message)}</div>`; }
+}
 async function syncGmailBills(){
   if(LOGGED_USER!=='OAK_THIRA'){ alert('เฉพาะ OAK_THIRA'); return; }
   let bg=document.getElementById('gbillBg');
@@ -7568,7 +7654,7 @@ function renderVessel(){
   draftNames.forEach(v=>{opts+=`<option value="${h(v)}"${v===_vslFilter?' selected':''}>🗓️ ${h(v)} (ยังไม่ FINAL)</option>`;});
   const _vpBar=(p,l)=>`<button onclick="setVslPort('${p}')" style="padding:6px 12px;border-radius:8px;border:1.5px solid ${_vslPort===p?'#0d9488':'#cbd5e1'};background:${_vslPort===p?'#0d9488':'#fff'};color:${_vslPort===p?'#fff':'#475569'};font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">${l}</button>`;
   const _portBar=`${_vpBar('all','🌐 ทุกท่า')}${_vpBar('PADANG','ปาดัง')}${_vpBar('LCB','แหลมฉบัง')}${_vpBar('SONGKHLA','สงขลา')}<span style="width:1px;height:22px;background:#e2e8f0;margin:0 2px;"></span>`;
-  let out=`<div style="padding:4px 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">${_portBar}<label style="font-size:12px;color:#475569;font-weight:600;">กรองเรือ:</label><select id="vslSel" onchange="_vslFilter=this.value;renderVessel();" style="padding:6px 12px;border:1.5px solid #bfdbfe;border-radius:8px;font-size:13px;background:#fff;color:#1e40af;cursor:pointer;min-width:220px;">${opts}</select><button onclick="showVesselPdfModal()" style="padding:6px 14px;border:1.5px solid #0ea5e9;border-radius:8px;background:#eff6ff;color:#0369a1;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;">🖨️ PDF</button><button onclick="_vslViewMode='cal';_vslCalYear=new Date().getFullYear();_vslCalMonth=new Date().getMonth();renderVessel();" style="padding:6px 14px;border:1.5px solid #8b5cf6;border-radius:8px;background:#f5f3ff;color:#6d28d9;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📅 มุมมองปฏิทิน</button>${LOGGED_USER==='OAK_THIRA'?`<button onclick="syncGmailBills()" title="ดึงใบวางบิลจาก Gmail มาชนกับสลิปโอน" style="padding:6px 14px;border:1.5px solid #16a34a;border-radius:8px;background:#f0fdf4;color:#15803d;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📧 SYNC GMAIL</button>`:''}</div>`;
+  let out=`<div style="padding:4px 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">${_portBar}<label style="font-size:12px;color:#475569;font-weight:600;">กรองเรือ:</label><select id="vslSel" onchange="_vslFilter=this.value;renderVessel();" style="padding:6px 12px;border:1.5px solid #bfdbfe;border-radius:8px;font-size:13px;background:#fff;color:#1e40af;cursor:pointer;min-width:220px;">${opts}</select><button onclick="showVesselPdfModal()" style="padding:6px 14px;border:1.5px solid #0ea5e9;border-radius:8px;background:#eff6ff;color:#0369a1;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;">🖨️ PDF</button><button onclick="_vslViewMode='cal';_vslCalYear=new Date().getFullYear();_vslCalMonth=new Date().getMonth();renderVessel();" style="padding:6px 14px;border:1.5px solid #8b5cf6;border-radius:8px;background:#f5f3ff;color:#6d28d9;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📅 มุมมองปฏิทิน</button></div>`;   /* SYNC GMAIL ย้ายไปแท็บ 💸 บัญชีสงขลา แล้ว */
 
   /* ── การ์ด DRAFT (โปร่งๆ มีป้าย) แสดงบนสุด ── */
   if(draftStandalone.length){
