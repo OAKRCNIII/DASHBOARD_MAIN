@@ -7479,12 +7479,41 @@ async function renderSkhAccount(){
       <div style="margin-top:4px;font-size:11px;color:#94a3b8;">อ่านจากฐานข้อมูล (skh_expense_bills) · กด 🔄 SYNC เพื่อดึงบิลใหม่จาก Gmail มาเก็บ · ค่าใช้จ่าย = OCF/TLX/CTIC/คุณวัส + ICD</div>`;
   }catch(e){ wrap.innerHTML=`<div style="padding:24px;text-align:center;color:#b91c1c;font-weight:700;">❌ ${h(e.message)}</div>`; }
 }
-function _skhAcctPrint(){
+function _prToggleAll(on){ document.querySelectorAll('#skhPrintBg ._prInv').forEach(c=>c.checked=on); _prUpdateCount(); }
+function _prUpdateCount(){ const n=document.querySelectorAll('#skhPrintBg ._prInv:checked').length; const e=document.getElementById('_prCount'); if(e)e.textContent='เลือก '+n+' ใบ'; }
+function _skhAcctPrint(){   /* เปิดโมดอลติ๊กเลือกอินวอยซ์ก่อนพิมพ์ */
   if(!_skhAcctCache){ alert('ยังไม่มีข้อมูล — กด SYNC ก่อน'); return; }
+  const {invs}=_skhAcctCache;
+  const [cy,cm]=(_skhAcctMonth||'0-0').split('-').map(Number);
+  const etd=inv=>{let d='';const vr=VESSEL.find(r=>normInv(r.inv)===normInv(inv));if(vr&&vr.date)d=vr.date;else{const vp=VESSEL_PLAN[String(inv||'').toUpperCase()];if(vp&&vp.etd)d=vp.etd;}if(!d)return Infinity;const t=pDate(d);return(t&&!isNaN(t))?t:Infinity;};
+  const monthInvs=invs.filter(i=>i.year===cy&&i.month===cm).sort((a,b)=>(etd(b.invoice_no)-etd(a.invoice_no))||String(a.invoice_no).localeCompare(String(b.invoice_no)));
+  if(!monthInvs.length){ alert('ไม่มีใบสงขลาในเดือนนี้'); return; }
+  const moTxt=(()=>{const[y,mm]=(_skhAcctMonth||'-').split('-');return (_ICD_MON[(+mm)-1]||'')+' '+((+y)+543);})();
+  let bg=document.getElementById('skhPrintBg');
+  if(!bg){ bg=document.createElement('div'); bg.id='skhPrintBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9400;align-items:center;justify-content:center;padding:14px;'; bg.addEventListener('mousedown',e=>{bg._d=(e.target===bg);}); bg.addEventListener('click',e=>{if(e.target===bg&&bg._d)bg.style.display='none';bg._d=false;}); document.body.appendChild(bg); }
+  const list=monthInvs.map(inv=>`<label style="display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid #f1f5f9;font-size:13px;cursor:pointer;"><input type="checkbox" class="_prInv" value="${h(inv.invoice_no).replace(/"/g,'&quot;')}" checked onchange="_prUpdateCount()" style="width:16px;height:16px;accent-color:#0f2a52;flex-shrink:0;"><span style="font-weight:600;color:#0f172a;">${h(inv.invoice_no)}</span></label>`).join('');
+  bg.innerHTML=`<div style="background:#fff;border-radius:14px;width:min(460px,96vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+    <div style="padding:13px 18px;background:#0f2a52;color:#fff;border-radius:14px 14px 0 0;display:flex;align-items:center;gap:8px;">
+      <span style="font-size:14px;font-weight:800;">🖨️ เลือกอินวอยซ์ที่จะพิมพ์</span><span style="font-size:11px;opacity:.85;">${moTxt}</span>
+      <button onclick="document.getElementById('skhPrintBg').style.display='none'" style="margin-left:auto;background:none;border:none;color:#fff;font-size:18px;cursor:pointer;">✕</button></div>
+    <div style="padding:10px 18px;display:flex;gap:8px;align-items:center;border-bottom:1px solid #eef2f7;">
+      <button onclick="_prToggleAll(true)" style="font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:7px;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;cursor:pointer;">เลือกทั้งหมด</button>
+      <button onclick="_prToggleAll(false)" style="font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:7px;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;cursor:pointer;">ไม่เลือก</button>
+      <span id="_prCount" style="margin-left:auto;font-size:12px;color:#64748b;font-weight:700;"></span></div>
+    <div style="overflow-y:auto;padding:4px 18px;">${list}</div>
+    <div style="padding:12px 18px;border-top:1px solid #eef2f7;">
+      <button onclick="_skhAcctDoPrint()" style="width:100%;padding:10px;border:none;border-radius:9px;background:#0f2a52;color:#fff;font-size:13px;font-weight:800;cursor:pointer;">🖨️ พิมพ์ที่เลือก</button></div></div>`;
+  bg.style.display='flex'; _prUpdateCount();
+}
+function _skhAcctDoPrint(){
+  if(!_skhAcctCache)return;
+  const sel=new Set([...document.querySelectorAll('#skhPrintBg ._prInv:checked')].map(c=>normInv(c.value)));
+  if(!sel.size){ alert('เลือกอย่างน้อย 1 ใบ'); return; }
+  const _pbg=document.getElementById('skhPrintBg'); if(_pbg)_pbg.style.display='none';
   const {invs,bills,lifts}=_skhAcctCache;
   const [cy,cm]=(_skhAcctMonth||'0-0').split('-').map(Number);
-  const monthInvs=invs.filter(i=>i.year===cy&&i.month===cm);
-  if(!monthInvs.length){ alert('ไม่มีใบสงขลาในเดือนนี้'); return; }
+  const monthInvs=invs.filter(i=>i.year===cy&&i.month===cm&&sel.has(normInv(i.invoice_no)));
+  if(!monthInvs.length){ alert('ไม่มีใบที่เลือก'); return; }
   const bByInv=new Map(); bills.forEach(b=>{const k=normInv(b.invoice_no);if(!bByInv.has(k))bByInv.set(k,[]);bByInv.get(k).push(b);});
   const lByInv=new Map(); lifts.forEach(l=>{const k=normInv(l.invoice_no);lByInv.set(k,(lByInv.get(k)||0)+(Number(l.amount_total)||0));});
   const fmt=n=>(n==null||n==='')?'-':Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
