@@ -3535,14 +3535,16 @@ function _renderIcdRpt(){
   const body=document.getElementById('icdRptBody');
   const rows=(_icdRptRows||[]).filter(r=>_icdYm(r.receipt_date)===_icdRptMonth);
   if(!rows.length){ body.innerHTML='<div style="padding:26px;text-align:center;color:#64748b;">ไม่มีใบยกตู้ในเดือนนี้</div>'; return; }
+  const isCorr=r=>/^ค่าแก้ใบเสร็จ/.test(String(r.container_no||''));   /* ค่าแก้ใบเสร็จ ไม่ใช่ยกตู้ → ไม่รวมในสรุป */
   const byDay=new Map();
-  rows.forEach(r=>{ const k=_icdDayKey(r.receipt_date); if(!byDay.has(k))byDay.set(k,[]); byDay.get(k).push(r); });
+  rows.filter(r=>!isCorr(r)).forEach(r=>{ const k=_icdDayKey(r.receipt_date); if(!byDay.has(k))byDay.set(k,[]); byDay.get(k).push(r); });
+  const corrByDay=new Map(); rows.filter(isCorr).forEach(r=>{ const k=_icdDayKey(r.receipt_date); corrByDay.set(k,(corrByDay.get(k)||0)+(Number(r.amount_total)||0)); });   /* ค่าแก้ใบเสร็จต่อวัน ไว้โชว์หมายเหตุ */
   const days=[...byDay.keys()].sort();
   const fmt=n=>Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
   let grand=0, grandN=0;
   let sum='<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;"><thead><tr style="background:#0f2a52;color:#fff;"><th style="padding:8px;text-align:left;">วันที่ (ใบยกตู้)</th><th style="padding:8px;text-align:right;">จำนวนใบ</th><th style="padding:8px;text-align:right;">ยอดรวม (฿)</th></tr></thead><tbody>';
   days.forEach((k,i)=>{ const ds=byDay.get(k); const t=ds.reduce((s,r)=>s+(Number(r.amount_total)||0),0); grand+=t; grandN+=ds.length;
-    sum+=`<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #eef2f7;"><td style="padding:7px 8px;">${h(_icdDayText(k))}</td><td style="padding:7px 8px;text-align:right;">${ds.length}</td><td style="padding:7px 8px;text-align:right;font-weight:700;">${fmt(t)}</td></tr>`; });
+    sum+=`<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #eef2f7;"><td style="padding:7px 8px;">${h(_icdDayText(k))}${corrByDay.get(k)?`<span style="font-size:10px;color:#b45309;font-weight:400;"> (ไม่รวมค่าแก้ใบเสร็จ ${fmt(corrByDay.get(k))} บาท)</span>`:''}</td><td style="padding:7px 8px;text-align:right;">${ds.length}</td><td style="padding:7px 8px;text-align:right;font-weight:700;">${fmt(t)}</td></tr>`; });
   sum+=`<tr style="background:#fffbeb;border-top:2px solid #b45309;"><td style="padding:9px 8px;font-weight:800;color:#b45309;">รวมทั้งเดือน</td><td style="padding:9px 8px;text-align:right;font-weight:800;">${grandN} ใบ</td><td style="padding:9px 8px;text-align:right;font-weight:900;color:#b45309;font-size:15px;">${fmt(grand)}</td></tr></tbody></table>`;
   let det='<div class="icd-det"><div style="font-size:12px;font-weight:800;color:#475569;margin:6px 0;">รายละเอียดใบเสร็จ</div><table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr style="background:#e8edf5;"><th style="padding:6px;text-align:left;">วันที่</th><th style="padding:6px;text-align:left;">เลขใบ ICD</th><th style="padding:6px;text-align:left;">ทะเบียนรถ</th><th style="padding:6px;text-align:left;">เบอร์ตู้</th><th style="padding:6px;text-align:left;">อินวอยซ์</th><th style="padding:6px;text-align:right;">ยอด (฿)</th></tr></thead><tbody>';
   rows.slice().sort((a,b)=>_icdDayKey(a.receipt_date).localeCompare(_icdDayKey(b.receipt_date))||String(a.receipt_no).localeCompare(String(b.receipt_no))).forEach((r,i)=>{
@@ -3562,14 +3564,16 @@ async function _excelIcdRpt(){
   if(!rows.length){ alert('ไม่มีใบยกตู้ในเดือนนี้'); return; }
   await _lazyScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
   const XLSX=window.XLSX;
+  const isCorr=r=>/^ค่าแก้ใบเสร็จ/.test(String(r.container_no||''));   /* ค่าแก้ใบเสร็จ ไม่ใช่ยกตู้ → ไม่รวมในสรุป */
   const byDay=new Map();
-  rows.forEach(r=>{ const k=_icdDayKey(r.receipt_date); if(!byDay.has(k))byDay.set(k,[]); byDay.get(k).push(r); });
+  rows.filter(r=>!isCorr(r)).forEach(r=>{ const k=_icdDayKey(r.receipt_date); if(!byDay.has(k))byDay.set(k,[]); byDay.get(k).push(r); });
+  const corrByDay=new Map(); rows.filter(isCorr).forEach(r=>{ const k=_icdDayKey(r.receipt_date); corrByDay.set(k,(corrByDay.get(k)||0)+(Number(r.amount_total)||0)); });   /* ค่าแก้ใบเสร็จต่อวัน ไว้โชว์หมายเหตุ */
   const days=[...byDay.keys()].sort();
   const aoa=[['รายงานค่ายกตู้ ICD — ท่าเรือสงขลา · '+_icdMoName(_icdRptMonth)],[],
     ['สรุปรายวัน'],['วันที่ (ใบยกตู้)','จำนวนใบ','ยอดรวม (฿)']];
   let grand=0, grandN=0;
   days.forEach(k=>{ const ds=byDay.get(k); const t=ds.reduce((s,r)=>s+(Number(r.amount_total)||0),0); grand+=t; grandN+=ds.length;
-    aoa.push([_icdDayText(k), ds.length, t]); });
+    aoa.push([_icdDayText(k)+(corrByDay.get(k)?' (ไม่รวมค่าแก้ใบเสร็จ '+Number(corrByDay.get(k)).toLocaleString('th-TH')+' บาท)':''), ds.length, t]); });
   aoa.push(['รวมทั้งเดือน', grandN, grand], [],
     ['รายละเอียดใบเสร็จ'],
     ['วันที่','เลขใบ ICD','ทะเบียนรถ','เบอร์ตู้','อินวอยซ์','ยอด (฿)']);
