@@ -7444,7 +7444,7 @@ async function renderSkhAccount(){
   try{
     if(!_skhAcctCache){
       const invs=await sbFetch('invoices','select=invoice_no,month,year&port=eq.SONGKHLA');
-      let bills=[]; try{ bills=await sbFetch('skh_expense_bills','select=invoice_no,type,vendor,vendor_inv_no,bill_date,wht_rate,wht_base,wht_amount,grand_total,slip_paid,status,pdf_msg,pdf_att,pdf_name&order=bill_date.desc'); }catch(e){}
+      let bills=[]; try{ bills=await sbFetch('skh_expense_bills','select=invoice_no,type,vendor,vendor_inv_no,bill_date,wht_rate,wht_base,wht_amount,grand_total,slip_paid,status,pdf_msg,pdf_att,pdf_name,receipt_no,receipt_msg,receipt_att,receipt_name&order=bill_date.desc'); }catch(e){ try{ bills=await sbFetch('skh_expense_bills','select=invoice_no,type,vendor,vendor_inv_no,bill_date,wht_rate,wht_base,wht_amount,grand_total,slip_paid,status,pdf_msg,pdf_att,pdf_name&order=bill_date.desc'); }catch(e2){} }
       let lifts=[]; try{ lifts=await sbFetch('skh_lift_fees','select=invoice_no,amount_total'); }catch(e){}
       try{ await loadExpenses(); }catch(e){}   /* EXP_BY_INV = สลิปโอน (skh_expense_payments) ไว้ปุ่มดูสลิป */
       _skhAcctCache={invs:invs||[],bills:bills||[],lifts:lifts||[]};
@@ -7484,9 +7484,10 @@ async function renderSkhAccount(){
         const b=lines.find(l=>l.type===T); const ts=typeSt(b);
         const gross=(b&&b.grand_total!=null)?(Number(b.grand_total)||0)+(Number(b.wht_amount)||0):null;
         const pdfBtn=(b&&b.pdf_att)?`<button onclick="_gbillPdf('${_q(b.pdf_msg)}','${_q(b.pdf_att)}','${_q(b.pdf_name||'bill.pdf')}')" title="ดูใบวางบิล" style="${btnS}border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;">📄</button>`:'';
+        const rcptBtn=(b&&b.receipt_att)?`<button onclick="_gbillPdf('${_q(b.receipt_msg)}','${_q(b.receipt_att)}','${_q(b.receipt_name||'receipt.pdf')}')" title="ดูใบเสร็จรับเงิน${b.receipt_no?' '+h(b.receipt_no):''}" style="${btnS}border:1px solid #fbcfe8;background:#fdf2f8;color:#be185d;">📃</button>`:'';
         const whtBtn=(b&&b.wht_amount&&SYNC_WHT_PAYEE[T])?`<button onclick="_gbillWht(${b.__ix})" title="ออกใบหัก ณ ที่จ่าย" style="${btnS}border:1px solid #99f6e4;background:#ecfeff;color:#0e7490;">🧾</button>`:'';
         return `<tr style="border-top:1px solid #f1f5f9;${b?'':'opacity:.55;'}">
-          <td style="padding:4px 10px;white-space:nowrap;"><b style="color:${typeC[T]};font-size:11px;">${T}</b> ${pdfBtn}${slipBtnFor(T)}</td>
+          <td style="padding:4px 10px;white-space:nowrap;"><b style="color:${typeC[T]};font-size:11px;">${T}</b> ${pdfBtn}${slipBtnFor(T)}${rcptBtn}</td>
           <td style="padding:4px 10px;text-align:right;font-weight:700;">${fmt(gross)}</td>
           <td style="padding:4px 10px;text-align:right;color:#b45309;font-size:11px;">${b&&b.wht_amount?fmt(b.wht_amount):'—'}</td>
           <td style="padding:4px 10px;text-align:right;color:#475569;">${fmt(b?b.grand_total:null)}</td>
