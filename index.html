@@ -3775,7 +3775,7 @@ function _renderSkhLift(){
       <span style="font-size:12px;color:#64748b;">${realFees.length} ใบ · รวม <b style="color:#b45309;">${fm(tot)}</b> บาท${nPend?` · <b style="color:#b45309;">⏳ ${nPend}</b> ยังไม่มีใบเสร็จ`:''}</span>
       <button onclick="printSkhLiftReport()" style="margin-left:auto;padding:5px 13px;border:1px solid #0f2a52;background:#0f2a52;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🖨️ ใบปะหน้า</button>
       ${nPhoto?`<button onclick="printSkhSlips()" style="padding:5px 13px;border:1px solid #1e40af;background:#1e40af;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📄 รูป ใบเสร็จ PDF</button>`:''}
-      <button onclick="printInvWhtCert()" title="หนังสือรับรองหัก ณ ที่จ่าย 1 ใบ ยอดรวมทั้งอินวอยซ์ (ทุกตู้)" style="padding:5px 13px;border:1px solid #0e7490;background:#0e7490;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🧾 หัก ณ ที่จ่าย (รวมทั้งใบ)</button>
+      <button onclick="printAllWhtCerts()" style="padding:5px 13px;border:1px solid #0e7490;background:#0e7490;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🧾 หัก ณ ที่จ่าย PDF</button>
       ${nPhoto?`<button onclick="skhLiftZip()" style="padding:5px 13px;border:1px solid #b45309;background:#b45309;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📥 โหลดรูป${nPhoto>1?' ZIP':''}</button>`:''}
     </div>`;
   _skhLiftFees.forEach((f,ix)=>{
@@ -3941,25 +3941,6 @@ function _whtPrint(pages){
 }
 function printWhtCert(ix){ const f=_skhLiftFees[ix]; if(!f){alert('ไม่พบใบเสร็จ');return;} _whtPrint(_whtPage(f)); }
 function printAllWhtCerts(){ if(!_skhLiftFees||!_skhLiftFees.length){alert('ยังไม่มีใบเสร็จค่ายกตู้');return;} _whtPrint(_skhLiftFees.map(_whtPage).join('')); }
-/* 🧾 ใบรวม 1 อินวอยซ์ = 1 ใบ ยอดรวมทุกตู้ (ค่าบริการรวม + WHT รวม + บาทอักษรรวม) · วันที่=ใบเสร็จล่าสุด · ตัดค่าแก้ใบเสร็จ (RCN 10 พ.ย.69) */
-function printInvWhtCert(){
-  const rows=(_skhLiftFees||[]).filter(f=>!/^ค่าแก้ใบเสร็จ/.test(String(f.container_no||'')));
-  if(!rows.length){alert('ยังไม่มีใบเสร็จค่ายกตู้');return;}
-  const inv=_skhLiftInv||rows[0].invoice_no||'';
-  let base=0, maxd=''; const recNos=[];
-  rows.forEach(f=>{
-    base+=(Number(f.amount_base)||Math.round(((Number(f.amount_total)||1070)/1.07)));
-    const d=String(f.receipt_date||''); if(d&&d>maxd)maxd=d;
-    if(f.receipt_no)recNos.push(f.receipt_no);
-  });
-  const wht=Math.round(base*0.03*100)/100;
-  const date=_whtDateThai(maxd);
-  const nPend=rows.filter(f=>f._pending).length;
-  let rcLine = recNos.length ? ('ใบเสร็จ ICD #'+h(recNos[0])+(recNos.length>1?' ฯลฯ ('+recNos.length+' ใบ)':'')) : '';
-  if(nPend) rcLine += (rcLine?'<br>':'')+'(รวมตู้ยังไม่มีใบเสร็จ '+nPend+')';
-  const refnote='INV: <b>'+h(inv)+'</b><br>รวม <b>'+rows.length+'</b> ตู้'+(rcLine?'<br>'+rcLine:'');
-  _whtPrint(_whtPage(rows[0],{base,wht,date,refnote}));
-}
 /* 📊 ออกไฟล์ Excel (.xlsx) หนังสือรับรองหัก ณ ที่จ่าย รายใบ — ใช้ฟอร์มต้นฉบับ wht53_template.xlsx
    เติมเฉพาะค่าลงเซลล์ (JSZip แก้ XML ตรง) → เก็บ format/merge/page setup ครบ สั่งปริ้นเหมือน PDF (RCN 5 พ.ย.) */
 function _whtSetCell(xml,ref,val){
