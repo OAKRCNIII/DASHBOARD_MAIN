@@ -3808,12 +3808,14 @@ const FAC_WHT_MAP={
   NMP:{name:'บริษัท นาเมืองเพชรพาราวู้ด จำกัด',tax:'0925556000851',addr:'138/2 ม.4 ต.นาเมืองเพชร อ.สิเกา จ.ตรัง 92000'},
   INV:{name:'บริษัท เดอะวัน พาราวู้ด จำกัด',tax:'0805565003167',addr:'308 ม.9 ต.ไสหร้า อ.ฉวาง จ.นครศรีธรรมราช 80150'},
   OGM:{name:'บริษัท วัน โกลด์ มาร์เก็ตติ้ง จำกัด',tax:'0925562000026',addr:'111/2 ม.9 ต.โคกหล่อ อ.เมืองตรัง จ.ตรัง 92000'},
-  PTN:{name:'บริษัท ปัตตานีอุตสาหกรรม(1971) จำกัด',tax:'0945522000025',addr:'76-82 ถ.ปรีดา ต.อาเนาะรู อ.เมืองปัตตานี จ.ปัตตานี 94000'}
+  PTN:{name:'บริษัท ปัตตานีอุตสาหกรรม(1971) จำกัด',tax:'0945522000025',addr:'76-82 ถ.ปรีดา ต.อาเนาะรู อ.เมืองปัตตานี จ.ปัตตานี 94000'},
+  WKP:{name:'บริษัท วรเกียรติ์พาณิชย์ จำกัด',tax:'0845537001309',addr:'139 ม.6 ต.ควนศรี อ.บ้านนาสาร จ.สุราษฎร์ธานี 84270'}   /* WKP-OS=นาสาร(default นี้) · WKP-ND=นาเดิม override ใน _whtFac — RCN 11 พ.ย.69 */
 };
 const ANTS_WHT={name:'บริษัท เอ.เอ็น.ที.เอส สตาร์ ทรานสิท จำกัด',tax:'0905544001113',addr:'85 ซอย 8 ถนนคลองเรียน 2 ต.หาดใหญ่ อ.หาดใหญ่ จ.สงขลา 90110'};
 /* อินวอยซ์ที่ ANTS จ่าย ICD เอง → ผู้หัก=ANTS (ไม่ใช่โรงงาน) · ดูช่อง "ได้รับเงินจาก" ในใบเสร็จ · key=normInv */
 const WHT_ANTS_INV=new Set(['BSW-T-30/2026','OGM(YANG)010/2026']);
-function _whtFac(inv){ const p=(String(inv||'').match(/^[A-Za-z]+/)||[''])[0].toUpperCase(); return FAC_WHT_MAP[p]||{name:'',tax:'',addr:''}; }
+const WKP_ADDR_ND='39/9 ม.7 ต.นาใต้ อ.บ้านนาเดิม จ.สุราษฎร์ธานี 84240';   /* WKP-ND=นาเดิม (RCN 11 พ.ย.69) — WKP-OS=นาสาร อยู่ใน FAC_WHT_MAP */
+function _whtFac(inv){ const s=String(inv||'').toUpperCase(); const p=(s.match(/^[A-Za-z]+/)||[''])[0]; const f=FAC_WHT_MAP[p]||{name:'',tax:'',addr:''}; if(p==='WKP'&&/^WKP[^A-Z]*ND/.test(s)) return {...f,addr:WKP_ADDR_ND}; return f; }
 function _whtWithholder(inv){ return WHT_ANTS_INV.has(normInv(inv)) ? ANTS_WHT : _whtFac(inv); }
 function _whtDateThai(d){ if(!d)return''; const m=String(d).match(/^(\d{4})-(\d{2})-(\d{2})/); return m?`${+m[3]}/${+m[2]}/${(+m[1])+543}`:String(d); }
 function _bahtText(amount){
