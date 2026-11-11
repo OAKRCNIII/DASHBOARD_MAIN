@@ -3711,7 +3711,7 @@ function _renderIcdCar(){
 function _printIcdCar(){ const body=document.getElementById('icdCarBody'); if(!body)return; const w=window.open('','_blank'); if(!w)return; const per=_icdCarMonth?_icdMoName(_icdCarMonth):'ทั้งหมด (สะสม)'; w.document.write(`<!DOCTYPE html><meta charset="utf-8"><title>ICD ต่อขนส่ง</title><style>table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px;}th,td{border:1px solid #cbd5e1;padding:5px 7px;}@page{margin:12mm;}</style><body style="font-family:Tahoma,sans-serif;color:#0f172a;"><h2 style="text-align:center;margin:0 0 4px;">ICD ต่อขนส่ง — ท่าเรือสงขลา</h2><div style="text-align:center;color:#64748b;margin-bottom:14px;">${per}</div>${body.innerHTML}</body>`); w.document.close(); w.focus(); setTimeout(()=>w.print(),300); }
 
 /* ══ ค่ายกตู้ ICD (ท่าสงขลา) — ใบเสร็จ LIFT ON/OFF จากบอท LINE ══ */
-let _skhLiftInv='', _skhLiftFees=[], _whtAsAnts=false;   /* _whtAsAnts = ออกใบหัก ณ ที่จ่ายในนาม ANTS (true) หรือโรงงาน (false) */
+let _skhLiftInv='', _skhLiftFees=[], _whtAsAnts=false, _whtNameWarn=[];   /* _whtAsAnts = ออกใบหัก ณ ที่จ่ายในนาม ANTS (true)/โรงงาน (false) · _whtNameWarn = ใบที่ชื่อ "ได้รับเงินจาก" ไม่ตรงชุด */
 /* มาร์ค 🧾 ICD ในแถวตู้ที่มีใบเสร็จค่ายกตู้แล้ว (เรียกหลัง render แผงรายละเอียดใบสงขลา) */
 async function markSkhLiftRows(inv,panelId){
   try{
@@ -3760,6 +3760,7 @@ async function openSkhLift(inv){
       const pend=(await _skhIcdPendingRows(_skhLiftFees)).filter(p=>normInv(p.invoice_no)===normInv(inv));
       if(pend.length) _skhLiftFees=_skhLiftFees.concat(pend);
     }catch(e){}
+    _whtComputeReceiver(inv);   /* default ผู้หัก (ANTS/โรงงาน) จาก "ได้รับเงินจาก" จริง + ตรวจชื่อแปลกปลอมทั้งชุด */
     _renderSkhLift();
   }catch(e){ const b=document.getElementById('skhLiftBody'); if(b)b.innerHTML=`<div style="padding:26px;text-align:center;color:#b91c1c;font-weight:700;">${h(e.message)}</div>`; }
 }
@@ -3772,7 +3773,8 @@ function _renderSkhLift(){
   const nPend=_skhLiftFees.length-realFees.length;
   const tot=realFees.reduce((s,x)=>s+(Number(x.amount_total)||0),0);
   const nPhoto=realFees.filter(f=>f.photo_url).length;
-  let html=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+  const _warnHtml=_whtNameWarn.length?`<div style="margin-bottom:10px;padding:8px 11px;border:1px solid #fecaca;background:#fef2f2;border-radius:9px;font-size:11px;color:#b91c1c;font-weight:700;line-height:1.5;">⚠️ "ได้รับเงินจาก" ในชุดนี้ปนกัน (ANTS/โรงงาน) — เช็กก่อนออกใบ หัก ณ ที่จ่าย:<br>${_whtNameWarn.map(w=>`• #${h(w.receipt_no)} → ${w.isAnts?'ชื่อ ANTS':'ชื่อโรงงาน'} (ต่างจากชุด)`).join('<br>')}</div>`:'';
+  let html=_warnHtml+`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
       <span style="font-size:12px;color:#64748b;">${realFees.length} ใบ · รวม <b style="color:#b45309;">${fm(tot)}</b> บาท${nPend?` · <b style="color:#b45309;">⏳ ${nPend}</b> ยังไม่มีใบเสร็จ`:''}</span>
       <button onclick="printSkhLiftReport()" style="margin-left:auto;padding:5px 13px;border:1px solid #0f2a52;background:#0f2a52;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🖨️ ใบปะหน้า</button>
       ${nPhoto?`<button onclick="printSkhSlips()" style="padding:5px 13px;border:1px solid #1e40af;background:#1e40af;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📄 รูป ใบเสร็จ PDF</button>`:''}
@@ -3949,6 +3951,17 @@ function _whtPrint(pages){
 }
 function _setWhtName(a){ _whtAsAnts=!!a; _renderSkhLift(); }   /* ติ๊กเลือกผู้หัก: โรงงาน/ANTS (RCN 11 พ.ย.69) */
 function _whtPickFac(inv){ return _whtAsAnts?ANTS_WHT:_whtFac(inv); }
+/* ธง "ได้รับเงินจาก = ANTS?" บนใบเสร็จ ICD (บอทเก็บ received_is_ants boolean): default ผู้หัก + โวยถ้าในชุดปน ANTS/โรงงาน (RCN 11 พ.ย.69)
+   หมายเหตุ: ออกใบใช้ชื่อ/ที่อยู่จาก FAC_WHT_MAP/ANTS_WHT ที่เก็บไว้ ไม่ใช้ข้อความ OCR (กันอ่านผิด) — ธงนี้แค่บอกว่าเป็นของ ANTS หรือโรงงาน */
+function _whtComputeReceiver(inv){
+  _whtNameWarn=[];
+  const named=_skhLiftFees.filter(f=>!f._pending && f.received_is_ants!=null && !/^ค่าแก้ใบเสร็จ/.test(f.container_no||''));
+  if(!named.length){ _whtAsAnts=WHT_ANTS_INV.has(normInv(inv)); return; }   /* ยังไม่มีธง (ใบเก่า/ยังไม่ ALTER) → fallback ลิสต์เดิม */
+  const nAnts=named.filter(f=>f.received_is_ants===true).length;
+  const consAnts=nAnts*2>=named.length;   /* เสียงข้างมาก (เสมอ→ANTS) = ผู้หักของชุด */
+  _whtAsAnts=consAnts;
+  named.forEach(f=>{ if((f.received_is_ants===true)!==consAnts) _whtNameWarn.push({receipt_no:f.receipt_no,isAnts:f.received_is_ants===true}); });
+}
 function printWhtCert(ix){ const f=_skhLiftFees[ix]; if(!f){alert('ไม่พบใบเสร็จ');return;} _whtPrint(_whtPage(f,{fac:_whtPickFac(f.invoice_no||_skhLiftInv)})); }
 function printAllWhtCerts(){ if(!_skhLiftFees||!_skhLiftFees.length){alert('ยังไม่มีใบเสร็จค่ายกตู้');return;} _whtPrint(_skhLiftFees.map(f=>_whtPage(f,{fac:_whtPickFac(f.invoice_no||_skhLiftInv)})).join('')); }
 /* 📊 ออกไฟล์ Excel (.xlsx) หนังสือรับรองหัก ณ ที่จ่าย รายใบ — ใช้ฟอร์มต้นฉบับ wht53_template.xlsx
