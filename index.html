@@ -3711,7 +3711,7 @@ function _renderIcdCar(){
 function _printIcdCar(){ const body=document.getElementById('icdCarBody'); if(!body)return; const w=window.open('','_blank'); if(!w)return; const per=_icdCarMonth?_icdMoName(_icdCarMonth):'ทั้งหมด (สะสม)'; w.document.write(`<!DOCTYPE html><meta charset="utf-8"><title>ICD ต่อขนส่ง</title><style>table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px;}th,td{border:1px solid #cbd5e1;padding:5px 7px;}@page{margin:12mm;}</style><body style="font-family:Tahoma,sans-serif;color:#0f172a;"><h2 style="text-align:center;margin:0 0 4px;">ICD ต่อขนส่ง — ท่าเรือสงขลา</h2><div style="text-align:center;color:#64748b;margin-bottom:14px;">${per}</div>${body.innerHTML}</body>`); w.document.close(); w.focus(); setTimeout(()=>w.print(),300); }
 
 /* ══ ค่ายกตู้ ICD (ท่าสงขลา) — ใบเสร็จ LIFT ON/OFF จากบอท LINE ══ */
-let _skhLiftInv='', _skhLiftFees=[];
+let _skhLiftInv='', _skhLiftFees=[], _whtAsAnts=false;   /* _whtAsAnts = ออกใบหัก ณ ที่จ่ายในนาม ANTS (true) หรือโรงงาน (false) */
 /* มาร์ค 🧾 ICD ในแถวตู้ที่มีใบเสร็จค่ายกตู้แล้ว (เรียกหลัง render แผงรายละเอียดใบสงขลา) */
 async function markSkhLiftRows(inv,panelId){
   try{
@@ -3728,6 +3728,7 @@ async function markSkhLiftRows(inv,panelId){
 }
 async function openSkhLift(inv){
   _skhLiftInv=inv;
+  _whtAsAnts=WHT_ANTS_INV.has(normInv(inv));   /* default ผู้หัก: ANTS ถ้าใบเสร็จระบุ ANTS (WHT_ANTS_INV) · ไม่งั้นโรงงาน (RCN 11 พ.ย.69) */
   let bg=document.getElementById('skhLiftBg');
   if(!bg){ bg=document.createElement('div'); bg.id='skhLiftBg';
     bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9300;align-items:center;justify-content:center;padding:14px;';
@@ -3775,6 +3776,11 @@ function _renderSkhLift(){
       <span style="font-size:12px;color:#64748b;">${realFees.length} ใบ · รวม <b style="color:#b45309;">${fm(tot)}</b> บาท${nPend?` · <b style="color:#b45309;">⏳ ${nPend}</b> ยังไม่มีใบเสร็จ`:''}</span>
       <button onclick="printSkhLiftReport()" style="margin-left:auto;padding:5px 13px;border:1px solid #0f2a52;background:#0f2a52;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🖨️ ใบปะหน้า</button>
       ${nPhoto?`<button onclick="printSkhSlips()" style="padding:5px 13px;border:1px solid #1e40af;background:#1e40af;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📄 รูป ใบเสร็จ PDF</button>`:''}
+      <div style="display:flex;align-items:stretch;border:1px solid #cbd5e1;border-radius:7px;overflow:hidden;font-size:11px;" title="เลือกชื่อผู้มีหน้าที่หักภาษี ณ ที่จ่าย บนใบ (ดีฟอลต์ตามที่ใบเสร็จระบุ)">
+        <span style="padding:5px 7px;color:#64748b;font-weight:700;background:#f1f5f9;display:flex;align-items:center;">ออกในนาม</span>
+        <button onclick="_setWhtName(false)" title="${h(_whtFac(_skhLiftInv).name||'โรงงาน')}" style="padding:5px 9px;border:none;cursor:pointer;font-family:inherit;font-weight:700;${!_whtAsAnts?'background:#0e7490;color:#fff;':'background:#fff;color:#475569;'}">โรงงาน</button>
+        <button onclick="_setWhtName(true)" title="${h(ANTS_WHT.name)}" style="padding:5px 9px;border:none;border-left:1px solid #e2e8f0;cursor:pointer;font-family:inherit;font-weight:700;${_whtAsAnts?'background:#0e7490;color:#fff;':'background:#fff;color:#475569;'}">ANTS</button>
+      </div>
       <button onclick="printAllWhtCerts()" style="padding:5px 13px;border:1px solid #0e7490;background:#0e7490;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🧾 หัก ณ ที่จ่าย PDF</button>
       ${nPhoto?`<button onclick="skhLiftZip()" style="padding:5px 13px;border:1px solid #b45309;background:#b45309;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📥 โหลดรูป${nPhoto>1?' ZIP':''}</button>`:''}
     </div>`;
@@ -3941,8 +3947,10 @@ function _whtPrint(pages){
   w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>หนังสือรับรองหัก ณ ที่จ่าย</title><style>${_WHT_CSS}</style></head><body>${pages}</body></html>`);
   w.document.close(); w.focus(); setTimeout(()=>{try{w.print();}catch(e){}},400);
 }
-function printWhtCert(ix){ const f=_skhLiftFees[ix]; if(!f){alert('ไม่พบใบเสร็จ');return;} _whtPrint(_whtPage(f)); }
-function printAllWhtCerts(){ if(!_skhLiftFees||!_skhLiftFees.length){alert('ยังไม่มีใบเสร็จค่ายกตู้');return;} _whtPrint(_skhLiftFees.map(_whtPage).join('')); }
+function _setWhtName(a){ _whtAsAnts=!!a; _renderSkhLift(); }   /* ติ๊กเลือกผู้หัก: โรงงาน/ANTS (RCN 11 พ.ย.69) */
+function _whtPickFac(inv){ return _whtAsAnts?ANTS_WHT:_whtFac(inv); }
+function printWhtCert(ix){ const f=_skhLiftFees[ix]; if(!f){alert('ไม่พบใบเสร็จ');return;} _whtPrint(_whtPage(f,{fac:_whtPickFac(f.invoice_no||_skhLiftInv)})); }
+function printAllWhtCerts(){ if(!_skhLiftFees||!_skhLiftFees.length){alert('ยังไม่มีใบเสร็จค่ายกตู้');return;} _whtPrint(_skhLiftFees.map(f=>_whtPage(f,{fac:_whtPickFac(f.invoice_no||_skhLiftInv)})).join('')); }
 /* 📊 ออกไฟล์ Excel (.xlsx) หนังสือรับรองหัก ณ ที่จ่าย รายใบ — ใช้ฟอร์มต้นฉบับ wht53_template.xlsx
    เติมเฉพาะค่าลงเซลล์ (JSZip แก้ XML ตรง) → เก็บ format/merge/page setup ครบ สั่งปริ้นเหมือน PDF (RCN 5 พ.ย.) */
 function _whtSetCell(xml,ref,val){
@@ -3954,7 +3962,7 @@ function _whtSetCell(xml,ref,val){
   });
 }
 async function _whtExcel(f){
-  const inv=f.invoice_no||_skhLiftInv||'', fac=_whtWithholder(inv);
+  const inv=f.invoice_no||_skhLiftInv||'', fac=_whtPickFac(inv);   /* ตามติ๊กผู้หัก (โรงงาน/ANTS) */
   const base=Number(f.amount_base)||Math.round(((Number(f.amount_total)||1070)/1.07));
   const wht=Math.round(base*0.03*100)/100;
   const date=_whtDateThai(f.receipt_date);
