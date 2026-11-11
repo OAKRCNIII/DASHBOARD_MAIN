@@ -1680,6 +1680,21 @@ async function openExpSlip(id){
     window.open(j.url,'_blank','noopener');
   }catch(e){ alert('เปิดสลิปไม่ได้: '+e.message); }
 }
+/* เปิดสลิปโอนทุกใบของประเภทนั้นเรียงเป็นหน้าต่อกัน (คุณวัสจ่ายหลายสลิป/ชุด) — RCN 11 พ.ย.69 */
+async function openExpSlips(inv,type){
+  const items=_expItems(inv,type).filter(s=>s.has_photo);
+  if(!items.length){ alert('ไม่มีสลิป'); return; }
+  if(items.length===1) return openExpSlip(items[0].id);   /* ใบเดียว = เปิดแท็บเดิม */
+  try{
+    const files=[];
+    for(const it of items){
+      const r=await fetch(`${SKH_API}/exp-photo?id=${it.id}`,{headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`}});
+      const j=await r.json(); if(r.ok&&j.url) files.push({url:j.url,name:`สลิปโอน ${type}`,label:`${it.amount?Number(it.amount).toLocaleString('th-TH')+' บาท':''}${it.ref_no?' · '+it.ref_no:''}`});
+    }
+    if(!files.length){ alert('เปิดสลิปไม่ได้'); return; }
+    _lcbFiles=files; lcbView(0);   /* ตัวดูรูปเดียวกับรูปตู้ — ปัดซ้ายขวา/ซูมได้ */
+  }catch(e){ alert('เปิดสลิปไม่ได้: '+e.message); }
+}
 function delExpense(id){
   if(LOGGED_USER!=='OAK_THIRA'&&LOGGED_USER!=='PLA_ANTS'){ alert('เฉพาะ OAK_THIRA / PLA_ANTS เท่านั้นที่ลบได้'); return; }
   requirePin(async()=>{
@@ -7502,7 +7517,7 @@ async function renderSkhAccount(){
         if(b.slip_paid==null||/ยังไม่จ่าย/.test(b.status||'')) return {t:'📋 รอจ่าย',c:'#1d4ed8',bg:'#dbeafe'};
         return {t:'✅ จ่ายแล้ว',c:'#166534',bg:'#dcfce7'};
       };
-      const slipBtnFor=T=>{ const sl=_expItems(inv.invoice_no,T).find(s=>s.has_photo); return sl?`<button onclick="openExpSlip(${sl.id})" title="ดูสลิปโอน" style="${btnS}border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1;">💸</button>`:''; };
+      const slipBtnFor=T=>{ const its=_expItems(inv.invoice_no,T).filter(s=>s.has_photo); if(!its.length)return ''; const n=its.length; return `<button onclick="openExpSlips('${_q(inv.invoice_no)}','${T}')" title="ดูสลิปโอน${n>1?' ('+n+' ใบ)':''}" style="${btnS}border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1;">💸${n>1?`<sup style="font-size:8px;font-weight:700;">${n}</sup>`:''}</button>`; };
       const rows=['OCF','TLX','CTIC','WATR'].map(T=>{
         const b=lines.find(l=>l.type===T); const ts=typeSt(b);
         const gross=(b&&b.grand_total!=null)?(Number(b.grand_total)||0)+(Number(b.wht_amount)||0):null;
