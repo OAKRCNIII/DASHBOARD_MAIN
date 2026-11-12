@@ -7466,7 +7466,7 @@ function setVslPort(p){_vslPort=p;renderVessel();}
 /* ══ 📧 SYNC GMAIL — ดึงใบวางบิล (OCF/TLX/CTIC/คุณวัส) จาก Gmail มาชนกับสลิปโอน (OAK_THIRA) ══ */
 const GMAIL_BILL_API = SB_URL + '/functions/v1/gmail-bill-sync';
 /* ══ 💸 แท็บบัญชีค่าใช้จ่ายสงขลา — ลิสต์ทุกใบสงขลาต่อเดือน + สถานะ 4 ระดับ (อ่านจาก DB skh_expense_bills) ══ */
-let _skhAcctMonth='', _skhAcctCache=null;
+let _skhAcctMonth='ALL', _skhAcctCache=null;   /* default = ทุกเดือน (RCN 12 พ.ย.69) */
 async function _skhAcctSync(btn){
   if(btn){btn.disabled=true;btn.textContent='⏳ กำลังดึง…';}
   try{
