@@ -7678,9 +7678,9 @@ function _skhAcctPrint(){   /* เปิดโมดอลติ๊กเลื�
   const {invs}=_skhAcctCache;
   const [cy,cm]=(_skhAcctMonth||'0-0').split('-').map(Number);
   const etd=inv=>{let d='';const vr=VESSEL.find(r=>normInv(r.inv)===normInv(inv));if(vr&&vr.date)d=vr.date;else{const vp=VESSEL_PLAN[String(inv||'').toUpperCase()];if(vp&&vp.etd)d=vp.etd;}if(!d)return Infinity;const t=pDate(d);return(t&&!isNaN(t))?t:Infinity;};
-  const monthInvs=invs.filter(i=>i.year===cy&&i.month===cm).sort((a,b)=>(etd(b.invoice_no)-etd(a.invoice_no))||String(a.invoice_no).localeCompare(String(b.invoice_no)));
-  if(!monthInvs.length){ alert('ไม่มีใบสงขลาในเดือนนี้'); return; }
-  const moTxt=(()=>{const[y,mm]=(_skhAcctMonth||'-').split('-');return (_ICD_MON[(+mm)-1]||'')+' '+((+y)+543);})();
+  const monthInvs=(_skhAcctMonth==='ALL'?invs.slice():invs.filter(i=>i.year===cy&&i.month===cm)).sort((a,b)=>(etd(b.invoice_no)-etd(a.invoice_no))||String(a.invoice_no).localeCompare(String(b.invoice_no)));
+  if(!monthInvs.length){ alert('ไม่มีใบสงขลา'); return; }
+  const moTxt=_skhAcctMonth==='ALL'?'ทุกเดือน':(()=>{const[y,mm]=(_skhAcctMonth||'-').split('-');return (_ICD_MON[(+mm)-1]||'')+' '+((+y)+543);})();
   let bg=document.getElementById('skhPrintBg');
   if(!bg){ bg=document.createElement('div'); bg.id='skhPrintBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9400;align-items:center;justify-content:center;padding:14px;'; bg.addEventListener('mousedown',e=>{bg._d=(e.target===bg);}); bg.addEventListener('click',e=>{if(e.target===bg&&bg._d)bg.style.display='none';bg._d=false;}); document.body.appendChild(bg); }
   const list=monthInvs.map(inv=>`<label style="display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid #f1f5f9;font-size:13px;cursor:pointer;"><input type="checkbox" class="_prInv" value="${h(inv.invoice_no).replace(/"/g,'&quot;')}" checked onchange="_prUpdateCount()" style="width:16px;height:16px;accent-color:#0f2a52;flex-shrink:0;"><span style="font-weight:600;color:#0f172a;">${h(inv.invoice_no)}</span></label>`).join('');
@@ -7704,7 +7704,7 @@ function _skhAcctDoPrint(){
   const _pbg=document.getElementById('skhPrintBg'); if(_pbg)_pbg.style.display='none';
   const {invs,bills,lifts}=_skhAcctCache;
   const [cy,cm]=(_skhAcctMonth||'0-0').split('-').map(Number);
-  const monthInvs=invs.filter(i=>i.year===cy&&i.month===cm&&sel.has(normInv(i.invoice_no)));
+  const monthInvs=invs.filter(i=>(_skhAcctMonth==='ALL'||(i.year===cy&&i.month===cm))&&sel.has(normInv(i.invoice_no)));
   if(!monthInvs.length){ alert('ไม่มีใบที่เลือก'); return; }
   const bByInv=new Map(); bills.forEach(b=>{const k=normInv(b.invoice_no);if(!bByInv.has(k))bByInv.set(k,[]);bByInv.get(k).push(b);});
   const lByInv=new Map(); lifts.forEach(l=>{const k=normInv(l.invoice_no);lByInv.set(k,(lByInv.get(k)||0)+(Number(l.amount_total)||0));});
@@ -7712,7 +7712,7 @@ function _skhAcctDoPrint(){
   const etd=inv=>{let d='';const vr=VESSEL.find(r=>normInv(r.inv)===normInv(inv));if(vr&&vr.date)d=vr.date;else{const vp=VESSEL_PLAN[String(inv||'').toUpperCase()];if(vp&&vp.etd)d=vp.etd;}if(!d)return Infinity;const t=pDate(d);return(t&&!isNaN(t))?t:Infinity;};
   const stTxt=lines=>{ if(!lines.length)return 'ยังไม่มีบิล'; if(lines.some(b=>/⚠️|ไม่ตรง/.test(b.status||'')))return 'ยอดไม่ตรง'; if(lines.some(b=>b.slip_paid==null||/ยังไม่จ่าย/.test(b.status||'')))return 'วางบิลแล้ว·รอจ่าย'; return 'จ่ายครบ ยอดตรง'; };
   const rowTxt=b=>{ if(!b)return 'ยังไม่วางบิล'; if(/⚠️|ไม่ตรง/.test(b.status||''))return 'ไม่ตรง'; if(b.slip_paid==null||/ยังไม่จ่าย/.test(b.status||''))return 'รอจ่าย'; return 'จ่ายแล้ว'; };
-  const moTxt=(()=>{const[y,mm]=(_skhAcctMonth||'-').split('-');return (_ICD_MON[(+mm)-1]||'')+' '+((+y)+543);})();
+  const moTxt=_skhAcctMonth==='ALL'?'ทุกเดือน':(()=>{const[y,mm]=(_skhAcctMonth||'-').split('-');return (_ICD_MON[(+mm)-1]||'')+' '+((+y)+543);})();
   let grand=0; const summ=[];
   const sections=monthInvs.slice().sort((a,b)=>(etd(b.invoice_no)-etd(a.invoice_no))||String(a.invoice_no).localeCompare(String(b.invoice_no))).map(inv=>{
     const k=normInv(inv.invoice_no); const lines=bByInv.get(k)||[]; const icd=lByInv.get(k)||0;
