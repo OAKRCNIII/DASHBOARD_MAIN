@@ -5813,7 +5813,7 @@ function switchTab(tab){
   if(tab==='report'){renderReport();}
   if(tab==='profit'){renderTrProfit();}
   if(tab==='skhprofit'){renderSkhProfit();}
-  if(tab==='skhacct'){renderSkhAccount();}
+  if(tab==='skhacct'){_skhAcctCache=null;renderSkhAccount();}   /* เปิดแท็บ = อ่าน DB สดทุกครั้ง (สลิป/ใบเสร็จอัพแล้วเห็นเลย ไม่ต้อง SYNC Gmail) */
   if(tab==='mhome'){renderMobileHome();renderStatsMain();}
   if(tab==='mmonth'){renderMobileMonthView();}
   if(tab==='mvessel'){renderMobileVesselView();}
@@ -7489,18 +7489,22 @@ async function renderSkhAccount(){
     }
     const {invs,bills,lifts}=_skhAcctCache;
     const months=[...new Set(invs.filter(i=>i.year&&i.month).map(i=>i.year+'-'+i.month))].sort((a,b)=>{const[ay,am]=a.split('-').map(Number),[by,bm]=b.split('-').map(Number);return by!==ay?by-ay:bm-am;});
-    if(!_skhAcctMonth||!months.includes(_skhAcctMonth)) _skhAcctMonth=months[0]||'';
+    if(_skhAcctMonth!=='ALL' && (!_skhAcctMonth||!months.includes(_skhAcctMonth))) _skhAcctMonth=months[0]||'';
     const [cy,cm]=(_skhAcctMonth||'0-0').split('-').map(Number);
-    const monthInvs=invs.filter(i=>i.year===cy&&i.month===cm);
+    const monthInvs=_skhAcctMonth==='ALL' ? invs.slice() : invs.filter(i=>i.year===cy&&i.month===cm);
     const bByInv=new Map(); bills.forEach(b=>{const k=normInv(b.invoice_no);if(!bByInv.has(k))bByInv.set(k,[]);bByInv.get(k).push(b);});
     const lByInv=new Map(); lifts.forEach(l=>{const k=normInv(l.invoice_no);lByInv.set(k,(lByInv.get(k)||0)+(Number(l.amount_total)||0));});
     window._GBILL=bills; bills.forEach((b,i)=>{b.__ix=i; b.mail_at=b.bill_date;});   /* ให้ _gbillPdf/_gbillWht ใช้ได้ */
     const fmt=n=>n==null?'—':Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
     const typeC={OCF:'#15803d',TLX:'#1d4ed8',CTIC:'#0369a1',WATR:'#b45309'};
-    const stOf=(lines)=>{   /* สถานะดูจากบิลผู้ขาย (OCF/TLX/CTIC/คุณวัส) · ICD เป็นข้อมูลเสริม ไม่คิดสถานะ */
+    /* ยอดจ่ายสด: สลิปจาก skh_expense_payments ก่อน (อัพแล้วเห็นเลย ไม่ต้องรอ SYNC Gmail) · ไม่มีค่อยใช้ slip_paid ที่ SYNC เก็บ */
+    const paidOf=(inv,b)=>{ const its=_expItems(inv,b.type); if(its.length) return its.reduce((s,x)=>s+(Number(x.amount)||0),0); return b.slip_paid!=null?Number(b.slip_paid):null; };
+    const stOf=(lines,inv)=>{   /* สถานะดูจากบิลผู้ขาย (OCF/TLX/CTIC/คุณวัส) · ICD เป็นข้อมูลเสริม ไม่คิดสถานะ */
       if(!lines.length) return {k:'none',t:'⚪ ยังไม่มีบิล',c:'#64748b',bg:'#f1f5f9'};
-      if(lines.some(b=>/⚠️|ไม่ตรง/.test(b.status||''))) return {k:'mismatch',t:'⚠️ ยอดไม่ตรง',c:'#b45309',bg:'#fef3c7'};
-      if(lines.some(b=>b.slip_paid==null||/ยังไม่จ่าย/.test(b.status||''))) return {k:'wait',t:'📋 วางบิลแล้ว · รอจ่าย',c:'#1d4ed8',bg:'#dbeafe'};
+      let anyWait=false,anyMis=false;
+      for(const b of lines){ if(/⚠️|ไม่ตรง/.test(b.status||'')){anyMis=true;continue;} const sp=paidOf(inv,b); if(sp==null)anyWait=true; else if(Math.abs(sp-(Number(b.grand_total)||0))>2)anyMis=true; }
+      if(anyMis) return {k:'mismatch',t:'⚠️ ยอดไม่ตรง',c:'#b45309',bg:'#fef3c7'};
+      if(anyWait) return {k:'wait',t:'📋 วางบิลแล้ว · รอจ่าย',c:'#1d4ed8',bg:'#dbeafe'};
       return {k:'full',t:'✅ จ่ายครบ ยอดตรง',c:'#166534',bg:'#dcfce7'};
     };
     let c0=0,c1=0,c2=0,c3=0;
@@ -7509,20 +7513,21 @@ async function renderSkhAccount(){
     const _etdNum=inv=>{ let d=''; const vr=VESSEL.find(r=>normInv(r.inv)===normInv(inv)); if(vr&&vr.date)d=vr.date; else{const vp=VESSEL_PLAN[String(inv||'').toUpperCase()]; if(vp&&vp.etd)d=vp.etd;} if(!d)return Infinity; const t=pDate(d); return (t&&!isNaN(t))?t:Infinity; };   /* เรียงตามวันเรือออก: ยังไม่ขึ้นเรือ=บนสุด · เรือออกก่อน=ล่างสุด */
     const cards=monthInvs.slice().sort((a,b)=>{const ea=_etdNum(a.invoice_no),eb=_etdNum(b.invoice_no); return (eb-ea)||String(a.invoice_no).localeCompare(String(b.invoice_no));}).map(inv=>{
       const k=normInv(inv.invoice_no); const lines=bByInv.get(k)||[]; const icd=lByInv.get(k)||0;
-      const st=stOf(lines);
+      const st=stOf(lines,inv.invoice_no);
       if(st.k==='none')c0++; else if(st.k==='mismatch')c1++; else if(st.k==='wait')c2++; else c3++;
       const _q=s=>String(s==null?'':s).replace(/['"\\<>]/g,'');
       const btnS='font-size:9px;padding:1px 7px;border-radius:5px;cursor:pointer;font-weight:700;font-family:inherit;';
-      const typeSt=b=>{   /* สถานะต่อรายการ */
+      const typeSt=(b,sp)=>{   /* สถานะต่อรายการ · sp = ยอดสลิปสด (paidOf) */
         if(!b) return {t:'ยังไม่วางบิล',c:'#94a3b8',bg:'#f1f5f9'};
         if(/⚠️|ไม่ตรง/.test(b.status||'')) return {t:'⚠️ ไม่ตรง',c:'#b45309',bg:'#fef3c7'};
-        if(b.slip_paid==null||/ยังไม่จ่าย/.test(b.status||'')) return {t:'📋 รอจ่าย',c:'#1d4ed8',bg:'#dbeafe'};
+        if(sp==null) return {t:'📋 รอจ่าย',c:'#1d4ed8',bg:'#dbeafe'};
+        if(Math.abs(sp-(Number(b.grand_total)||0))>2) return {t:'⚠️ ไม่ตรง',c:'#b45309',bg:'#fef3c7'};
         return {t:'✅ จ่ายแล้ว',c:'#166534',bg:'#dcfce7'};
       };
       const slipBtnFor=T=>{ const its=_expItems(inv.invoice_no,T).filter(s=>s.has_photo); if(!its.length)return ''; const n=its.length; return `<button onclick="openExpSlips('${_q(inv.invoice_no)}','${T}')" title="ดูสลิปโอน${n>1?' ('+n+' ใบ)':''}" style="${btnS}border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1;">💸${n>1?`<sup style="font-size:8px;font-weight:700;">${n}</sup>`:''}</button>`; };
       const rows=['OCF','TLX','CTIC','WATR'].map(T=>{
-        const b=lines.find(l=>l.type===T); const ts=typeSt(b);
-        if(b && b.slip_paid==null && !/⚠️|ไม่ตรง/.test(b.status||'')) pendByType[T].push({inv:inv.invoice_no,amt:b.grand_total});
+        const b=lines.find(l=>l.type===T); const sp=b?paidOf(inv.invoice_no,b):null; const ts=typeSt(b,sp);
+        if(b && ts.t.includes('รอจ่าย')) pendByType[T].push({inv:inv.invoice_no,amt:b.grand_total});
         const gross=(b&&b.grand_total!=null)?(Number(b.grand_total)||0)+(Number(b.wht_amount)||0):null;
         const pdfBtn=(b&&b.pdf_att)?`<button onclick="_gbillPdf('${_q(b.pdf_msg)}','${_q(b.pdf_att)}','${_q(b.pdf_name||'bill.pdf')}')" title="ดูใบวางบิล" style="${btnS}border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;">📄</button>`:'';
         const rcptBtn=(b&&b.receipt_att)?`<button onclick="_gbillPdf('${_q(b.receipt_msg)}','${_q(b.receipt_att)}','${_q(b.receipt_name||'receipt.pdf')}')" title="ดูใบเสร็จรับเงิน${b.receipt_no?' '+h(b.receipt_no):''}" style="${btnS}border:1px solid #fbcfe8;background:#fdf2f8;color:#be185d;">📃</button>`:'';
@@ -7532,7 +7537,7 @@ async function renderSkhAccount(){
           <td style="padding:4px 10px;text-align:right;font-weight:700;">${fmt(gross)}</td>
           <td style="padding:4px 10px;text-align:right;color:#b45309;font-size:11px;">${b&&b.wht_amount?fmt(b.wht_amount):'—'}</td>
           <td style="padding:4px 10px;text-align:right;color:#475569;">${fmt(b?b.grand_total:null)}</td>
-          <td style="padding:4px 10px;text-align:right;">${fmt(b?b.slip_paid:null)}</td>
+          <td style="padding:4px 10px;text-align:right;">${fmt(sp)}</td>
           <td style="padding:4px 10px;text-align:center;"><span style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:7px;background:${ts.bg};color:${ts.c};white-space:nowrap;">${ts.t}</span></td>
           <td style="padding:4px 10px;text-align:center;">${whtBtn}</td></tr>`;
       }).join('');
@@ -7545,7 +7550,7 @@ async function renderSkhAccount(){
         <table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#eef2f7;color:#64748b;font-size:9.5px;"><th style="padding:3px 10px;text-align:left;">ประเภท</th><th style="padding:3px 10px;text-align:right;">ยอดก่อนหัก</th><th style="padding:3px 10px;text-align:right;">หัก</th><th style="padding:3px 10px;text-align:right;">สุทธิ</th><th style="padding:3px 10px;text-align:right;">สลิป</th><th style="padding:3px 10px;text-align:center;">สถานะ</th><th style="padding:3px 10px;text-align:center;">หัก ณ ที่จ่าย</th></tr></thead><tbody>${rows}${icdRow}</tbody></table>
       </div>`;
     }).join('');
-    const moOpts=months.map(m=>{const[y,mm]=m.split('-');return `<option value="${m}"${m===_skhAcctMonth?' selected':''}>${_ICD_MON[(+mm)-1]} ${(+y)+543}</option>`;}).join('');
+    const moOpts='<option value="ALL"'+(_skhAcctMonth==='ALL'?' selected':'')+'>ทั้งหมด (ทุกเดือน)</option>'+months.map(m=>{const[y,mm]=m.split('-');return `<option value="${m}"${m===_skhAcctMonth?' selected':''}>${_ICD_MON[(+mm)-1]} ${(+y)+543}</option>`;}).join('');
     const pendPanel=(()=>{
       const parts=['OCF','CTIC','TLX','WATR'].filter(T=>pendByType[T].length).map(T=>{
         const list=pendByType[T], tot=list.reduce((s,x)=>s+(Number(x.amt)||0),0);
@@ -7563,7 +7568,8 @@ async function renderSkhAccount(){
     wrap.innerHTML=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
         <span style="font-size:17px;font-weight:800;color:#0f2a52;">💸 บัญชีค่าใช้จ่ายสงขลา</span>
         <select onchange="_skhAcctMonth=this.value;renderSkhAccount();" style="font-size:13px;padding:6px 10px;border:1.5px solid #cbd5e1;border-radius:8px;font-family:inherit;">${moOpts||'<option>— ไม่มีข้อมูล —</option>'}</select>
-        <button onclick="_skhAcctPrint()" style="margin-left:auto;padding:7px 14px;border:1.5px solid #0f2a52;border-radius:8px;background:#fff;color:#0f2a52;font-size:12px;font-weight:700;cursor:pointer;">🖨️ พิมพ์รีพอร์ต</button>
+        <button onclick="_skhAcctCache=null;renderSkhAccount();" title="อ่านจากฐานข้อมูลใหม่ (เร็ว ไม่ค้น Gmail) — ใช้หลังอัพสลิป/ใบเสร็จ" style="margin-left:auto;padding:7px 14px;border:1.5px solid #0369a1;border-radius:8px;background:#fff;color:#0369a1;font-size:12px;font-weight:700;cursor:pointer;">🔄 รีเฟรช</button>
+        <button onclick="_skhAcctPrint()" style="padding:7px 14px;border:1.5px solid #0f2a52;border-radius:8px;background:#fff;color:#0f2a52;font-size:12px;font-weight:700;cursor:pointer;">🖨️ พิมพ์รีพอร์ต</button>
         <button onclick="_skhAcctSync(this)" style="padding:7px 16px;border:none;border-radius:8px;background:#16a34a;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🔄 SYNC Gmail</button>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;font-size:12px;font-weight:700;">
