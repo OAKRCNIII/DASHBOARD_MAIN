@@ -3813,6 +3813,7 @@ function _renderSkhLift(){
         <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
           ${!pend&&f.photo_url?`<button onclick="skhLiftDownOne(${ix})" style="font-size:11px;padding:3px 10px;border:1px solid #fcd34d;background:#fffbeb;color:#b45309;border-radius:6px;cursor:pointer;font-family:inherit;">📥 โหลดรูป</button>`:''}
           ${!pend&&canEdit?`<button onclick="skhLiftRelink(${f.id},'${h(f.invoice_no||'').replace(/'/g,"\\'")}')" style="font-size:11px;padding:3px 10px;border:1px solid #cbd5e1;background:#f8fafc;border-radius:6px;cursor:pointer;font-family:inherit;">✏️ แก้อินวอยซ์ที่ผูก</button>
+          <button onclick="skhLiftEditPlate(${f.id},'${h(f.truck_plate||'').replace(/'/g,"\\'")}')" style="font-size:11px;padding:3px 10px;border:1px solid #cbd5e1;background:#f8fafc;border-radius:6px;cursor:pointer;font-family:inherit;">🚚 แก้ทะเบียน</button>
           <button onclick="skhLiftDelete(${f.id},'${h(f.receipt_no)}')" style="font-size:11px;padding:3px 10px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;border-radius:6px;cursor:pointer;font-family:inherit;">🗑 ลบ</button>`:''}
         </div>
       </div>
@@ -4091,6 +4092,12 @@ function printSkhSlips(){
 async function skhLiftRelink(id,cur){
   const nv=prompt('ผูกใบเสร็จนี้กับอินวอยซ์ไหน? (พิมพ์เลขอินวอยซ์ให้ตรง)',cur); if(nv==null)return;
   try{ const r=await fetch(`${SKH_API}/lift-fee-update`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_TOKEN}`},body:JSON.stringify({id,fields:{invoice_no:nv.trim()}})});
+    const j=await r.json(); if(!r.ok)throw new Error(j.error||'HTTP '+r.status); openSkhLift(_skhLiftInv);
+  }catch(e){ alert('⚠️ '+e.message); }
+}
+async function skhLiftEditPlate(id,cur){   /* แก้ทะเบียน (ใบเสร็จ ICD พิมพ์ผิด → override เป็นค่าที่ถูก) */
+  const nv=prompt('แก้ทะเบียนรถของใบเสร็จนี้ (กรณีใบ ICD พิมพ์ผิด)',cur); if(nv==null)return;
+  try{ const r=await fetch(`${SKH_API}/lift-fee-update`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_TOKEN}`},body:JSON.stringify({id,fields:{truck_plate:nv.trim()}})});
     const j=await r.json(); if(!r.ok)throw new Error(j.error||'HTTP '+r.status); openSkhLift(_skhLiftInv);
   }catch(e){ alert('⚠️ '+e.message); }
 }
