@@ -7528,15 +7528,16 @@ async function renderSkhAccount(){
       const btnS='font-size:9px;padding:1px 7px;border-radius:5px;cursor:pointer;font-weight:700;font-family:inherit;';
       const typeSt=(b,sp)=>{   /* สถานะต่อรายการ · sp = ยอดสลิปสด (paidOf) */
         if(!b) return {t:'ยังไม่วางบิล',c:'#94a3b8',bg:'#f1f5f9'};
-        if(/⚠️|ไม่ตรง/.test(b.status||'')) return {t:'⚠️ ไม่ตรง',c:'#b45309',bg:'#fef3c7'};
-        if(sp==null) return {t:'📋 รอจ่าย',c:'#1d4ed8',bg:'#dbeafe'};
-        if(Math.abs(sp-(Number(b.grand_total)||0))>0.01) return {t:'⚠️ ไม่ตรง',c:'#b45309',bg:'#fef3c7'};
-        return {t:'✅ จ่ายแล้ว',c:'#166534',bg:'#dcfce7'};
+        const g=Number(b.grand_total)||0;
+        if(sp==null) return (/⚠️|ไม่ตรง/.test(b.status||'')) ? {t:'⚠️ ไม่ตรง',c:'#b45309',bg:'#fef3c7'} : {t:'📋 รอจ่าย',c:'#1d4ed8',bg:'#dbeafe'};
+        if(Math.abs(sp-g)<=0.01) return {t:'✅ จ่ายแล้ว',c:'#166534',bg:'#dcfce7'};
+        if(sp<g) return {t:'⚠️ จ่ายไม่ครบ',c:'#b45309',bg:'#fef3c7'};
+        return {t:'⚠️ เกินยอด',c:'#b45309',bg:'#fef3c7'};
       };
       const slipBtnFor=T=>{ const its=_expItems(inv.invoice_no,T).filter(s=>s.has_photo); if(!its.length)return ''; const n=its.length; return `<button onclick="openExpList('${_q(inv.invoice_no)}','${T}')" title="ดู/จัดการสลิปโอน${n>1?' ('+n+' ใบ)':''} — ลบใบที่ผิดได้" style="${btnS}border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1;">💸${n>1?`<sup style="font-size:8px;font-weight:700;">${n}</sup>`:''}</button>`; };
       const rows=['OCF','TLX','CTIC','WATR'].map(T=>{
         const b=lines.find(l=>l.type===T); const sp=b?paidOf(inv.invoice_no,b):null; const ts=typeSt(b,sp);
-        if(b && ts.t.includes('รอจ่าย')) pendByType[T].push({inv:inv.invoice_no,amt:b.grand_total});
+        { const _g=Number(b&&b.grand_total)||0; if(b && _g>0 && (sp==null || sp<_g-0.01)) pendByType[T].push({inv:inv.invoice_no,amt:_g,paid:(sp!=null&&sp>0.01)?sp:0}); }   /* รอจ่าย(sp=null) + จ่ายไม่ครบ(sp<บิล) */
         const gross=(b&&b.grand_total!=null)?(Number(b.grand_total)||0)+(Number(b.wht_amount)||0):null;
         const pdfBtn=(b&&b.pdf_att)?`<button onclick="_gbillPdf('${_q(b.pdf_msg)}','${_q(b.pdf_att)}','${_q(b.pdf_name||'bill.pdf')}')" title="ดูใบวางบิล" style="${btnS}border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;">📄</button>`:'';
         const rcptBtn=(b&&b.receipt_att)?`<button onclick="_gbillPdf('${_q(b.receipt_msg)}','${_q(b.receipt_att)}','${_q(b.receipt_name||'receipt.pdf')}')" title="ดูใบเสร็จรับเงิน${b.receipt_no?' '+h(b.receipt_no):''}" style="${btnS}border:1px solid #fbcfe8;background:#fdf2f8;color:#be185d;">📃</button>`:'';
@@ -7562,8 +7563,8 @@ async function renderSkhAccount(){
     const moOpts='<option value="ALL"'+(_skhAcctMonth==='ALL'?' selected':'')+'>ทั้งหมด (ทุกเดือน)</option>'+months.map(m=>{const[y,mm]=m.split('-');return `<option value="${m}"${m===_skhAcctMonth?' selected':''}>${_ICD_MON[(+mm)-1]} ${(+y)+543}</option>`;}).join('');
     const pendPanel=(()=>{
       const parts=['OCF','CTIC','TLX','WATR'].filter(T=>pendByType[T].length).map(T=>{
-        const list=pendByType[T], tot=list.reduce((s,x)=>s+(Number(x.amt)||0),0);
-        const det=list.map(x=>`<div onclick="var el=document.getElementById('${cid(x.inv)}');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.boxShadow='0 0 0 3px #1d4ed8';setTimeout(function(){el.style.boxShadow='';},1600);}" style="display:flex;justify-content:space-between;gap:12px;padding:4px 10px;font-size:11px;cursor:pointer;border-top:1px solid #f1f5f9;" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''"><span style="font-weight:700;">${h(x.inv)}</span><span style="color:#475569;">${fmt(x.amt)}</span></div>`).join('');
+        const list=pendByType[T], tot=list.reduce((s,x)=>s+((Number(x.amt)||0)-(Number(x.paid)||0)),0);   /* ยอดค้างรวม (เหลือจ่าย) */
+        const det=list.map(x=>`<div onclick="var el=document.getElementById('${cid(x.inv)}');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.boxShadow='0 0 0 3px #1d4ed8';setTimeout(function(){el.style.boxShadow='';},1600);}" style="display:flex;justify-content:space-between;gap:12px;padding:4px 10px;font-size:11px;cursor:pointer;border-top:1px solid #f1f5f9;" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''"><span style="font-weight:700;">${h(x.inv)}${x.paid>0.01?' <span style="font-size:9px;color:#b45309;background:#fef3c7;padding:0 4px;border-radius:4px;">จ่ายไม่ครบ</span>':''}</span><span style="color:#475569;">${x.paid>0.01?'ค้าง '+fmt(x.amt-x.paid):fmt(x.amt)}</span></div>`).join('');
         return `<div style="display:inline-block;vertical-align:top;">
           <button onclick="var e=document.getElementById('_pend_${T}');e.style.display=e.style.display==='none'?'block':'none';this.firstChild.textContent=e.style.display==='none'?'▸':'▾';" style="padding:5px 12px;border-radius:8px;border:1.5px solid ${typeC[T]};background:#fff;color:${typeC[T]};font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap;"><span>▸</span> ${T} <b style="font-size:13px;">${list.length}</b> ชุด · ${fmt(tot)}</button>
           <div id="_pend_${T}" style="display:none;margin-top:4px;border:1.5px solid ${typeC[T]};border-radius:8px;background:#fff;min-width:230px;overflow:hidden;"><div style="padding:3px 10px;font-size:10px;color:#94a3b8;background:#f8fafc;">คลิกอินวอยซ์เพื่อไปที่การ์ด</div>${det}</div>
