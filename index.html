@@ -1655,18 +1655,25 @@ async function openExpList(inv,type){
       <div style="overflow-y:auto;padding:13px 17px;" id="expListBody"></div></div>`;
     document.body.appendChild(bg);
   }
-  document.getElementById('expListTitle').textContent=`${EXP_TYPE_LABEL[type]||type} — ${inv}`;
+  document.getElementById('expListTitle').textContent=`📎 ไฟล์แนบ · ${EXP_TYPE_LABEL[type]||type} — ${inv}`;
   _renderExpList();
   bg.style.display='flex';
 }
 function _renderExpList(){
   const body=document.getElementById('expListBody');
   const its=_expItems(_expListInv,_expListType);
-  if(!its.length){ body.innerHTML='<div style="padding:20px;text-align:center;color:#64748b;">ยังไม่มีสลิป</div>'; return; }
   const admin=(LOGGED_USER==='OAK_THIRA'||LOGGED_USER==='PLA_ANTS');
+  const _q=s=>String(s==null?'':s).replace(/['"\\<>]/g,'');
+  /* เอกสารจาก Gmail (ใบวางบิล + ใบเสร็จรับเงิน) — รวมอยู่ในปุ่มไฟล์แนบเดียวกับสลิป */
+  const b=(window._GBILL||[]).find(x=>normInv(x.invoice_no)===normInv(_expListInv)&&x.type===_expListType);
+  let docHtml='';
+  if(b&&b.pdf_att) docHtml+=`<button onclick="_gbillPdf('${_q(b.pdf_msg)}','${_q(b.pdf_att)}','${_q(b.pdf_name||'bill.pdf')}')" style="width:100%;box-sizing:border-box;font-size:12.5px;padding:10px 12px;border:1px solid #bfdbfe;border-radius:9px;background:#eff6ff;color:#1d4ed8;font-weight:700;cursor:pointer;margin-bottom:8px;text-align:left;">📄 ใบวางบิล${b.vendor_inv_no?' · '+h(b.vendor_inv_no):''}</button>`;
+  if(b&&b.receipt_att) docHtml+=`<button onclick="_gbillPdf('${_q(b.receipt_msg)}','${_q(b.receipt_att)}','${_q(b.receipt_name||'receipt.pdf')}')" style="width:100%;box-sizing:border-box;font-size:12.5px;padding:10px 12px;border:1px solid #fbcfe8;border-radius:9px;background:#fdf2f8;color:#be185d;font-weight:700;cursor:pointer;margin-bottom:8px;text-align:left;">📃 ใบเสร็จรับเงิน${b.receipt_no?' '+h(b.receipt_no):''}</button>`;
+  if(!docHtml && !its.length){ body.innerHTML='<div style="padding:20px;text-align:center;color:#64748b;">ไม่มีไฟล์แนบ</div>'; return; }
   const nPhoto=its.filter(x=>x.has_photo).length;
   const viewAll=nPhoto>1?`<button onclick="openExpSlips('${String(_expListInv).replace(/['"\\<>]/g,'')}','${_expListType}')" style="width:100%;font-size:11px;padding:7px;border:1px solid #bae6fd;border-radius:8px;background:#eff6ff;color:#0369a1;font-weight:700;cursor:pointer;margin-bottom:10px;">👁 ดูสลิปทั้งหมด (เรียงหน้า ${nPhoto} ใบ)</button>`:'';
-  body.innerHTML=viewAll+its.map(x=>`<div style="border:1px solid #e8edf5;border-radius:10px;padding:10px 12px;margin-bottom:9px;">
+  const slipHdr=(docHtml&&its.length)?'<div style="font-size:11px;font-weight:700;color:#94a3b8;margin:2px 0 8px;">💸 สลิปโอน</div>':'';
+  body.innerHTML=docHtml+slipHdr+viewAll+its.map(x=>`<div style="border:1px solid #e8edf5;border-radius:10px;padding:10px 12px;margin-bottom:9px;">
     <div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="font-weight:800;color:#b45309;font-size:15px;">${x.amount.toLocaleString('th-TH')} ฿</span><span style="font-size:10px;color:#94a3b8;">${x.paid_date?_ymdThai(x.paid_date):''}</span></div>
     ${x.ref_no?`<div style="font-size:10px;color:#94a3b8;font-family:monospace;margin-top:3px;">ref ${h(x.ref_no)}</div>`:''}
     <div style="display:flex;gap:8px;margin-top:8px;">
@@ -7562,12 +7569,13 @@ async function renderSkhAccount(){
         const note=nByKey.get(k+'|'+T); const settled=!!(note&&note.settled); if(settled) ts={t:'✅ ปิดแล้ว',c:'#166534',bg:'#dcfce7'};   /* หมายเหตุ settled = ปิดแล้ว (จ่ายรวมในใบอื่น) ไม่ขึ้น "ยังไม่วางบิล" */
         { const _g=Number(b&&b.grand_total)||0; if(b && _g>0 && !settled && (sp==null || sp<_g-0.01)) pendByType[T].push({inv:inv.invoice_no,amt:_g,paid:(sp!=null&&sp>0.01)?sp:0}); }   /* รอจ่าย(sp=null) + จ่ายไม่ครบ(sp<บิล) · settled ข้าม */
         const gross=(b&&b.grand_total!=null)?(Number(b.grand_total)||0)+(Number(b.wht_amount)||0):null;
-        const pdfBtn=(b&&b.pdf_att)?`<button onclick="_gbillPdf('${_q(b.pdf_msg)}','${_q(b.pdf_att)}','${_q(b.pdf_name||'bill.pdf')}')" title="ดูใบวางบิล" style="${btnS}border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;">📄</button>`:'';
-        const rcptBtn=(b&&b.receipt_att)?`<button onclick="_gbillPdf('${_q(b.receipt_msg)}','${_q(b.receipt_att)}','${_q(b.receipt_name||'receipt.pdf')}')" title="ดูใบเสร็จรับเงิน${b.receipt_no?' '+h(b.receipt_no):''}" style="${btnS}border:1px solid #fbcfe8;background:#fdf2f8;color:#be185d;">📃</button>`:'';
+        const nSlip=_expItems(inv.invoice_no,T).filter(s=>s.has_photo).length;   /* รวมไฟล์แนบ (บิล+ใบเสร็จ+สลิป) → ปุ่มเดียว 📎 ไฟล์แนบ */
+        const nFiles=(b&&b.pdf_att?1:0)+(b&&b.receipt_att?1:0)+nSlip;
+        const filesBtn=nFiles?`<button onclick="openExpList('${_q(inv.invoice_no)}','${T}')" title="ดูไฟล์แนบ — ใบวางบิล/ใบเสร็จ/สลิปโอน" style="${btnS}border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1;padding:1px 9px;">📎 ไฟล์แนบ${nFiles>1?` <b>${nFiles}</b>`:''}</button>`:'';
         const whtBtn=(b&&b.wht_amount&&SYNC_WHT_PAYEE[T])?`<button onclick="_gbillWht(${b.__ix})" title="ออกใบหัก ณ ที่จ่าย" style="${btnS}border:1px solid #99f6e4;background:#ecfeff;color:#0e7490;">🧾</button>`:'';
         const noteBtn=`<button onclick="openBillNote('${_q(inv.invoice_no)}','${T}')" title="${note?'แก้หมายเหตุ':'เพิ่มหมายเหตุ'}" style="${btnS}border:1px solid ${note?'#fde68a':'#e5e7eb'};background:${note?'#fffbeb':'#f8fafc'};color:${note?'#b45309':'#9ca3af'};">📝</button>`;
         return `<tr style="border-top:1px solid #f1f5f9;${b||note?'':'opacity:.55;'}">
-          <td style="padding:4px 10px;white-space:nowrap;"><b style="color:${typeC[T]};font-size:11px;">${T}</b> ${pdfBtn}${slipBtnFor(T)}${rcptBtn}${noteBtn}${note?`<div style="font-size:9px;color:#b45309;margin-top:3px;white-space:normal;max-width:240px;line-height:1.35;">📝 ${h(note.note)}${settled?' <span style="color:#166534;font-weight:700;">· ปิดแล้ว</span>':''}</div>`:''}</td>
+          <td style="padding:4px 10px;white-space:nowrap;"><b style="color:${typeC[T]};font-size:11px;">${T}</b> ${filesBtn}${noteBtn}${note?`<div style="font-size:9px;color:#b45309;margin-top:3px;white-space:normal;max-width:240px;line-height:1.35;">📝 ${h(note.note)}${settled?' <span style="color:#166534;font-weight:700;">· ปิดแล้ว</span>':''}</div>`:''}</td>
           <td style="padding:4px 10px;text-align:right;font-weight:700;">${fmt(gross)}</td>
           <td style="padding:4px 10px;text-align:right;color:#b45309;font-size:11px;">${b&&b.wht_amount?fmt(b.wht_amount):'—'}</td>
           <td style="padding:4px 10px;text-align:right;color:#475569;">${fmt(b?b.grand_total:null)}</td>
