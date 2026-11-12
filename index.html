@@ -1622,12 +1622,16 @@ function confirmCticSave(){
 function confirmCticClear(){ const inv=_cticFeeInv; closeCticModal(); saveCticFee(inv, null, null); }
 /* ── ICD (ค่ายกตู้ ICD สงขลา) รวมยอดต่ออินวอยซ์ — ออโต้จาก skh_lift_fees อ่านอย่างเดียว (แก้ที่ปุ่ม 🧾) ── */
 let ICD_TOTAL = new Map();
+let SHL_CTR_BY_INV = new Map();   /* normInv → จำนวนตู้ที่ลากด้วยรถโรงงาน SHL (72-2330/72-2903) → ไม่นับ ICD (RCN 12 พ.ย.69) */
+function _shlCtr(inv){ return SHL_CTR_BY_INV.get(normInv(inv))||0; }
 async function loadIcdTotals(){
   try{
-    const rows = await sbFetch('skh_lift_fees','select=invoice_no,amount_total&invoice_no=not.is.null');
-    ICD_TOTAL = new Map();
-    rows.forEach(r=>{ const k=normInv(r.invoice_no); ICD_TOTAL.set(k, (ICD_TOTAL.get(k)||0) + (Number(r.amount_total)||0)); });
-  }catch(e){ ICD_TOTAL=new Map(); console.warn('อ่าน skh_lift_fees (ICD) ไม่ได้:', e.message); }
+    const rows = await sbFetch('skh_lift_fees','select=invoice_no,truck_plate,amount_total&invoice_no=not.is.null');
+    ICD_TOTAL = new Map(); SHL_CTR_BY_INV = new Map();
+    rows.forEach(r=>{ const k=normInv(r.invoice_no); ICD_TOTAL.set(k, (ICD_TOTAL.get(k)||0) + (Number(r.amount_total)||0));
+      if(_carrierOf(r.truck_plate)==='SHL') SHL_CTR_BY_INV.set(k,(SHL_CTR_BY_INV.get(k)||0)+1); });   /* นับตู้รถโรงงานต่อใบ */
+    if(typeof renderVessel==='function' && document.getElementById('vesselWrap')) renderVessel();   /* ICD อัปเดตหลังรู้จำนวนรถโรงงาน */
+  }catch(e){ ICD_TOTAL=new Map(); SHL_CTR_BY_INV=new Map(); console.warn('อ่าน skh_lift_fees (ICD) ไม่ได้:', e.message); }
 }
 /* ── ค่าใช้จ่ายท่าสงขลา จากสลิป (OCF/CTIC/คุณวัส) — อ่านจาก skh_expense_payments (RLS is_money=admin) ── */
 let EXP_BY_INV = new Map();   /* normInv → {OCF:[], CTIC:[], WATR:[]} · item {id,amount,paid_date,ref_no,has_photo} */
@@ -5159,7 +5163,7 @@ async function loadData(forceRefresh=false){
   }
   /* ป้ายแหลมฉบัง — ดึงแยกจากก้อนหลัก ไม่ให้ไปกระทบลำดับ _rows / cache
      พังก็ไม่เป็นไร แค่ป้ายไม่ขึ้น ข้อมูลอื่นทำงานปกติ */
-  loadLcbInv(); loadTrainThb(); loadLockTop(); loadRailMode(); loadCticFee(); loadExpenses(); loadIcdRates();
+  loadLcbInv(); loadTrainThb(); loadLockTop(); loadRailMode(); loadCticFee(); loadExpenses(); loadIcdRates(); loadIcdTotals();   /* loadIcdTotals = นับตู้รถโรงงาน SHL ต่อใบ (ไม่นับ ICD) */
   if(!_rows){
     setLoad('LOADING...');
     _rows=await Promise.all([
@@ -7518,7 +7522,7 @@ async function renderSkhAccount(){
     if(!_skhAcctCache){
       const invs=await sbFetch('invoices','select=invoice_no,month,year&port=eq.SONGKHLA');
       let bills=[]; try{ bills=await sbFetch('skh_expense_bills','select=invoice_no,type,vendor,vendor_inv_no,bill_date,wht_rate,wht_base,wht_amount,grand_total,slip_paid,status,pdf_msg,pdf_att,pdf_name,receipt_no,receipt_msg,receipt_att,receipt_name&order=bill_date.desc'); }catch(e){ try{ bills=await sbFetch('skh_expense_bills','select=invoice_no,type,vendor,vendor_inv_no,bill_date,wht_rate,wht_base,wht_amount,grand_total,slip_paid,status,pdf_msg,pdf_att,pdf_name&order=bill_date.desc'); }catch(e2){} }
-      let lifts=[]; try{ lifts=await sbFetch('skh_lift_fees','select=invoice_no,amount_total'); }catch(e){}
+      let lifts=[]; try{ lifts=await sbFetch('skh_lift_fees','select=invoice_no,truck_plate,amount_total'); }catch(e){}   /* +truck_plate เพื่อหักตู้รถโรงงาน SHL */
       let notes=[]; try{ notes=await sbFetch('skh_bill_notes','select=invoice_no,expense_type,note,settled'); }catch(e){}   /* หมายเหตุต่อรายการ (settled=ปิดแล้ว ไม่นับค้าง) · ตารางยังไม่สร้าง=ว่าง */
       try{ await loadExpenses(); }catch(e){}   /* EXP_BY_INV = สลิปโอน (skh_expense_payments) ไว้ปุ่มดูสลิป */
       _skhAcctCache={invs:invs||[],bills:bills||[],lifts:lifts||[],notes:notes||[]};
@@ -7530,7 +7534,10 @@ async function renderSkhAccount(){
     const [cy,cm]=(_skhAcctMonth||'0-0').split('-').map(Number);
     const monthInvs=_skhAcctMonth==='ALL' ? invs.slice() : invs.filter(i=>i.year===cy&&i.month===cm);
     const bByInv=new Map(); bills.forEach(b=>{const k=normInv(b.invoice_no);if(!bByInv.has(k))bByInv.set(k,[]);bByInv.get(k).push(b);});
-    const lByInv=new Map(); lifts.forEach(l=>{const k=normInv(l.invoice_no);lByInv.set(k,(lByInv.get(k)||0)+(Number(l.amount_total)||0));});
+    const lByInv=new Map(), shlByInv=new Map();   /* lByInv = ICD ที่นับ (ไม่รวมรถโรงงาน SHL) · shlByInv = ตู้รถโรงงานที่หัก {n,amt} */
+    lifts.forEach(l=>{const k=normInv(l.invoice_no); const amt=Number(l.amount_total)||0;
+      if(_carrierOf(l.truck_plate)==='SHL'){ const s=shlByInv.get(k)||{n:0,amt:0}; s.n++; s.amt+=amt; shlByInv.set(k,s); }
+      else lByInv.set(k,(lByInv.get(k)||0)+amt); });
     window._GBILL=bills; bills.forEach((b,i)=>{b.__ix=i; b.mail_at=b.bill_date;});   /* ให้ _gbillPdf/_gbillWht ใช้ได้ */
     const fmt=n=>n==null?'—':Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
     const typeC={OCF:'#15803d',TLX:'#1d4ed8',CTIC:'#0369a1',WATR:'#b45309'};
@@ -7584,8 +7591,10 @@ async function renderSkhAccount(){
           <td style="padding:4px 10px;text-align:center;"><span style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:7px;background:${ts.bg};color:${ts.c};white-space:nowrap;">${ts.t}</span></td>
           <td style="padding:4px 10px;text-align:center;">${whtBtn}</td></tr>`;
       }).join('');
-      const icdTs=_isShlInv(inv.invoice_no)?{t:'🏭 รถโรงงาน (ไม่นับ)',c:'#166534',bg:'#dcfce7'}:(icd>0?{t:'✅ จ่ายแล้ว',c:'#166534',bg:'#dcfce7'}:{t:'ยังไม่วางบิล',c:'#94a3b8',bg:'#f1f5f9'});
-      const icdRow=`<tr style="border-top:1px solid #f1f5f9;background:#fffdf5;${icd>0?'':'opacity:.55;'}"><td style="padding:4px 10px;white-space:nowrap;"><b style="color:#b45309;font-size:11px;">ICD</b> <span style="font-size:9px;color:#94a3b8;">ค่ายกตู้</span></td><td style="padding:4px 10px;text-align:right;">—</td><td style="padding:4px 10px;text-align:right;">—</td><td style="padding:4px 10px;text-align:right;color:#475569;">${fmt(icd||null)}</td><td style="padding:4px 10px;text-align:right;">—</td><td style="padding:4px 10px;text-align:center;"><span style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:7px;background:${icdTs.bg};color:${icdTs.c};white-space:nowrap;">${icdTs.t}</span></td><td style="padding:4px 10px;"></td></tr>`;
+      const _shlIcd=shlByInv.get(k);   /* {n,amt} ตู้รถโรงงาน SHL ที่ไม่นับ */
+      const icdTs=icd>0?{t:'✅ จ่ายแล้ว',c:'#166534',bg:'#dcfce7'}:(_shlIcd?{t:'🏭 รถโรงงาน',c:'#166534',bg:'#dcfce7'}:{t:'ยังไม่วางบิล',c:'#94a3b8',bg:'#f1f5f9'});
+      const _shlNoteAcct=_shlIcd?` <span style="font-size:8.5px;color:#166534;font-weight:700;" title="รถโรงงาน SHL ${_shlIcd.n} ตู้ = ${fmt(_shlIcd.amt)} ฿ ไม่นับ ICD">🏭 −${_shlIcd.n} รถโรงงาน</span>`:'';
+      const icdRow=`<tr style="border-top:1px solid #f1f5f9;background:#fffdf5;${(icd>0||_shlIcd)?'':'opacity:.55;'}"><td style="padding:4px 10px;white-space:nowrap;"><b style="color:#b45309;font-size:11px;">ICD</b> <span style="font-size:9px;color:#94a3b8;">ค่ายกตู้</span>${_shlNoteAcct}</td><td style="padding:4px 10px;text-align:right;">—</td><td style="padding:4px 10px;text-align:right;">—</td><td style="padding:4px 10px;text-align:right;color:#475569;">${fmt(icd||null)}</td><td style="padding:4px 10px;text-align:right;">—</td><td style="padding:4px 10px;text-align:center;"><span style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:7px;background:${icdTs.bg};color:${icdTs.c};white-space:nowrap;">${icdTs.t}</span></td><td style="padding:4px 10px;"></td></tr>`;
       return `<div id="${cid(inv.invoice_no)}" style="border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;overflow:hidden;transition:box-shadow .2s;">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #eef2f7;">
           <span style="font-weight:800;font-size:13px;color:#0f2a52;">📄 ${h(inv.invoice_no)}</span>
@@ -7708,7 +7717,7 @@ function _skhAcctDoPrint(){
   const monthInvs=invs.filter(i=>(_skhAcctMonth==='ALL'||(i.year===cy&&i.month===cm))&&sel.has(normInv(i.invoice_no)));
   if(!monthInvs.length){ alert('ไม่มีใบที่เลือก'); return; }
   const bByInv=new Map(); bills.forEach(b=>{const k=normInv(b.invoice_no);if(!bByInv.has(k))bByInv.set(k,[]);bByInv.get(k).push(b);});
-  const lByInv=new Map(); lifts.forEach(l=>{const k=normInv(l.invoice_no);lByInv.set(k,(lByInv.get(k)||0)+(Number(l.amount_total)||0));});
+  const lByInv=new Map(); lifts.forEach(l=>{ if(_carrierOf(l.truck_plate)==='SHL')return; const k=normInv(l.invoice_no);lByInv.set(k,(lByInv.get(k)||0)+(Number(l.amount_total)||0));});   /* หักตู้รถโรงงาน SHL */
   const fmt=n=>(n==null||n==='')?'-':Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
   const etd=inv=>{let d='';const vr=VESSEL.find(r=>normInv(r.inv)===normInv(inv));if(vr&&vr.date)d=vr.date;else{const vp=VESSEL_PLAN[String(inv||'').toUpperCase()];if(vp&&vp.etd)d=vp.etd;}if(!d)return Infinity;const t=pDate(d);return(t&&!isNaN(t))?t:Infinity;};
   const stTxt=lines=>{ if(!lines.length)return 'ยังไม่มีบิล'; if(lines.some(b=>/⚠️|ไม่ตรง/.test(b.status||'')))return 'ยอดไม่ตรง'; if(lines.some(b=>b.slip_paid==null||/ยังไม่จ่าย/.test(b.status||'')))return 'วางบิลแล้ว·รอจ่าย'; return 'จ่ายครบ ยอดตรง'; };
@@ -7905,9 +7914,10 @@ function _vslFeeCells(r, gVessel, hasFees, fm){
     const _ocfB=_expSum(r.inv,'OCF'),_vv=parseFloat(r.vol)||0,_pc=_vv>0?_ocfB/_vv:0;
     perCtrCell=_pc>0?`<span style="color:#7c3aed;font-weight:700;">${_pc.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2})} ฿</span>`:'<span style="color:#94a3b8;font-size:10px;">-</span>'; }
   const watrCell=_isSkhRow?_expCell('WATR','#92400e'):'<span style="color:#cbd5e1;font-size:10px;">—</span>';
-  const _icdR=_icdRate(r.inv); const _shlIcd=_isShlInv(r.inv); const icdVal=(_isSkhRow&&!_shlIcd)?_icdR*(parseFloat(r.vol)||0):0;
-  const _icdSp=_isSkhRow&&!_shlIcd&&ICD_RATE.has(normInv(r.inv));
-  const icdCell=!_isSkhRow?'<span style="color:#94a3b8;font-size:10px;">-</span>':(_shlIcd?'<span style="color:#166534;font-size:9px;font-weight:700;" title="รถโรงงาน SHL — ไม่นับ ICD">🏭 รถโรงงาน</span>':`<span onclick="openIcdRate('${_trInvEsc}')" style="cursor:pointer;color:#b45309;font-weight:700;" title="คลิกตั้งเรต ICD พิเศษ (ปกติ ${ICD_PER_CTR}/ตู้)">${icdVal.toLocaleString('th-TH')} ฿${_icdSp?`<br><span style="font-size:8px;color:#7c3aed;font-weight:700;">⚙️ ${_icdR}/ตู้</span>`:''}</span>`);
+  const _icdR=_icdRate(r.inv); const _shlN=_shlCtr(r.inv); const _icdCtr=Math.max(0,(parseFloat(r.vol)||0)-_shlN); const icdVal=_isSkhRow?_icdR*_icdCtr:0;   /* ไม่นับตู้รถโรงงาน SHL */
+  const _icdSp=_isSkhRow&&ICD_RATE.has(normInv(r.inv));
+  const _shlNote=_shlN>0?`<br><span style="font-size:8px;color:#166534;font-weight:700;">🏭 −${_shlN} รถโรงงาน</span>`:'';
+  const icdCell=!_isSkhRow?'<span style="color:#94a3b8;font-size:10px;">-</span>':((_icdCtr<=0&&_shlN>0)?`<span style="color:#166534;font-size:9px;font-weight:700;" title="รถโรงงาน SHL ${_shlN} ตู้ — ไม่นับ ICD">🏭 รถโรงงาน</span>`:`<span onclick="openIcdRate('${_trInvEsc}')" style="cursor:pointer;color:#b45309;font-weight:700;" title="คลิกตั้งเรต ICD พิเศษ (ปกติ ${ICD_PER_CTR}/ตู้) · รถโรงงาน SHL ไม่นับ">${icdVal.toLocaleString('th-TH')} ฿${_shlNote}${_icdSp?`<br><span style="font-size:8px;color:#7c3aed;font-weight:700;">⚙️ ${_icdR}/ตู้</span>`:''}</span>`);
   return `<td style="text-align:right;">${ocfCell}</td><td style="text-align:right;">${tlxCell}</td><td style="text-align:right;">${cticCell}</td><td style="text-align:right;">${icdCell}</td><td style="text-align:right;">${watrCell}</td>`;
 }
 function renderVessel(){
@@ -7943,7 +7953,7 @@ function renderVessel(){
   if(draftStandalone.length){
     out+=`<div style="margin:2px 0 8px;font-size:12.5px;font-weight:800;color:#92400e;display:flex;align-items:center;gap:6px;">🗓️ เรือที่กำลังแพลน — ยังไม่ FINAL (${draftStandalone.length} ลำ)</div>`;
     draftStandalone.forEach(g=>{
-      let oc=0,tl=0,trTot=0,cticTot=0,icdTot=0,watrTot=0,ocfBahtTot=0,tlxBahtTot=0;g.rows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}const _k=normInv(r.inv);trTot+=TRAIN_THB.get(_k)||0;const _skh=_portOf(r.inv)==='SONGKHLA';cticTot+=_skh?_expSum(r.inv,'CTIC'):(CTIC_THB.get(_k)||0);if(_skh){if(!_isShlInv(r.inv))icdTot+=_icdRate(r.inv)*(parseFloat(r.vol)||0);watrTot+=_expSum(r.inv,'WATR');ocfBahtTot+=_expSum(r.inv,'OCF');tlxBahtTot+=_expSum(r.inv,'TLX');}});const tot=oc+tl;const _cardSkh=g.rows.length>0&&g.rows.every(x=>_portOf(x.inv)==='SONGKHLA');
+      let oc=0,tl=0,trTot=0,cticTot=0,icdTot=0,watrTot=0,ocfBahtTot=0,tlxBahtTot=0;g.rows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}const _k=normInv(r.inv);trTot+=TRAIN_THB.get(_k)||0;const _skh=_portOf(r.inv)==='SONGKHLA';cticTot+=_skh?_expSum(r.inv,'CTIC'):(CTIC_THB.get(_k)||0);if(_skh){icdTot+=_icdRate(r.inv)*Math.max(0,(parseFloat(r.vol)||0)-_shlCtr(r.inv));watrTot+=_expSum(r.inv,'WATR');ocfBahtTot+=_expSum(r.inv,'OCF');tlxBahtTot+=_expSum(r.inv,'TLX');}});const tot=oc+tl;const _cardSkh=g.rows.length>0&&g.rows.every(x=>_portOf(x.inv)==='SONGKHLA');
       out+=`<div class="vessel-card" style="position:relative;overflow:hidden;opacity:.94;background:repeating-linear-gradient(45deg,#fffdf6,#fffdf6 13px,#fdf3d8 13px,#fdf3d8 26px);border:2px dashed #f59e0b;box-shadow:none;">
         <div style="position:absolute;top:13px;right:-40px;transform:rotate(38deg);background:#f59e0b;color:#fff;font-size:10px;font-weight:800;padding:3px 46px;letter-spacing:2px;box-shadow:0 1px 4px rgba(0,0,0,.25);z-index:2;">DRAFT</div>
         <div class="vessel-head" style="background:linear-gradient(90deg,#b45309,#78350f);"><span class="vessel-name">🚢 ${h(g.vessel)}</span><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span class="vessel-badge">📅 ${h(g.date)}</span><span class="vessel-badge">${g.rows.length} INV · ${g.vol} ตู้</span>${hasFees&&tot>0?`<span class="vessel-badge">💰 ${fm(tot)} RM</span>`:''}<span class="vessel-badge" style="background:#fef3c7;color:#92400e;">⚠️ ยังไม่ ADD DATABASE</span></div></div>`;
@@ -7961,7 +7971,7 @@ function renderVessel(){
     const _draftRows=(draftByVsl[_dkey]||[]).map(r=>({...r,_draft:true}));   /* delta ที่ยังไม่ ADD */
     const allRows=[...g.rows,..._draftRows];
     const _allVol=allRows.reduce((s,r)=>s+(parseFloat(r.vol)||0),0);
-    let oc=0,tl=0,trTot=0,cticTot=0,icdTot=0,watrTot=0,ocfBahtTot=0,tlxBahtTot=0;allRows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}const _k=normInv(r.inv);trTot+=TRAIN_THB.get(_k)||0;const _skh=_portOf(r.inv)==='SONGKHLA';cticTot+=_skh?_expSum(r.inv,'CTIC'):(CTIC_THB.get(_k)||0);if(_skh){if(!_isShlInv(r.inv))icdTot+=_icdRate(r.inv)*(parseFloat(r.vol)||0);watrTot+=_expSum(r.inv,'WATR');ocfBahtTot+=_expSum(r.inv,'OCF');tlxBahtTot+=_expSum(r.inv,'TLX');}});const tot=oc+tl;const _cardSkh=allRows.length>0&&allRows.every(x=>_portOf(x.inv)==='SONGKHLA');
+    let oc=0,tl=0,trTot=0,cticTot=0,icdTot=0,watrTot=0,ocfBahtTot=0,tlxBahtTot=0;allRows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}const _k=normInv(r.inv);trTot+=TRAIN_THB.get(_k)||0;const _skh=_portOf(r.inv)==='SONGKHLA';cticTot+=_skh?_expSum(r.inv,'CTIC'):(CTIC_THB.get(_k)||0);if(_skh){icdTot+=_icdRate(r.inv)*Math.max(0,(parseFloat(r.vol)||0)-_shlCtr(r.inv));watrTot+=_expSum(r.inv,'WATR');ocfBahtTot+=_expSum(r.inv,'OCF');tlxBahtTot+=_expSum(r.inv,'TLX');}});const tot=oc+tl;const _cardSkh=allRows.length>0&&allRows.every(x=>_portOf(x.inv)==='SONGKHLA');
     const _gvn=g.vessel.replace(/\s+\d+[NSEW](\s*\([^)]*\))?$/i,'').replace(/[\s\/]+V\.\w+$/i,'').trim();const _gmmsi=VESSEL_MMSI[_gvn.toUpperCase()]||VESSEL_MMSI[_gvn]||null;const _gurl=_gmmsi?'https://www.vesselfinder.com/vessels/details/'+_gmmsi:'https://www.vesselfinder.com/?name='+encodeURIComponent(_gvn);
     const _draftBadge=_draftRows.length?`<span class="vessel-badge" style="background:#fef3c7;color:#92400e;">🕒 ${_draftRows.length} ยังไม่ ADD</span>`:'';
     out+=`<div class="vessel-card"><div class="vessel-head"><span class="vessel-name">🚢 ${h(g.vessel)}</span><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span class="vessel-badge">📅 ${h(g.date)}</span><span class="vessel-badge">${allRows.length} INV · ${_allVol} ตู้</span>${_draftBadge}${hasFees&&tot>0?`<span class="vessel-badge">💰 ${fm(tot)} RM</span>`:''}<span onclick="window.open('${_gurl}','_blank','noopener,noreferrer')" style="cursor:pointer;font-size:11px;padding:2px 8px;border-radius:6px;background:#dbeafe;color:#1d4ed8;font-weight:700;user-select:none;" title="ดูตำแหน่งเรือบน VesselFinder">🛰️ ติดตามเรือ</span></div></div>`;
@@ -8377,7 +8387,7 @@ function printVesselPdf(){
   let pages='';
   sel.forEach((g,pi)=>{
     const _cardSkh=g.rows.length>0&&g.rows.every(x=>_portOf(x.inv)==='SONGKHLA');
-    let oc=0,tl=0,cticTot=0,icdTot=0,watrTot=0,ocfBahtTot=0,tlxBahtTot=0;g.rows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}const _k=normInv(r.inv);const _skh=_portOf(r.inv)==='SONGKHLA';cticTot+=_skh?_expSum(r.inv,'CTIC'):(CTIC_THB.get(_k)||0);if(_skh){if(!_isShlInv(r.inv))icdTot+=_icdRate(r.inv)*(parseFloat(r.vol)||0);watrTot+=_expSum(r.inv,'WATR');ocfBahtTot+=_expSum(r.inv,'OCF');tlxBahtTot+=_expSum(r.inv,'TLX');}});
+    let oc=0,tl=0,cticTot=0,icdTot=0,watrTot=0,ocfBahtTot=0,tlxBahtTot=0;g.rows.forEach(r=>{const f=FEES[normInv(r.inv)];if(f){oc+=f.ocf||0;tl+=f.tlx||0;}const _k=normInv(r.inv);const _skh=_portOf(r.inv)==='SONGKHLA';cticTot+=_skh?_expSum(r.inv,'CTIC'):(CTIC_THB.get(_k)||0);if(_skh){icdTot+=_icdRate(r.inv)*Math.max(0,(parseFloat(r.vol)||0)-_shlCtr(r.inv));watrTot+=_expSum(r.inv,'WATR');ocfBahtTot+=_expSum(r.inv,'OCF');tlxBahtTot+=_expSum(r.inv,'TLX');}});
     const tot=oc+tl; const _U=_cardSkh?'฿':'RM';
     const fh=hasFees?('<th class="r h-ocf">OCF ('+_U+')</th><th class="r h-tlx">TLX ('+_U+')</th><th class="r h-ctic">ท่าเรือ CTIC (฿)</th><th class="r h-icd">ICD (฿)</th><th class="r h-watr">คุณวัส (฿)</th>'):'';
     let trows='';
@@ -8413,7 +8423,9 @@ function printVesselPdf(){
       const _bht=n=>n>0?`<span class="amt">${n.toLocaleString('th-TH')} ฿</span>`:`<span class="tag gr">-</span>`;
       let cticTd=`<span class="tag gr">-</span>`,icdTd=`<span class="tag gr">-</span>`,watrTd=`<span class="tag gr">-</span>`;
       if(hasFees){
-        if(_skh){ ocfTd=_bht(_expSum(r.inv,'OCF')); tlxTd=_bht(_expSum(r.inv,'TLX')); watrTd=_bht(_expSum(r.inv,'WATR')); icdTd=_isShlInv(r.inv)?'<span class="tag gr" title="รถโรงงาน SHL — ไม่นับ ICD">🏭 รถโรงงาน</span>':_bht(_icdRate(r.inv)*(parseFloat(r.vol)||0)); cticTd=_bht(_expSum(r.inv,'CTIC')); }
+        if(_skh){ ocfTd=_bht(_expSum(r.inv,'OCF')); tlxTd=_bht(_expSum(r.inv,'TLX')); watrTd=_bht(_expSum(r.inv,'WATR')); cticTd=_bht(_expSum(r.inv,'CTIC'));
+          const _sn=_shlCtr(r.inv), _ic=_icdRate(r.inv)*Math.max(0,(parseFloat(r.vol)||0)-_sn);   /* หักตู้รถโรงงาน SHL */
+          icdTd=(_ic<=0&&_sn>0)?'<span class="tag gr" title="รถโรงงาน SHL — ไม่นับ ICD">🏭 รถโรงงาน</span>':(_sn>0?`<span class="amt">${_ic.toLocaleString('th-TH')} ฿</span><span class="rno" style="color:#166534;">🏭 −${_sn}</span>`:_bht(_ic)); }
         else { const _cv=CTIC_THB.get(normInv(r.inv))||0; cticTd=_cv>0?_bht(_cv):`<span class="tag gr">-</span>`; }
       }
       trows+=`<tr class="${ri%2===1?'alt':''}">
@@ -11751,7 +11763,7 @@ function renderSkhProfit(){
     const rev=Number(BILLED_ANTS.get(k))||0;
     const ctr=Number(d.container_count||d.total_expected||d.total_actual||(d.details?d.details.length:0))||0;
     const ocf=_expSum(d.inv,'OCF'),tlx=_expSum(d.inv,'TLX'),ctic=_expSum(d.inv,'CTIC'),watr=_expSum(d.inv,'WATR');
-    const icd=_isShlInv(d.inv)?0:(_icdRate(d.inv)||0)*ctr, truck=truckByInv[k]||0, kui=200*ctr, antsFee=1000*ctr;   /* SHL = รถโรงงาน ไม่นับ ICD */
+    const icd=(_icdRate(d.inv)||0)*Math.max(0,ctr-_shlCtr(d.inv)), truck=truckByInv[k]||0, kui=200*ctr, antsFee=1000*ctr;   /* หักตู้รถโรงงาน SHL ไม่นับ ICD */
     const cost=ocf+tlx+ctic+icd+watr+truck+kui+antsFee;
     if(rev<=0 && cost<=0) return;   /* ไม่มีทั้งรายรับและค่าใช้จ่าย → ข้าม · ยังไม่วางบิลแต่มีค่าใช้จ่าย = โชว์ติดลบ (RCN 4 พ.ย.) */
     const _tr=(TR_DATA||[]).find(t=>normInv(t.inv)===k);
