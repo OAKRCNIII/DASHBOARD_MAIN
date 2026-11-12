@@ -3559,14 +3559,16 @@ function _renderIcdRpt(){
   const corrByDay=new Map(); rows.filter(isCorr).forEach(r=>{ const k=_icdDayKey(r.receipt_date); corrByDay.set(k,(corrByDay.get(k)||0)+(Number(r.amount_total)||0)); });   /* ค่าแก้ใบเสร็จต่อวัน ไว้โชว์หมายเหตุ */
   const days=[...byDay.keys()].sort();
   const fmt=n=>Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
-  let grand=0, grandN=0;
+  const _isFac=r=>_carrierOf(r.truck_plate)==='SHL';   /* รถโรงงาน SHL — ไม่วางบิล ANTS (RCN 12 พ.ย.69) หักออกจากยอดรายวัน โชว์วงเล็บ */
+  let grand=0, grandN=0, facAllN=0;
   let sum='<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;"><thead><tr style="background:#0f2a52;color:#fff;"><th style="padding:8px;text-align:left;">วันที่ (ใบยกตู้)</th><th style="padding:8px;text-align:right;">จำนวนใบ</th><th style="padding:8px;text-align:right;">ยอดรวม (฿)</th></tr></thead><tbody>';
-  days.forEach((k,i)=>{ const ds=byDay.get(k); const t=ds.reduce((s,r)=>s+(Number(r.amount_total)||0),0); grand+=t; grandN+=ds.length;
-    sum+=`<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #eef2f7;"><td style="padding:7px 8px;">${h(_icdDayText(k))}${corrByDay.get(k)?`<span style="font-size:10px;color:#b45309;font-weight:400;"> (ไม่รวมค่าแก้ใบเสร็จ ${fmt(corrByDay.get(k))} บาท)</span>`:''}</td><td style="padding:7px 8px;text-align:right;">${ds.length}</td><td style="padding:7px 8px;text-align:right;font-weight:700;">${fmt(t)}</td></tr>`; });
-  sum+=`<tr style="background:#fffbeb;border-top:2px solid #b45309;"><td style="padding:9px 8px;font-weight:800;color:#b45309;">รวมทั้งเดือน</td><td style="padding:9px 8px;text-align:right;font-weight:800;">${grandN} ใบ</td><td style="padding:9px 8px;text-align:right;font-weight:900;color:#b45309;font-size:15px;">${fmt(grand)}</td></tr></tbody></table>`;
+  days.forEach((k,i)=>{ const ds0=byDay.get(k); const ds=ds0.filter(r=>!_isFac(r)); const facN=ds0.length-ds.length; facAllN+=facN;
+    const t=ds.reduce((s,r)=>s+(Number(r.amount_total)||0),0); grand+=t; grandN+=ds.length;
+    sum+=`<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #eef2f7;"><td style="padding:7px 8px;">${h(_icdDayText(k))}${corrByDay.get(k)?`<span style="font-size:10px;color:#b45309;font-weight:400;"> (ไม่รวมค่าแก้ใบเสร็จ ${fmt(corrByDay.get(k))} บาท)</span>`:''}${facN?`<span style="font-size:10px;color:#166534;font-weight:400;"> · มีรถโรงงาน SHL</span>`:''}</td><td style="padding:7px 8px;text-align:right;">${ds.length}${facN?`<span style="font-size:10.5px;color:#94a3b8;font-weight:400;"> (${ds0.length}-${facN})</span>`:''}</td><td style="padding:7px 8px;text-align:right;font-weight:700;">${fmt(t)}</td></tr>`; });
+  sum+=`<tr style="background:#fffbeb;border-top:2px solid #b45309;"><td style="padding:9px 8px;font-weight:800;color:#b45309;">รวมทั้งเดือน${facAllN?`<span style="font-size:10px;font-weight:400;color:#166534;"> · แยกรถโรงงาน SHL ${facAllN} ใบ</span>`:''}</td><td style="padding:9px 8px;text-align:right;font-weight:800;">${grandN}${facAllN?`<span style="font-size:11px;color:#94a3b8;font-weight:400;"> (${grandN+facAllN}-${facAllN})</span>`:''} ใบ</td><td style="padding:9px 8px;text-align:right;font-weight:900;color:#b45309;font-size:15px;">${fmt(grand)}</td></tr></tbody></table>`;
   let det='<div class="icd-det"><div style="font-size:12px;font-weight:800;color:#475569;margin:6px 0;">รายละเอียดใบเสร็จ</div><table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr style="background:#e8edf5;"><th style="padding:6px;text-align:left;">วันที่</th><th style="padding:6px;text-align:left;">เลขใบ ICD</th><th style="padding:6px;text-align:left;">ทะเบียนรถ</th><th style="padding:6px;text-align:left;">เบอร์ตู้</th><th style="padding:6px;text-align:left;">อินวอยซ์</th><th style="padding:6px;text-align:right;">ยอด (฿)</th></tr></thead><tbody>';
-  rows.slice().sort((a,b)=>_icdDayKey(a.receipt_date).localeCompare(_icdDayKey(b.receipt_date))||String(a.receipt_no).localeCompare(String(b.receipt_no))).forEach((r,i)=>{
-    det+=`<tr style="background:${r._pending?'#fffbeb':(i%2?'#f8fafc':'#fff')};border-bottom:1px solid #f1f5f9;"><td style="padding:5px 6px;">${h(_icdDayText(_icdDayKey(r.receipt_date)))}</td><td style="padding:5px 6px;font-family:monospace;">${r._pending?'<span style="color:#b45309;font-weight:700;font-family:inherit;">⏳ ยังไม่มีใบเสร็จ</span>':h(r.receipt_no||'')}</td><td style="padding:5px 6px;">${h(r.truck_plate||'—')}</td><td style="padding:5px 6px;font-family:monospace;">${h(r.container_no||'')}</td><td style="padding:5px 6px;">${h(r.invoice_no||'—')}</td><td style="padding:5px 6px;text-align:right;${r._pending?'color:#b45309;':''}">${r._pending?'~':''}${fmt(r.amount_total)}</td></tr>`; });
+  rows.slice().sort((a,b)=>_icdDayKey(a.receipt_date).localeCompare(_icdDayKey(b.receipt_date))||String(a.receipt_no).localeCompare(String(b.receipt_no))).forEach((r,i)=>{ const _fc=_isFac(r);
+    det+=`<tr style="background:${_fc?'#f0fdf4':(r._pending?'#fffbeb':(i%2?'#f8fafc':'#fff'))};border-bottom:1px solid #f1f5f9;"><td style="padding:5px 6px;">${h(_icdDayText(_icdDayKey(r.receipt_date)))}</td><td style="padding:5px 6px;font-family:monospace;">${r._pending?'<span style="color:#b45309;font-weight:700;font-family:inherit;">⏳ ยังไม่มีใบเสร็จ</span>':h(r.receipt_no||'')}</td><td style="padding:5px 6px;">${h(r.truck_plate||'—')}</td><td style="padding:5px 6px;font-family:monospace;">${h(r.container_no||'')}</td><td style="padding:5px 6px;">${h(r.invoice_no||'—')}${_fc?' <span style="font-size:9px;font-weight:700;color:#166534;">🏭 รถโรงงาน</span>':''}</td><td style="padding:5px 6px;text-align:right;${r._pending?'color:#b45309;':''}">${r._pending?'~':''}${fmt(r.amount_total)}</td></tr>`; });
   det+='</tbody></table></div>';
   body.innerHTML=sum+det;
 }
@@ -3624,14 +3626,16 @@ async function _excelIcdRpt(){
   const days=[...byDay.keys()].sort();
   const aoa=[['รายงานค่ายกตู้ ICD — ท่าเรือสงขลา · '+_icdMoName(_icdRptMonth)],[],
     ['สรุปรายวัน'],['วันที่ (ใบยกตู้)','จำนวนใบ','ยอดรวม (฿)']];
-  let grand=0, grandN=0;
-  days.forEach(k=>{ const ds=byDay.get(k); const t=ds.reduce((s,r)=>s+(Number(r.amount_total)||0),0); grand+=t; grandN+=ds.length;
-    aoa.push([_icdDayText(k)+(corrByDay.get(k)?' (ไม่รวมค่าแก้ใบเสร็จ '+Number(corrByDay.get(k)).toLocaleString('th-TH')+' บาท)':''), ds.length, t]); });
-  aoa.push(['รวมทั้งเดือน', grandN, grand], [],
+  const _isFac=r=>_carrierOf(r.truck_plate)==='SHL';   /* รถโรงงาน SHL — ไม่วางบิล ANTS แยกออกจากยอด */
+  let grand=0, grandN=0, facAllN=0;
+  days.forEach(k=>{ const ds0=byDay.get(k); const ds=ds0.filter(r=>!_isFac(r)); const facN=ds0.length-ds.length; facAllN+=facN;
+    const t=ds.reduce((s,r)=>s+(Number(r.amount_total)||0),0); grand+=t; grandN+=ds.length;
+    aoa.push([_icdDayText(k)+(corrByDay.get(k)?' (ไม่รวมค่าแก้ใบเสร็จ '+Number(corrByDay.get(k)).toLocaleString('th-TH')+' บาท)':'')+(facN?' (มีรถโรงงาน SHL '+facN+' ใบ แยกต่างหาก)':''), ds.length, t]); });
+  aoa.push(['รวมทั้งเดือน'+(facAllN?' (รถโรงงาน SHL '+facAllN+' ใบ แยกต่างหาก)':''), grandN, grand], [],
     ['รายละเอียดใบเสร็จ'],
     ['วันที่','เลขใบ ICD','ทะเบียนรถ','เบอร์ตู้','อินวอยซ์','ยอด (฿)']);
   rows.slice().sort((a,b)=>_icdDayKey(a.receipt_date).localeCompare(_icdDayKey(b.receipt_date))||String(a.receipt_no).localeCompare(String(b.receipt_no)))
-    .forEach(r=>aoa.push([_icdDayText(_icdDayKey(r.receipt_date)), String(r.receipt_no||''), String(r.truck_plate||''), String(r.container_no||''), String(r.invoice_no||''), Number(r.amount_total)||0]));
+    .forEach(r=>aoa.push([_icdDayText(_icdDayKey(r.receipt_date)), String(r.receipt_no||''), String(r.truck_plate||''), String(r.container_no||''), String(r.invoice_no||'')+(_isFac(r)?' [รถโรงงาน SHL]':''), Number(r.amount_total)||0]));
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols']=[{wch:18},{wch:14},{wch:12},{wch:14},{wch:24},{wch:12}];
   ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:5}}];
@@ -3652,8 +3656,8 @@ const TRUCK_CARRIER = {
 };
 function _carrierOf(plate){ const p=String(plate||'').split(/[,\s]+/).filter(Boolean)[0]||''; return TRUCK_CARRIER[p] || (p?('อื่นๆ ('+p+')'):'— ไม่ระบุ'); }
 function _icdStatus(r){
-  /* 2 สถานะ (RCN 3 พ.ย.69): จ่ายคืนแล้ว = มี reimbursed_date หรือ ธีรา (in-house ไม่ต้องคืนตัวเอง) · ที่เหลือ = รอวางบิล */
-  if(r&&(r.reimbursed_date||_carrierOf(r.truck_plate)==='ธีรา')) return {t:'จ่ายคืนแล้ว',c:'#166534',bg:'#dcfce7'};
+  /* 2 สถานะ (RCN 3 พ.ย.69): จ่ายคืนแล้ว = มี reimbursed_date หรือ ธีรา (in-house) หรือ SHL (รถโรงงาน) — ไม่ต้องคืน · ที่เหลือ = รอวางบิล */
+  if(r&&(r.reimbursed_date||_carrierOf(r.truck_plate)==='ธีรา'||_carrierOf(r.truck_plate)==='SHL')) return {t:'จ่ายคืนแล้ว',c:'#166534',bg:'#dcfce7'};
   return {t:'รอวางบิล',c:'#b45309',bg:'#fef3c7'};
 }
 let _icdCarRows=null, _icdCarMonth='', _icdCarOpen=new Set();   /* กางดีเทลได้หลายเจ้าพร้อมกัน */
@@ -3698,23 +3702,37 @@ function _renderIcdCar(){
   const rows=(_icdCarRows||[]).filter(r=>!_icdCarMonth||_icdYm(r.receipt_date)===_icdCarMonth);
   if(!rows.length){ body.innerHTML='<div style="padding:26px;text-align:center;color:#64748b;">ไม่มีใบ ICD ในช่วงนี้</div>'; return; }
   const fmt=n=>Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const _isFacC=r=>_carrierOf(r.truck_plate)==='SHL';   /* รถโรงงาน SHL — ไม่เกี่ยว ANTS คืน แยกตารางล่าง (RCN 12 พ.ย.69) */
+  const billRows=rows.filter(r=>!_isFacC(r)), facRows=rows.filter(_isFacC);
   const g=new Map();
-  rows.forEach(r=>{ const c=_carrierOf(r.truck_plate); if(!g.has(c))g.set(c,{rows:[],total:0,wait:0,reimb:0}); const o=g.get(c); o.rows.push(r); o.total+=Number(r.amount_total)||0; if(_icdStatus(r).t==='จ่ายคืนแล้ว')o.reimb++; else o.wait++; });
+  billRows.forEach(r=>{ const c=_carrierOf(r.truck_plate); if(!g.has(c))g.set(c,{rows:[],total:0,wait:0,reimb:0}); const o=g.get(c); o.rows.push(r); o.total+=Number(r.amount_total)||0; if(_icdStatus(r).t==='จ่ายคืนแล้ว')o.reimb++; else o.wait++; });
   const carriers=[...g.keys()].sort((a,b)=>g.get(b).total-g.get(a).total);
   let grand=0,gn=0;
   let sum='<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;"><thead><tr style="background:#0f2a52;color:#fff;"><th style="padding:8px;text-align:left;">ขนส่ง</th><th style="padding:8px;text-align:right;">ใบ</th><th style="padding:8px;text-align:right;">ยอดรวม (฿)</th><th style="padding:8px;text-align:center;">รอวางบิล</th><th style="padding:8px;text-align:center;">จ่ายคืนแล้ว</th></tr></thead><tbody>';
   carriers.forEach((c,i)=>{ const o=g.get(c); grand+=o.total; gn+=o.rows.length; const on=_icdCarOpen.has(c); const cj=c.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     sum+=`<tr onclick="_icdCarToggle('${cj}')" style="cursor:pointer;background:${on?'#e0edff':(i%2?'#f8fafc':'#fff')};border-bottom:1px solid #eef2f7;"><td style="padding:7px 8px;font-weight:700;">${on?'▼ ':'▶ '}${h(c)}</td><td style="padding:7px 8px;text-align:right;">${o.rows.length}</td><td style="padding:7px 8px;text-align:right;font-weight:700;">${fmt(o.total)}</td><td style="padding:7px 8px;text-align:center;color:#b45309;font-weight:700;">${o.wait||'-'}</td><td style="padding:7px 8px;text-align:center;color:#166534;">${o.reimb||'-'}</td></tr>`; });
   sum+=`<tr style="background:#eff6ff;border-top:2px solid #1e40af;"><td style="padding:9px 8px;font-weight:800;color:#1e40af;">รวมทุกเจ้า</td><td style="padding:9px 8px;text-align:right;font-weight:800;">${gn}</td><td style="padding:9px 8px;text-align:right;font-weight:900;color:#1e40af;font-size:15px;">${fmt(grand)}</td><td colspan="2"></td></tr></tbody></table>`;
+  /* ตารางแยก — รถโรงงาน SHL (ไม่ปนกับงานวางบิลปกติ) */
+  let facTable='';
+  if(facRows.length){ let ft=0; facRows.forEach(r=>ft+=Number(r.amount_total)||0);
+    facTable='<div style="margin:2px 0 16px;padding:11px 13px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;">'
+      +'<div style="font-size:12.5px;font-weight:800;color:#166534;margin-bottom:7px;">🏭 รถโรงงาน SHL — ไม่ต้องให้ ANTS คืน <span style="font-weight:600;color:#15803d;">('+facRows.length+' ใบ · '+fmt(ft)+' ฿)</span></div>'
+      +'<table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr style="background:#dcfce7;color:#166534;"><th style="padding:6px;text-align:left;">วันที่</th><th style="padding:6px;text-align:left;">เบอร์ตู้</th><th style="padding:6px;text-align:left;">ทะเบียน</th><th style="padding:6px;text-align:left;">อินวอยซ์</th><th style="padding:6px;text-align:right;">ยอด (฿)</th></tr></thead><tbody>'
+      +facRows.slice().sort((a,b)=>_icdDayKey(a.receipt_date).localeCompare(_icdDayKey(b.receipt_date))).map((r,i)=>`<tr style="background:${i%2?'#f7fef9':'#fff'};border-bottom:1px solid #eafaf0;"><td style="padding:5px 6px;">${h(_icdDayText(_icdDayKey(r.receipt_date)))}</td><td style="padding:5px 6px;font-family:monospace;">${h(r.container_no||'')}</td><td style="padding:5px 6px;">${h(r.truck_plate||'')}</td><td style="padding:5px 6px;">${h(r.invoice_no||'—')}</td><td style="padding:5px 6px;text-align:right;">${fmt(r.amount_total)}</td></tr>`).join('')
+      +'</tbody></table></div>';
+  }
   let det='';
   const _openList=carriers.filter(c=>_icdCarOpen.has(c));
   if(_openList.length){
     _openList.forEach(cName=>{ const o=g.get(cName);
       det+='<div style="font-size:12px;font-weight:800;color:#1e40af;margin:14px 0 6px;">รายตู้ — '+h(cName)+(_icdCarMonth?' · '+_icdMoName(_icdCarMonth):' · ทั้งหมด')+' ('+o.rows.length+' ใบ)</div><table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr style="background:#e8edf5;"><th style="padding:6px;text-align:left;">วันที่</th><th style="padding:6px;text-align:left;">เบอร์ตู้</th><th style="padding:6px;text-align:left;">ทะเบียน</th><th style="padding:6px;text-align:left;">อินวอยซ์</th><th style="padding:6px;text-align:right;">ยอด (฿)</th><th style="padding:6px;text-align:center;">สถานะ</th><th style="padding:6px;text-align:left;">เลขบิลที่จ่าย</th></tr></thead><tbody>';
-      o.rows.forEach((r,i)=>{ const st=r._pending?{t:'⏳ ยังไม่มีใบเสร็จ',c:'#b45309',bg:'#fef3c7'}:_icdStatus(r);
+      o.rows.forEach((r,i)=>{ const _fac=_carrierOf(r.truck_plate)==='SHL';   /* รถโรงงาน SHL — จ่ายแล้วอัตโนมัติ ไม่ต้องมีใบเสร็จ/คืน */
+        const st=_fac?_icdStatus(r):(r._pending?{t:'⏳ ยังไม่มีใบเสร็จ',c:'#b45309',bg:'#fef3c7'}:_icdStatus(r));
         const _ec=s=>String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         const _sbno=r.settle_bill_no||'', _hasDoc=_sbno&&(r.settle_bill_path||r.settle_slip_path);
-        const _billCell=_hasDoc
+        const _billCell=_fac
+          ? `<td style="padding:5px 6px;font-size:10.5px;color:#166534;font-weight:700;">รถโรงงาน</td>`
+          : _hasDoc
           ? `<td style="padding:5px 6px;"><a onclick="openSettleDocs('${_ec(_sbno)}','${_ec(r.settle_bill_path)}','${_ec(r.settle_slip_path)}','${_ec(r.settle_slip_ref)}')" style="font-family:monospace;font-size:10.5px;font-weight:700;color:#1d4ed8;cursor:pointer;text-decoration:underline;" title="ดูใบวางบิล + สลิปโอน">${h(_sbno)} 🖼</a></td>`
           : `<td style="padding:5px 6px;font-family:monospace;font-size:10.5px;color:#166534;">${h(_sbno||'—')}</td>`;
         det+=`<tr style="background:${r._pending?'#fffbeb':(i%2?'#f8fafc':'#fff')};border-bottom:1px solid #f1f5f9;"><td style="padding:5px 6px;">${h(_icdDayText(_icdDayKey(r.receipt_date)))}</td><td style="padding:5px 6px;font-family:monospace;">${h(r.container_no||'')}</td><td style="padding:5px 6px;">${h(r.truck_plate||'')}</td><td style="padding:5px 6px;">${h(r.invoice_no||'—')}</td><td style="padding:5px 6px;text-align:right;${r._pending?'color:#b45309;':''}">${r._pending?'~':''}${fmt(r.amount_total)}</td><td style="padding:5px 6px;text-align:center;"><span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:8px;background:${st.bg};color:${st.c};">${st.t}</span></td>${_billCell}</tr>`; });
@@ -3723,7 +3741,7 @@ function _renderIcdCar(){
   } else {
     det='<div style="text-align:center;color:#94a3b8;font-size:12px;padding:10px;">👆 กดที่ชื่อขนส่งเพื่อดูรายตู้ (กดได้หลายเจ้าพร้อมกัน)</div>';
   }
-  body.innerHTML=sum+det;
+  body.innerHTML=sum+facTable+det;
 }
 function _printIcdCar(){ const body=document.getElementById('icdCarBody'); if(!body)return; const w=window.open('','_blank'); if(!w)return; const per=_icdCarMonth?_icdMoName(_icdCarMonth):'ทั้งหมด (สะสม)'; w.document.write(`<!DOCTYPE html><meta charset="utf-8"><title>ICD ต่อขนส่ง</title><style>table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px;}th,td{border:1px solid #cbd5e1;padding:5px 7px;}@page{margin:12mm;}</style><body style="font-family:Tahoma,sans-serif;color:#0f172a;"><h2 style="text-align:center;margin:0 0 4px;">ICD ต่อขนส่ง — ท่าเรือสงขลา</h2><div style="text-align:center;color:#64748b;margin-bottom:14px;">${per}</div>${body.innerHTML}</body>`); w.document.close(); w.focus(); setTimeout(()=>w.print(),300); }
 
