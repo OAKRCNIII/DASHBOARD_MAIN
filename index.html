@@ -7511,7 +7511,7 @@ async function renderSkhAccount(){
     const stOf=(lines,inv)=>{   /* สถานะดูจากบิลผู้ขาย (OCF/TLX/CTIC/คุณวัส) · ICD เป็นข้อมูลเสริม ไม่คิดสถานะ */
       if(!lines.length) return {k:'none',t:'⚪ ยังไม่มีบิล',c:'#64748b',bg:'#f1f5f9'};
       let anyWait=false,anyMis=false;
-      for(const b of lines){ if(/⚠️|ไม่ตรง/.test(b.status||'')){anyMis=true;continue;} const sp=paidOf(inv,b); if(sp==null)anyWait=true; else if(Math.abs(sp-(Number(b.grand_total)||0))>2)anyMis=true; }
+      for(const b of lines){ if(/⚠️|ไม่ตรง/.test(b.status||'')){anyMis=true;continue;} const sp=paidOf(inv,b); if(sp==null)anyWait=true; else if(Math.abs(sp-(Number(b.grand_total)||0))>0.01)anyMis=true; }
       if(anyMis) return {k:'mismatch',t:'⚠️ ยอดไม่ตรง',c:'#b45309',bg:'#fef3c7'};
       if(anyWait) return {k:'wait',t:'📋 วางบิลแล้ว · รอจ่าย',c:'#1d4ed8',bg:'#dbeafe'};
       return {k:'full',t:'✅ จ่ายครบ ยอดตรง',c:'#166534',bg:'#dcfce7'};
@@ -7530,7 +7530,7 @@ async function renderSkhAccount(){
         if(!b) return {t:'ยังไม่วางบิล',c:'#94a3b8',bg:'#f1f5f9'};
         if(/⚠️|ไม่ตรง/.test(b.status||'')) return {t:'⚠️ ไม่ตรง',c:'#b45309',bg:'#fef3c7'};
         if(sp==null) return {t:'📋 รอจ่าย',c:'#1d4ed8',bg:'#dbeafe'};
-        if(Math.abs(sp-(Number(b.grand_total)||0))>2) return {t:'⚠️ ไม่ตรง',c:'#b45309',bg:'#fef3c7'};
+        if(Math.abs(sp-(Number(b.grand_total)||0))>0.01) return {t:'⚠️ ไม่ตรง',c:'#b45309',bg:'#fef3c7'};
         return {t:'✅ จ่ายแล้ว',c:'#166534',bg:'#dcfce7'};
       };
       const slipBtnFor=T=>{ const its=_expItems(inv.invoice_no,T).filter(s=>s.has_photo); if(!its.length)return ''; const n=its.length; return `<button onclick="openExpList('${_q(inv.invoice_no)}','${T}')" title="ดู/จัดการสลิปโอน${n>1?' ('+n+' ใบ)':''} — ลบใบที่ผิดได้" style="${btnS}border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1;">💸${n>1?`<sup style="font-size:8px;font-weight:700;">${n}</sup>`:''}</button>`; };
