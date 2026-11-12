@@ -3564,7 +3564,7 @@ function _renderIcdRpt(){
   let sum='<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;"><thead><tr style="background:#0f2a52;color:#fff;"><th style="padding:8px;text-align:left;">วันที่ (ใบยกตู้)</th><th style="padding:8px;text-align:right;">จำนวนใบ</th><th style="padding:8px;text-align:right;">ยอดรวม (฿)</th></tr></thead><tbody>';
   days.forEach((k,i)=>{ const ds0=byDay.get(k); const ds=ds0.filter(r=>!_isFac(r)); const facN=ds0.length-ds.length; facAllN+=facN;
     const t=ds.reduce((s,r)=>s+(Number(r.amount_total)||0),0); grand+=t; grandN+=ds.length;
-    sum+=`<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #eef2f7;"><td style="padding:7px 8px;">${h(_icdDayText(k))}${corrByDay.get(k)?`<span style="font-size:10px;color:#b45309;font-weight:400;"> (ไม่รวมค่าแก้ใบเสร็จ ${fmt(corrByDay.get(k))} บาท)</span>`:''}${facN?`<span style="font-size:10px;color:#166534;font-weight:400;"> · มีรถโรงงาน SHL</span>`:''}</td><td style="padding:7px 8px;text-align:right;">${ds.length}${facN?`<span style="font-size:10.5px;color:#94a3b8;font-weight:400;"> (${ds0.length}-${facN})</span>`:''}</td><td style="padding:7px 8px;text-align:right;font-weight:700;">${fmt(t)}</td></tr>`; });
+    sum+=`<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #eef2f7;"><td style="padding:7px 8px;">${h(_icdDayText(k))}${corrByDay.get(k)?`<span style="font-size:10px;color:#b45309;font-weight:400;"> (ไม่รวมค่าแก้ใบเสร็จ ${fmt(corrByDay.get(k))} บาท)</span>`:''}${facN?`<span style="font-size:10px;color:#166534;font-weight:400;"> · มีรถโรงงาน SHL</span>`:''}</td><td style="padding:7px 8px;text-align:right;white-space:nowrap;">${facN?`<span style="font-size:10.5px;color:#94a3b8;font-weight:400;">(${ds0.length}-${facN}) </span>`:''}${ds.length}</td><td style="padding:7px 8px;text-align:right;font-weight:700;">${fmt(t)}</td></tr>`; });
   sum+=`<tr style="background:#fffbeb;border-top:2px solid #b45309;"><td style="padding:9px 8px;font-weight:800;color:#b45309;">รวมทั้งเดือน${facAllN?`<span style="font-size:10px;font-weight:400;color:#166534;"> · แยกรถโรงงาน SHL ${facAllN} ใบ</span>`:''}</td><td style="padding:9px 8px;text-align:right;font-weight:800;">${grandN}${facAllN?`<span style="font-size:11px;color:#94a3b8;font-weight:400;"> (${grandN+facAllN}-${facAllN})</span>`:''} ใบ</td><td style="padding:9px 8px;text-align:right;font-weight:900;color:#b45309;font-size:15px;">${fmt(grand)}</td></tr></tbody></table>`;
   let det='<div class="icd-det"><div style="font-size:12px;font-weight:800;color:#475569;margin:6px 0;">รายละเอียดใบเสร็จ</div><table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr style="background:#e8edf5;"><th style="padding:6px;text-align:left;">วันที่</th><th style="padding:6px;text-align:left;">เลขใบ ICD</th><th style="padding:6px;text-align:left;">ทะเบียนรถ</th><th style="padding:6px;text-align:left;">เบอร์ตู้</th><th style="padding:6px;text-align:left;">อินวอยซ์</th><th style="padding:6px;text-align:right;">ยอด (฿)</th></tr></thead><tbody>';
   rows.slice().sort((a,b)=>_icdDayKey(a.receipt_date).localeCompare(_icdDayKey(b.receipt_date))||String(a.receipt_no).localeCompare(String(b.receipt_no))).forEach((r,i)=>{ const _fc=_isFac(r);
@@ -7511,10 +7511,12 @@ async function renderSkhAccount(){
       const invs=await sbFetch('invoices','select=invoice_no,month,year&port=eq.SONGKHLA');
       let bills=[]; try{ bills=await sbFetch('skh_expense_bills','select=invoice_no,type,vendor,vendor_inv_no,bill_date,wht_rate,wht_base,wht_amount,grand_total,slip_paid,status,pdf_msg,pdf_att,pdf_name,receipt_no,receipt_msg,receipt_att,receipt_name&order=bill_date.desc'); }catch(e){ try{ bills=await sbFetch('skh_expense_bills','select=invoice_no,type,vendor,vendor_inv_no,bill_date,wht_rate,wht_base,wht_amount,grand_total,slip_paid,status,pdf_msg,pdf_att,pdf_name&order=bill_date.desc'); }catch(e2){} }
       let lifts=[]; try{ lifts=await sbFetch('skh_lift_fees','select=invoice_no,amount_total'); }catch(e){}
+      let notes=[]; try{ notes=await sbFetch('skh_bill_notes','select=invoice_no,expense_type,note,settled'); }catch(e){}   /* หมายเหตุต่อรายการ (settled=ปิดแล้ว ไม่นับค้าง) · ตารางยังไม่สร้าง=ว่าง */
       try{ await loadExpenses(); }catch(e){}   /* EXP_BY_INV = สลิปโอน (skh_expense_payments) ไว้ปุ่มดูสลิป */
-      _skhAcctCache={invs:invs||[],bills:bills||[],lifts:lifts||[]};
+      _skhAcctCache={invs:invs||[],bills:bills||[],lifts:lifts||[],notes:notes||[]};
     }
-    const {invs,bills,lifts}=_skhAcctCache;
+    const {invs,bills,lifts,notes}=_skhAcctCache;
+    const nByKey=new Map(); (notes||[]).forEach(n=>nByKey.set(normInv(n.invoice_no)+'|'+n.expense_type,n));   /* หมายเหตุ keyed invoice|type */
     const months=[...new Set(invs.filter(i=>i.year&&i.month).map(i=>i.year+'-'+i.month))].sort((a,b)=>{const[ay,am]=a.split('-').map(Number),[by,bm]=b.split('-').map(Number);return by!==ay?by-ay:bm-am;});
     if(_skhAcctMonth!=='ALL' && (!_skhAcctMonth||!months.includes(_skhAcctMonth))) _skhAcctMonth=months[0]||'';
     const [cy,cm]=(_skhAcctMonth||'0-0').split('-').map(Number);
@@ -7528,8 +7530,10 @@ async function renderSkhAccount(){
     const paidOf=(inv,b)=>{ const its=_expItems(inv,b.type); if(its.length) return its.reduce((s,x)=>s+(Number(x.amount)||0),0); return b.slip_paid!=null?Number(b.slip_paid):null; };
     const stOf=(lines,inv)=>{   /* สถานะดูจากบิลผู้ขาย (OCF/TLX/CTIC/คุณวัส) · ICD เป็นข้อมูลเสริม ไม่คิดสถานะ */
       if(!lines.length) return {k:'none',t:'⚪ ยังไม่มีบิล',c:'#64748b',bg:'#f1f5f9'};
+      const vis=lines.filter(b=>{const n=nByKey.get(normInv(inv)+'|'+b.type);return !(n&&n.settled);});   /* ปิดแล้ว (หมายเหตุ settled) = ไม่คิดสถานะ */
+      if(!vis.length) return {k:'full',t:'✅ ปิดแล้ว (หมายเหตุ)',c:'#166534',bg:'#dcfce7'};
       let anyWait=false,anyMis=false;
-      for(const b of lines){ if(/⚠️|ไม่ตรง/.test(b.status||'')){anyMis=true;continue;} const sp=paidOf(inv,b); if(sp==null)anyWait=true; else if(Math.abs(sp-(Number(b.grand_total)||0))>0.01)anyMis=true; }
+      for(const b of vis){ if(/⚠️|ไม่ตรง/.test(b.status||'')){anyMis=true;continue;} const sp=paidOf(inv,b); if(sp==null)anyWait=true; else if(Math.abs(sp-(Number(b.grand_total)||0))>0.01)anyMis=true; }
       if(anyMis) return {k:'mismatch',t:'⚠️ ยอดไม่ตรง',c:'#b45309',bg:'#fef3c7'};
       if(anyWait) return {k:'wait',t:'📋 วางบิลแล้ว · รอจ่าย',c:'#1d4ed8',bg:'#dbeafe'};
       return {k:'full',t:'✅ จ่ายครบ ยอดตรง',c:'#166534',bg:'#dcfce7'};
@@ -7554,14 +7558,16 @@ async function renderSkhAccount(){
       };
       const slipBtnFor=T=>{ const its=_expItems(inv.invoice_no,T).filter(s=>s.has_photo); if(!its.length)return ''; const n=its.length; return `<button onclick="openExpList('${_q(inv.invoice_no)}','${T}')" title="ดู/จัดการสลิปโอน${n>1?' ('+n+' ใบ)':''} — ลบใบที่ผิดได้" style="${btnS}border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1;">💸${n>1?`<sup style="font-size:8px;font-weight:700;">${n}</sup>`:''}</button>`; };
       const rows=['OCF','TLX','CTIC','WATR'].map(T=>{
-        const b=lines.find(l=>l.type===T); const sp=b?paidOf(inv.invoice_no,b):null; const ts=typeSt(b,sp);
-        { const _g=Number(b&&b.grand_total)||0; if(b && _g>0 && (sp==null || sp<_g-0.01)) pendByType[T].push({inv:inv.invoice_no,amt:_g,paid:(sp!=null&&sp>0.01)?sp:0}); }   /* รอจ่าย(sp=null) + จ่ายไม่ครบ(sp<บิล) */
+        const b=lines.find(l=>l.type===T); const sp=b?paidOf(inv.invoice_no,b):null; let ts=typeSt(b,sp);
+        const note=nByKey.get(k+'|'+T); const settled=!!(note&&note.settled); if(settled) ts={t:'✅ ปิดแล้ว',c:'#166534',bg:'#dcfce7'};   /* หมายเหตุ settled = ปิดแล้ว (จ่ายรวมในใบอื่น) ไม่ขึ้น "ยังไม่วางบิล" */
+        { const _g=Number(b&&b.grand_total)||0; if(b && _g>0 && !settled && (sp==null || sp<_g-0.01)) pendByType[T].push({inv:inv.invoice_no,amt:_g,paid:(sp!=null&&sp>0.01)?sp:0}); }   /* รอจ่าย(sp=null) + จ่ายไม่ครบ(sp<บิล) · settled ข้าม */
         const gross=(b&&b.grand_total!=null)?(Number(b.grand_total)||0)+(Number(b.wht_amount)||0):null;
         const pdfBtn=(b&&b.pdf_att)?`<button onclick="_gbillPdf('${_q(b.pdf_msg)}','${_q(b.pdf_att)}','${_q(b.pdf_name||'bill.pdf')}')" title="ดูใบวางบิล" style="${btnS}border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;">📄</button>`:'';
         const rcptBtn=(b&&b.receipt_att)?`<button onclick="_gbillPdf('${_q(b.receipt_msg)}','${_q(b.receipt_att)}','${_q(b.receipt_name||'receipt.pdf')}')" title="ดูใบเสร็จรับเงิน${b.receipt_no?' '+h(b.receipt_no):''}" style="${btnS}border:1px solid #fbcfe8;background:#fdf2f8;color:#be185d;">📃</button>`:'';
         const whtBtn=(b&&b.wht_amount&&SYNC_WHT_PAYEE[T])?`<button onclick="_gbillWht(${b.__ix})" title="ออกใบหัก ณ ที่จ่าย" style="${btnS}border:1px solid #99f6e4;background:#ecfeff;color:#0e7490;">🧾</button>`:'';
-        return `<tr style="border-top:1px solid #f1f5f9;${b?'':'opacity:.55;'}">
-          <td style="padding:4px 10px;white-space:nowrap;"><b style="color:${typeC[T]};font-size:11px;">${T}</b> ${pdfBtn}${slipBtnFor(T)}${rcptBtn}</td>
+        const noteBtn=`<button onclick="openBillNote('${_q(inv.invoice_no)}','${T}')" title="${note?'แก้หมายเหตุ':'เพิ่มหมายเหตุ'}" style="${btnS}border:1px solid ${note?'#fde68a':'#e5e7eb'};background:${note?'#fffbeb':'#f8fafc'};color:${note?'#b45309':'#9ca3af'};">📝</button>`;
+        return `<tr style="border-top:1px solid #f1f5f9;${b||note?'':'opacity:.55;'}">
+          <td style="padding:4px 10px;white-space:nowrap;"><b style="color:${typeC[T]};font-size:11px;">${T}</b> ${pdfBtn}${slipBtnFor(T)}${rcptBtn}${noteBtn}${note?`<div style="font-size:9px;color:#b45309;margin-top:3px;white-space:normal;max-width:240px;line-height:1.35;">📝 ${h(note.note)}${settled?' <span style="color:#166534;font-weight:700;">· ปิดแล้ว</span>':''}</div>`:''}</td>
           <td style="padding:4px 10px;text-align:right;font-weight:700;">${fmt(gross)}</td>
           <td style="padding:4px 10px;text-align:right;color:#b45309;font-size:11px;">${b&&b.wht_amount?fmt(b.wht_amount):'—'}</td>
           <td style="padding:4px 10px;text-align:right;color:#475569;">${fmt(b?b.grand_total:null)}</td>
@@ -7611,6 +7617,51 @@ async function renderSkhAccount(){
       ${cards||'<div style="padding:24px;text-align:center;color:#94a3b8;">ไม่มีใบสงขลาในเดือนนี้</div>'}
       <div style="margin-top:4px;font-size:11px;color:#94a3b8;">อ่านจากฐานข้อมูล (skh_expense_bills) · กด 🔄 SYNC เพื่อดึงบิลใหม่จาก Gmail มาเก็บ · ค่าใช้จ่าย = OCF/TLX/CTIC/คุณวัส + ICD</div>`;
   }catch(e){ wrap.innerHTML=`<div style="padding:24px;text-align:center;color:#b91c1c;font-weight:700;">❌ ${h(e.message)}</div>`; }
+}
+/* ══ หมายเหตุต่อรายการค่าใช้จ่ายสงขลา (skh_bill_notes) — settled=ปิดแล้ว (เช่น CTIC จ่ายรวมในใบอื่น) ══ */
+let _bnInv='',_bnType='';
+function openBillNote(inv,T){
+  _bnInv=inv; _bnType=T;
+  const note=((_skhAcctCache&&_skhAcctCache.notes)||[]).find(n=>normInv(n.invoice_no)===normInv(inv)&&n.expense_type===T);
+  let bg=document.getElementById('billNoteBg');
+  if(!bg){ bg=document.createElement('div'); bg.id='billNoteBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9600;align-items:center;justify-content:center;padding:14px;'; bg.addEventListener('mousedown',e=>{bg._d=(e.target===bg);}); bg.addEventListener('click',e=>{if(e.target===bg&&bg._d)bg.style.display='none';bg._d=false;}); document.body.appendChild(bg); }
+  bg.innerHTML=`<div style="background:#fff;border-radius:14px;width:min(470px,96vw);box-shadow:0 20px 60px rgba(0,0,0,.35);">
+    <div style="padding:13px 18px;background:#b45309;color:#fff;border-radius:14px 14px 0 0;display:flex;align-items:center;gap:8px;">
+      <span style="font-size:14px;font-weight:800;">📝 หมายเหตุ — ${h(inv)} · ${h(T)}</span>
+      <button onclick="document.getElementById('billNoteBg').style.display='none'" style="margin-left:auto;background:none;border:none;color:#fff;font-size:18px;cursor:pointer;">✕</button></div>
+    <div style="padding:16px 18px;">
+      <textarea id="_bnText" rows="3" placeholder="เช่น จ่ายรวมในใบ DN2617127 (OGM(J)010)" style="width:100%;box-sizing:border-box;padding:9px;border:1.5px solid #cbd5e1;border-radius:8px;font-family:inherit;font-size:13px;resize:vertical;">${note?h(note.note):''}</textarea>
+      <label style="display:flex;align-items:flex-start;gap:9px;margin-top:12px;font-size:12.5px;cursor:pointer;color:#0f172a;line-height:1.4;"><input type="checkbox" id="_bnSettled" ${note&&note.settled?'checked':''} style="width:17px;height:17px;accent-color:#166534;flex-shrink:0;margin-top:1px;"><span>ถือว่า<b>ปิดแล้ว</b> (จ่ายรวมในใบอื่น / ไม่ต้องวางบิลแยก) — <span style="color:#166534;">ไม่นับค้างจ่าย + ไม่ขึ้น "ยังไม่วางบิล"</span></span></label>
+    </div>
+    <div style="padding:0 18px 16px;display:flex;gap:9px;">
+      <button onclick="saveBillNote()" style="flex:1;padding:10px;border:none;border-radius:9px;background:#b45309;color:#fff;font-size:13px;font-weight:800;cursor:pointer;">💾 บันทึก</button>
+      ${note?`<button onclick="deleteBillNote()" style="padding:10px 16px;border:1.5px solid #fecaca;border-radius:9px;background:#fff;color:#dc2626;font-size:13px;font-weight:700;cursor:pointer;">🗑 ลบ</button>`:''}
+    </div></div>`;
+  bg.style.display='flex'; setTimeout(()=>{const t=document.getElementById('_bnText');if(t)t.focus();},60);
+}
+async function saveBillNote(){
+  const txt=(document.getElementById('_bnText').value||'').trim();
+  const settled=document.getElementById('_bnSettled').checked;
+  if(!txt){ alert('ใส่ข้อความหมายเหตุก่อนครับ'); return; }
+  const hdr={'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'};
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/skh_bill_notes?on_conflict=invoice_no,expense_type`,
+      {method:'POST',headers:{...hdr,'Prefer':'resolution=merge-duplicates,return=minimal'},
+       body:JSON.stringify({invoice_no:_bnInv,expense_type:_bnType,note:txt,settled:settled,updated_at:new Date().toISOString()})});
+    if(!r.ok) throw new Error(await r.text());
+    const bg=document.getElementById('billNoteBg'); if(bg)bg.style.display='none';
+    _skhAcctCache=null; renderSkhAccount();
+  }catch(e){ alert('บันทึกหมายเหตุไม่สำเร็จ: '+e.message+'\n\n(ตาราง skh_bill_notes สร้างหรือยังครับ? ถ้ายัง ให้รัน SQL ที่ให้ไว้ก่อน)'); }
+}
+async function deleteBillNote(){
+  const hdr={'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'};
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/skh_bill_notes?invoice_no=eq.${encodeURIComponent(_bnInv)}&expense_type=eq.${encodeURIComponent(_bnType)}`,
+      {method:'DELETE',headers:{...hdr,'Prefer':'return=minimal'}});
+    if(!r.ok) throw new Error(await r.text());
+    const bg=document.getElementById('billNoteBg'); if(bg)bg.style.display='none';
+    _skhAcctCache=null; renderSkhAccount();
+  }catch(e){ alert('ลบหมายเหตุไม่สำเร็จ: '+e.message); }
 }
 function _prToggleAll(on){ document.querySelectorAll('#skhPrintBg ._prInv').forEach(c=>c.checked=on); _prUpdateCount(); }
 function _prUpdateCount(){ const n=document.querySelectorAll('#skhPrintBg ._prInv:checked').length; const e=document.getElementById('_prCount'); if(e)e.textContent='เลือก '+n+' ใบ'; }
