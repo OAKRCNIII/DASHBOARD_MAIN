@@ -7504,6 +7504,8 @@ async function renderSkhAccount(){
       return {k:'full',t:'✅ จ่ายครบ ยอดตรง',c:'#166534',bg:'#dcfce7'};
     };
     let c0=0,c1=0,c2=0,c3=0;
+    const pendByType={OCF:[],CTIC:[],TLX:[],WATR:[]};   /* รอจ่ายแยกประเภท → รายอินวอยซ์ */
+    const cid=iv=>'skhcard_'+normInv(iv).replace(/[^A-Za-z0-9]/g,'_');
     const _etdNum=inv=>{ let d=''; const vr=VESSEL.find(r=>normInv(r.inv)===normInv(inv)); if(vr&&vr.date)d=vr.date; else{const vp=VESSEL_PLAN[String(inv||'').toUpperCase()]; if(vp&&vp.etd)d=vp.etd;} if(!d)return Infinity; const t=pDate(d); return (t&&!isNaN(t))?t:Infinity; };   /* เรียงตามวันเรือออก: ยังไม่ขึ้นเรือ=บนสุด · เรือออกก่อน=ล่างสุด */
     const cards=monthInvs.slice().sort((a,b)=>{const ea=_etdNum(a.invoice_no),eb=_etdNum(b.invoice_no); return (eb-ea)||String(a.invoice_no).localeCompare(String(b.invoice_no));}).map(inv=>{
       const k=normInv(inv.invoice_no); const lines=bByInv.get(k)||[]; const icd=lByInv.get(k)||0;
@@ -7520,6 +7522,7 @@ async function renderSkhAccount(){
       const slipBtnFor=T=>{ const its=_expItems(inv.invoice_no,T).filter(s=>s.has_photo); if(!its.length)return ''; const n=its.length; return `<button onclick="openExpSlips('${_q(inv.invoice_no)}','${T}')" title="ดูสลิปโอน${n>1?' ('+n+' ใบ)':''}" style="${btnS}border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1;">💸${n>1?`<sup style="font-size:8px;font-weight:700;">${n}</sup>`:''}</button>`; };
       const rows=['OCF','TLX','CTIC','WATR'].map(T=>{
         const b=lines.find(l=>l.type===T); const ts=typeSt(b);
+        if(b && b.slip_paid==null && !/⚠️|ไม่ตรง/.test(b.status||'')) pendByType[T].push({inv:inv.invoice_no,amt:b.grand_total});
         const gross=(b&&b.grand_total!=null)?(Number(b.grand_total)||0)+(Number(b.wht_amount)||0):null;
         const pdfBtn=(b&&b.pdf_att)?`<button onclick="_gbillPdf('${_q(b.pdf_msg)}','${_q(b.pdf_att)}','${_q(b.pdf_name||'bill.pdf')}')" title="ดูใบวางบิล" style="${btnS}border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;">📄</button>`:'';
         const rcptBtn=(b&&b.receipt_att)?`<button onclick="_gbillPdf('${_q(b.receipt_msg)}','${_q(b.receipt_att)}','${_q(b.receipt_name||'receipt.pdf')}')" title="ดูใบเสร็จรับเงิน${b.receipt_no?' '+h(b.receipt_no):''}" style="${btnS}border:1px solid #fbcfe8;background:#fdf2f8;color:#be185d;">📃</button>`:'';
@@ -7535,7 +7538,7 @@ async function renderSkhAccount(){
       }).join('');
       const icdTs=icd>0?{t:'✅ จ่ายแล้ว',c:'#166534',bg:'#dcfce7'}:{t:'ยังไม่วางบิล',c:'#94a3b8',bg:'#f1f5f9'};
       const icdRow=`<tr style="border-top:1px solid #f1f5f9;background:#fffdf5;${icd>0?'':'opacity:.55;'}"><td style="padding:4px 10px;white-space:nowrap;"><b style="color:#b45309;font-size:11px;">ICD</b> <span style="font-size:9px;color:#94a3b8;">ค่ายกตู้</span></td><td style="padding:4px 10px;text-align:right;">—</td><td style="padding:4px 10px;text-align:right;">—</td><td style="padding:4px 10px;text-align:right;color:#475569;">${fmt(icd||null)}</td><td style="padding:4px 10px;text-align:right;">—</td><td style="padding:4px 10px;text-align:center;"><span style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:7px;background:${icdTs.bg};color:${icdTs.c};white-space:nowrap;">${icdTs.t}</span></td><td style="padding:4px 10px;"></td></tr>`;
-      return `<div style="border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;overflow:hidden;">
+      return `<div id="${cid(inv.invoice_no)}" style="border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;overflow:hidden;transition:box-shadow .2s;">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #eef2f7;">
           <span style="font-weight:800;font-size:13px;color:#0f2a52;">📄 ${h(inv.invoice_no)}</span>
           <span style="font-weight:700;padding:2px 10px;border-radius:8px;font-size:11px;background:${st.bg};color:${st.c};">${st.t}</span></div>
@@ -7543,6 +7546,20 @@ async function renderSkhAccount(){
       </div>`;
     }).join('');
     const moOpts=months.map(m=>{const[y,mm]=m.split('-');return `<option value="${m}"${m===_skhAcctMonth?' selected':''}>${_ICD_MON[(+mm)-1]} ${(+y)+543}</option>`;}).join('');
+    const pendPanel=(()=>{
+      const parts=['OCF','CTIC','TLX','WATR'].filter(T=>pendByType[T].length).map(T=>{
+        const list=pendByType[T], tot=list.reduce((s,x)=>s+(Number(x.amt)||0),0);
+        const det=list.map(x=>`<div onclick="var el=document.getElementById('${cid(x.inv)}');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.boxShadow='0 0 0 3px #1d4ed8';setTimeout(function(){el.style.boxShadow='';},1600);}" style="display:flex;justify-content:space-between;gap:12px;padding:4px 10px;font-size:11px;cursor:pointer;border-top:1px solid #f1f5f9;" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''"><span style="font-weight:700;">${h(x.inv)}</span><span style="color:#475569;">${fmt(x.amt)}</span></div>`).join('');
+        return `<div style="display:inline-block;vertical-align:top;">
+          <button onclick="var e=document.getElementById('_pend_${T}');e.style.display=e.style.display==='none'?'block':'none';this.firstChild.textContent=e.style.display==='none'?'▸':'▾';" style="padding:5px 12px;border-radius:8px;border:1.5px solid ${typeC[T]};background:#fff;color:${typeC[T]};font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap;"><span>▸</span> ${T} <b style="font-size:13px;">${list.length}</b> ชุด · ${fmt(tot)}</button>
+          <div id="_pend_${T}" style="display:none;margin-top:4px;border:1.5px solid ${typeC[T]};border-radius:8px;background:#fff;min-width:230px;overflow:hidden;"><div style="padding:3px 10px;font-size:10px;color:#94a3b8;background:#f8fafc;">คลิกอินวอยซ์เพื่อไปที่การ์ด</div>${det}</div>
+        </div>`;
+      });
+      if(!parts.length) return '<div style="margin-bottom:12px;font-size:12px;color:#16a34a;font-weight:700;">✅ ไม่มีรายการรอจ่าย</div>';
+      return `<div style="margin-bottom:12px;padding:10px 12px;border:1px dashed #bfdbfe;border-radius:10px;background:#fbfdff;">
+        <div style="font-size:12px;font-weight:800;color:#1d4ed8;margin-bottom:7px;">📋 รอจ่าย — แยกตามประเภท (คลิกกางดูรายอินวอยซ์)</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start;">${parts.join('')}</div></div>`;
+    })();
     wrap.innerHTML=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
         <span style="font-size:17px;font-weight:800;color:#0f2a52;">💸 บัญชีค่าใช้จ่ายสงขลา</span>
         <select onchange="_skhAcctMonth=this.value;renderSkhAccount();" style="font-size:13px;padding:6px 10px;border:1.5px solid #cbd5e1;border-radius:8px;font-family:inherit;">${moOpts||'<option>— ไม่มีข้อมูล —</option>'}</select>
@@ -7556,6 +7573,7 @@ async function renderSkhAccount(){
         <span style="padding:5px 12px;border-radius:8px;background:#f1f5f9;color:#64748b;">⚪ ยังไม่มีบิล ${c0}</span>
         <span style="padding:5px 12px;border-radius:8px;background:#eef2f7;color:#0f2a52;">รวม ${monthInvs.length} ใบ</span>
       </div>
+      ${pendPanel}
       ${cards||'<div style="padding:24px;text-align:center;color:#94a3b8;">ไม่มีใบสงขลาในเดือนนี้</div>'}
       <div style="margin-top:4px;font-size:11px;color:#94a3b8;">อ่านจากฐานข้อมูล (skh_expense_bills) · กด 🔄 SYNC เพื่อดึงบิลใหม่จาก Gmail มาเก็บ · ค่าใช้จ่าย = OCF/TLX/CTIC/คุณวัส + ICD</div>`;
   }catch(e){ wrap.innerHTML=`<div style="padding:24px;text-align:center;color:#b91c1c;font-weight:700;">❌ ${h(e.message)}</div>`; }
