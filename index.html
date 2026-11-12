@@ -1664,7 +1664,9 @@ function _renderExpList(){
   const its=_expItems(_expListInv,_expListType);
   if(!its.length){ body.innerHTML='<div style="padding:20px;text-align:center;color:#64748b;">ยังไม่มีสลิป</div>'; return; }
   const admin=(LOGGED_USER==='OAK_THIRA'||LOGGED_USER==='PLA_ANTS');
-  body.innerHTML=its.map(x=>`<div style="border:1px solid #e8edf5;border-radius:10px;padding:10px 12px;margin-bottom:9px;">
+  const nPhoto=its.filter(x=>x.has_photo).length;
+  const viewAll=nPhoto>1?`<button onclick="openExpSlips('${String(_expListInv).replace(/['"\\<>]/g,'')}','${_expListType}')" style="width:100%;font-size:11px;padding:7px;border:1px solid #bae6fd;border-radius:8px;background:#eff6ff;color:#0369a1;font-weight:700;cursor:pointer;margin-bottom:10px;">👁 ดูสลิปทั้งหมด (เรียงหน้า ${nPhoto} ใบ)</button>`:'';
+  body.innerHTML=viewAll+its.map(x=>`<div style="border:1px solid #e8edf5;border-radius:10px;padding:10px 12px;margin-bottom:9px;">
     <div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="font-weight:800;color:#b45309;font-size:15px;">${x.amount.toLocaleString('th-TH')} ฿</span><span style="font-size:10px;color:#94a3b8;">${x.paid_date?_ymdThai(x.paid_date):''}</span></div>
     ${x.ref_no?`<div style="font-size:10px;color:#94a3b8;font-family:monospace;margin-top:3px;">ref ${h(x.ref_no)}</div>`:''}
     <div style="display:flex;gap:8px;margin-top:8px;">
@@ -1701,7 +1703,7 @@ function delExpense(id){
     try{
       const r=await fetch(`${SKH_API}/exp-delete`,{method:'POST',headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'},body:JSON.stringify({id})});
       const j=await r.json(); if(!r.ok) throw new Error(j.error||'ลบไม่สำเร็จ');
-      await loadExpenses(); _renderExpList(); renderVessel();
+      await loadExpenses(); _renderExpList(); renderVessel(); if(document.getElementById('skhAcctWrap')) renderSkhAccount();
     }catch(e){ alert('ลบไม่สำเร็จ: '+e.message); }
   }, 'ยืนยันลบสลิปค่าใช้จ่ายรายการนี้', PLA_PIN);
 }
@@ -1714,7 +1716,7 @@ function editExpense(id){
     try{
       const r=await fetch(`${SKH_API}/exp-update`,{method:'POST',headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'},body:JSON.stringify({id,fields:{amount:amt}})});
       const j=await r.json(); if(!r.ok) throw new Error(j.error||'แก้ไม่สำเร็จ');
-      await loadExpenses(); _renderExpList(); renderVessel();
+      await loadExpenses(); _renderExpList(); renderVessel(); if(document.getElementById('skhAcctWrap')) renderSkhAccount();
     }catch(e){ alert('แก้ไม่สำเร็จ: '+e.message); }
   }, 'ยืนยันแก้ยอดค่าใช้จ่าย', PLA_PIN);
 }
@@ -7531,7 +7533,7 @@ async function renderSkhAccount(){
         if(Math.abs(sp-(Number(b.grand_total)||0))>2) return {t:'⚠️ ไม่ตรง',c:'#b45309',bg:'#fef3c7'};
         return {t:'✅ จ่ายแล้ว',c:'#166534',bg:'#dcfce7'};
       };
-      const slipBtnFor=T=>{ const its=_expItems(inv.invoice_no,T).filter(s=>s.has_photo); if(!its.length)return ''; const n=its.length; return `<button onclick="openExpSlips('${_q(inv.invoice_no)}','${T}')" title="ดูสลิปโอน${n>1?' ('+n+' ใบ)':''}" style="${btnS}border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1;">💸${n>1?`<sup style="font-size:8px;font-weight:700;">${n}</sup>`:''}</button>`; };
+      const slipBtnFor=T=>{ const its=_expItems(inv.invoice_no,T).filter(s=>s.has_photo); if(!its.length)return ''; const n=its.length; return `<button onclick="openExpList('${_q(inv.invoice_no)}','${T}')" title="ดู/จัดการสลิปโอน${n>1?' ('+n+' ใบ)':''} — ลบใบที่ผิดได้" style="${btnS}border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1;">💸${n>1?`<sup style="font-size:8px;font-weight:700;">${n}</sup>`:''}</button>`; };
       const rows=['OCF','TLX','CTIC','WATR'].map(T=>{
         const b=lines.find(l=>l.type===T); const sp=b?paidOf(inv.invoice_no,b):null; const ts=typeSt(b,sp);
         if(b && ts.t.includes('รอจ่าย')) pendByType[T].push({inv:inv.invoice_no,amt:b.grand_total});
