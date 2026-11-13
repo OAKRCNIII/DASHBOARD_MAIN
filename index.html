@@ -7774,6 +7774,7 @@ function openBswBill(inv){
     <div style="padding:14px 18px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid #f1f5f9;background:#f8fafc;">
       <label style="font-size:11px;font-weight:700;color:#475569;">เรต/ตู้ (รวม VAT)<br><input id="bswRate" value="${c2.dr}" oninput="_bswUpd()" style="${inA}"></label>
       <label style="font-size:11px;font-weight:700;color:#475569;">จำนวนตู้<br><input id="bswCtr" value="${N0||10}" oninput="_bswUpd()" style="${inA}width:70px;"></label>
+      <label style="font-size:11px;font-weight:700;color:#475569;">ใบขน (หน่วย)<br><input id="bswDecl" value="1" oninput="_bswUpd()" style="${inA}width:70px;"></label>
       <label style="font-size:11px;font-weight:700;color:#475569;">ค่าขนส่ง ${trCost?'<span style="font-size:9px;color:#0f766e;">(auto)</span>':'<span style="font-size:9px;color:#b45309;">(ไม่พบ กรอก)</span>'}<br><input id="bswTr" value="${trCost||''}" placeholder="กรอก" oninput="_bswUpd()" style="${inA}"></label>
       <label style="font-size:11px;font-weight:700;color:#475569;">ค่าประกันภัย<br><input id="bswIns" value="" placeholder="กรอก" oninput="_bswUpd()" style="${inA}"></label>
       <label style="font-size:11px;font-weight:700;color:#475569;">อื่นๆ (ล่วงเวลา)<br><input id="bswOther" value="" placeholder="0" oninput="_bswUpd()" style="${inA}width:85px;"></label>
@@ -7786,7 +7787,7 @@ function openBswBill(inv){
 function _bswUpd(){
   const s=window._bsw; if(!s)return;
   const gv=id=>{const e=document.getElementById(id);return e?(parseFloat(String(e.value||'').replace(/,/g,''))||0):0;};
-  s.rate=gv('bswRate'); s.ctr=parseInt(document.getElementById('bswCtr').value)||0; s.transport=gv('bswTr'); s.insurance=gv('bswIns'); s.other=gv('bswOther');
+  s.rate=gv('bswRate'); s.ctr=parseInt(document.getElementById('bswCtr').value)||0; s.transport=gv('bswTr'); s.insurance=gv('bswIns'); s.other=gv('bswOther'); s.decl=parseInt(document.getElementById('bswDecl').value)||1;
   if(!s.pithAuto) s.pithManual=gv('bswPith');
   _renderBswOut();
 }
@@ -7800,7 +7801,7 @@ function _renderBswOut(){
   vat('SURRENDER B/L (Telex)', telex);
   vat('LOCAL CHARGE (ท่าสงขลา)', s.ctic);
   vat('LO/LO (ICD)', s.icd);
-  nov('ค่าใช้จ่ายศุลกากร', 200, 0);
+  nov('ค่าใช้จ่ายศุลกากร', 200*(s.decl||1), 0);   /* 200 × จำนวนใบขน */
   nov('ค่าประกันภัย', s.insurance, 1);
   nov('ค่าขนส่ง', s.transport, 1);
   nov('อื่นๆ (ค่าล่วงเวลา)', s.other||0, 0);
@@ -7845,7 +7846,7 @@ function _renderBswOut(){
       <tr><td style="${td}">LO/LO (Inter Container Depot)</td><td style="${td}">X ${N} ตู้</td><td style="${tr}">${fmt(cLOLO)}</td><td></td></tr>
       <tr><td style="height:7px;"></td><td></td><td></td><td></td></tr></tbody>
      <tbody>
-      <tr><td style="${td}">ค่าใช้จ่ายต่างๆที่ด่านศุลกากร</td><td style="${td}">200 X 1</td><td style="${tr}">${fmt(200)}</td><td></td></tr>
+      <tr><td style="${td}">ค่าใช้จ่ายต่างๆที่ด่านศุลกากร</td><td style="${td}">200 X ${s.decl||1}</td><td style="${tr}">${fmt(200*(s.decl||1))}</td><td></td></tr>
       <tr><td style="${td}">ค่าจัดทำใบอนุญาตไม้</td><td style="${td}">300 X</td><td style="${tr}">${dash}</td><td></td></tr>
       <tr><td style="${td}">ค่าบริการ</td><td style="${td}">500 X ${N}</td><td style="${tr}">${dash}</td><td></td></tr>
       <tr><td style="${td}">ค่าด่านตรวจพืช (PHYTOSANITARY)</td><td style="${td}">400 X ${N}</td><td style="${tr}">${dash}</td><td></td></tr>
