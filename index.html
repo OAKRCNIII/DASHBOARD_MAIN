@@ -4135,7 +4135,7 @@ function printSkhLiftReport(){
     rows+=`<tr><td class="c">${i+1}</td><td class="c">${h(f.truck_plate||'')}</td><td class="c b">${h(f.container_no||'')}</td><td class="c">ICD-OUT ${h(f.receipt_no||'')}</td><td class="c">${dtxt(f.receipt_date)}</td><td class="r b">${fmt(amt)}</td></tr>`; });
   const _payer=_whtPickFac(inv), _payee=ICD_WHT;   /* ผู้หัก = โรงงาน (toggle ANTS ได้) · ผู้ถูกหัก = ICD */
   const _spaceTax=t=>String(t||'').split('').join('&nbsp;');
-  const _whtBox=(label,o)=>`<div class="whtrow"><div class="whtL"><div class="whtT">${label} :</div><div style="margin-top:3px;">ชื่อ&nbsp;&nbsp;<b>${h(o.name||'-')}</b></div><div class="hint">(ให้ระบุว่าเป็น บุคคล นิติบุคคล บริษัท สมาคม หรือคณะบุคคล)</div><div style="margin-top:3px;">ที่อยู่&nbsp;&nbsp;${h(o.addr||'-')}</div><div class="hint">(ให้ระบุ เลขที่ ตรอก/ซอย หมู่ที่ ถนน ตำบล/แขวง อำเภอ/เขต จังหวัด)</div></div><div class="whtR"><div class="hint" style="text-align:center;">เลขประจำตัวผู้เสียภาษีอากร (13 หลัก)</div><div class="taxno">${_spaceTax(o.tax)}</div></div></div>`;
+  const _whtBox=(label,o)=>`<div class="whtrow"><div class="whtL"><div class="whtT">${label} :</div><div style="margin-top:5px;">ชื่อ&nbsp;&nbsp;<b>${h(o.name||'-')}</b></div><div style="margin-top:6px;">ที่อยู่&nbsp;&nbsp;${h(o.addr||'-')}</div></div><div class="whtR"><div class="hint" style="text-align:center;">เลขประจำตัวผู้เสียภาษีอากร (13 หลัก)</div><div class="taxno">${_spaceTax(o.tax)}</div></div></div>`;
   const w=window.open('','_blank','width=900,height=1100'); if(!w){ alert('⚠️ อนุญาต Pop-up ก่อนครับ'); return; }
   w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>ใบปะหน้าค่ายกตู้ ICD ${h(inv)}</title>
   <style>
