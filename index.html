@@ -7782,7 +7782,9 @@ function openBswBill(inv){
   const SELL_RATE=[['นาวา',31200],['นาเมือง',30600],['กนก',27800]];
   const _sr=f=>{ for(const[kw,r]of SELL_RATE){ if(String(f||'').includes(kw))return r; } return 0; };
   let subFac=[];
-  if(c2.vat==='excl'&&_tr&&Array.isArray(_tr.details)){ const fm=new Map(); _tr.details.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const f=m.factory||'ไม่ระบุ'; fm.set(f,(fm.get(f)||0)+1); } }); subFac=[...fm.entries()].map(([factory,count])=>({factory,count,rate:_sr(factory)})); }
+  if(c2.vat==='excl'&&_tr&&Array.isArray(_tr.details)){ const fm=new Map(); _tr.details.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const f=m.factory||'ไม่ระบุ'; fm.set(f,(fm.get(f)||0)+1); } }); subFac=[...fm.entries()].map(([factory,count])=>({factory,count,rate:_sr(factory)}));
+    const _ord=f=>{ for(let i=0;i<SELL_RATE.length;i++){ if(String(f||'').includes(SELL_RATE[i][0]))return i; } return 99; };   /* เรียง นาวา→นาเมือง→กนก ตาม SELL_RATE */
+    subFac.sort((a,b)=>_ord(a.factory)-_ord(b.factory)); }
   window._bsw={inv:inv, ctr:N0||10, pithAuto:true, pithManual:0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, subFac:subFac, transport:trCost, trRates:trRates, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX')||1500, icd:icd};
   let bg=document.getElementById('bswBillBg');
   if(!bg){ bg=document.createElement('div'); bg.id='bswBillBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;'; document.body.appendChild(bg); }
@@ -7820,8 +7822,8 @@ function _renderBswOut(){
   const s=window._bsw; if(!s)return; const out=document.getElementById('bswOut'); if(!out)return;
   const fmt=n=>Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
   const telex=1500, rows=[];
-  const vat=(name,gross)=>{ const base=gross/1.07; rows.push({name,base,vat:gross-base,w3:base*0.03,w1:0}); };
-  const nov=(name,base,w)=>{ rows.push({name,base,vat:0,w3:0,w1:w===1?base*0.01:0}); };
+  const vat=(name,gross)=>{ const base=gross/1.07; rows.push({name,base,vat:gross-base,w3:base>=1000?base*0.03:0,w1:0}); };   /* หัก ณ ที่จ่ายเฉพาะยอด ≥ 1,000 */
+  const nov=(name,base,w)=>{ rows.push({name,base,vat:0,w3:0,w1:(w===1&&base>=1000)?base*0.01:0}); };
   nov('OCEAN FREIGHT & OTHER CHARGE', s.ocf, 1);
   vat('SURRENDER B/L (Telex)', telex);
   vat('LOCAL CHARGE (ท่าสงขลา)', s.ctic);
@@ -7842,7 +7844,7 @@ function _renderBswOut(){
   }
   const pith = s.pithAuto ? plug : (s.pithManual||0);
   if(s.pithAuto){ const pe=document.getElementById('bswPith'); if(pe) pe.value=plug.toFixed(2); }
-  const Rvat=pith*0.07, R3=pith*0.03, Rgross=pith*1.07;
+  const Rvat=pith*0.07, R3=pith>=1000?pith*0.03:0, Rgross=pith*1.07;
   const moveRate=s.col2Rate||1500, moveLabel=s.col2Label||'ADDITIONAL MOVE';   /* BSW=ADD MOVE 1,500 · INV=THC 4,500 */
   const addMove=moveRate*s.ctr, pithSvc=pith-addMove;
   const grand=Lgross+Rgross;             /* ยอดรวม(รวม VAT) = วางบิล (ลงตัว) */
