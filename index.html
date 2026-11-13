@@ -7930,7 +7930,7 @@ function _renderBswOut(){
       <tr><td style="${td}">ค่าด่านตรวจพืช (PHYTOSANITARY)</td><td style="${td}">400 X ${N}</td><td style="${tr}">${dash}</td><td></td></tr>
       <tr><td style="${td}">ค่าเอกสาร CERTIFICATE OF ORIGIN ออกโดย</td><td colspan="3" style="border-bottom:1px solid #999;"></td></tr>
       <tr><td style="${td}">ค่าส่งเอกสารไปต่างประเทศโดย DHL NO.</td><td colspan="3"></td></tr>
-      <tr><td style="${td}">ค่าประกันภัย</td><td style="${td}">X 1</td><td style="${tr}">${fmt(cINS)}</td><td></td></tr>
+      <tr><td style="${td}">ค่าประกันภัย</td><td style="${td}">${(()=>{const ps=(s.group||[]).map(gk=>Number((s.insByInv||{})[gk]||0)).filter(v=>v>0);return ps.length>1?ps.map(v=>v.toLocaleString('th-TH')).join(' + '):'X 1';})()}</td><td style="${tr}">${fmt(cINS)}</td><td></td></tr>
       <tr><td style="${td}">ค่าขนส่ง</td><td style="${td}">${(s.trRates&&s.trRates.length)?s.trRates.map(r=>fmt(r.rate)+' X '+r.qty).join('<br>'):''}</td><td style="${tr}">${fmt(cTRANS)}</td><td></td></tr>
       <tr><td style="${td}">อื่นๆ ค่าทำการล่วงเวลา (กรมศุลกากร)</td><td></td><td style="${tr}">${s.other?fmt(s.other):dash}</td><td></td></tr>
      </tbody></table>
