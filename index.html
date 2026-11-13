@@ -7666,7 +7666,7 @@ async function renderSkhAccount(){
       return `<div id="${cid(inv.invoice_no)}" style="border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;overflow:hidden;transition:box-shadow .2s;">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #eef2f7;">
           <span style="font-weight:800;font-size:13px;color:#0f2a52;">📄 ${h(inv.invoice_no)}</span>
-          <span style="font-weight:700;padding:2px 10px;border-radius:8px;font-size:11px;background:${st.bg};color:${st.c};">${st.t}</span></div>
+          <span style="display:flex;gap:6px;align-items:center;">${/^BSW/i.test(inv.invoice_no)?`<button onclick="openBswBill('${_q(inv.invoice_no)}')" title="ออก Draft ใบวางบิลเงินทดลองจ่าย" style="font-size:10px;padding:2px 9px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:6px;cursor:pointer;font-weight:700;">🧾 ใบวางบิล</button>`:''}<span style="font-weight:700;padding:2px 10px;border-radius:8px;font-size:11px;background:${st.bg};color:${st.c};">${st.t}</span></span></div>
         <table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#eef2f7;color:#64748b;font-size:9.5px;"><th style="padding:3px 10px;text-align:left;">ประเภท</th><th style="padding:3px 10px;text-align:right;">ยอดก่อนหัก</th><th style="padding:3px 10px;text-align:right;">หัก</th><th style="padding:3px 10px;text-align:right;">สุทธิ</th><th style="padding:3px 10px;text-align:right;">สลิป</th><th style="padding:3px 10px;text-align:center;">สถานะ</th><th style="padding:3px 10px;text-align:center;">หัก ณ ที่จ่าย</th></tr></thead><tbody>${rows}${icdRow}</tbody></table>
       </div>`;
     }).join('');
@@ -7749,6 +7749,81 @@ async function deleteBillNote(){
     _skhAcctCache=null; renderSkhAccount();
   }catch(e){ alert('ลบหมายเหตุไม่สำเร็จ: '+e.message); }
 }
+/* ══ 🧾 Draft ใบวางบิลเงินทดลองจ่าย (สงขลา) — prototype BSW (RCN 13 พ.ย.69) ══
+   ซ้าย = ดึงจากระบบ (OCF/Telex/CTIC/ICD) · ขนส่ง+ประกัน กรอกมือ
+   ค่าพิธีการ = plug ให้ยอดรวมสุทธิ = วางบิล (29,000×ตู้ + telex + ประกัน) · ปรับเองได้ */
+function openBswBill(inv){
+  if(!_skhAcctCache){ alert('เปิดแท็บบัญชีสงขลาก่อนครับ'); return; }
+  const k=normInv(inv);
+  const lines=(_skhAcctCache.bills||[]).filter(b=>normInv(b.invoice_no)===k);
+  const gOf=T=>{ const b=lines.find(l=>l.type===T); return b?((Number(b.grand_total)||0)+(Number(b.wht_amount)||0)):0; };   /* ยอดก่อนหัก (รวม VAT) */
+  const icd=(_skhAcctCache.lifts||[]).filter(l=>normInv(l.invoice_no)===k).reduce((s,l)=>s+(Number(l.amount_total)||0),0);
+  const N0=icd?Math.round(icd/1070):0;
+  window._bsw={inv:inv, ctr:N0||10, pithAuto:true, pithManual:0, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX')||1500, icd:icd};
+  let bg=document.getElementById('bswBillBg');
+  if(!bg){ bg=document.createElement('div'); bg.id='bswBillBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;'; document.body.appendChild(bg); }
+  const inA='font-size:13px;padding:6px 9px;border:1.5px solid #cbd5e1;border-radius:7px;font-family:inherit;width:110px;box-sizing:border-box;';
+  bg.innerHTML=`<div style="background:#fff;border-radius:16px;max-width:780px;width:100%;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="padding:13px 18px;border-bottom:1px solid #e8edf5;display:flex;align-items:center;justify-content:space-between;background:#eff6ff;border-radius:16px 16px 0 0;">
+      <span style="font-size:14px;font-weight:800;color:#1e40af;">🧾 Draft ใบวางบิลเงินทดลองจ่าย — ${h(inv)}</span>
+      <button onclick="document.getElementById('bswBillBg').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:#94a3b8;">✕</button></div>
+    <div style="padding:14px 18px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid #f1f5f9;background:#f8fafc;">
+      <label style="font-size:11px;font-weight:700;color:#475569;">เรต/ตู้ (รวม VAT)<br><input id="bswRate" value="29000" oninput="_bswUpd()" style="${inA}"></label>
+      <label style="font-size:11px;font-weight:700;color:#475569;">จำนวนตู้<br><input id="bswCtr" value="${N0||10}" oninput="_bswUpd()" style="${inA}width:70px;"></label>
+      <label style="font-size:11px;font-weight:700;color:#475569;">ค่าขนส่ง (รวม)<br><input id="bswTr" value="" placeholder="กรอก" oninput="_bswUpd()" style="${inA}"></label>
+      <label style="font-size:11px;font-weight:700;color:#475569;">ค่าประกันภัย<br><input id="bswIns" value="" placeholder="กรอก" oninput="_bswUpd()" style="${inA}"></label>
+      <label style="font-size:11px;font-weight:700;color:#0f766e;">ค่าพิธีการ <button onclick="window._bsw.pithAuto=true;_bswUpd()" title="คำนวณอัตโนมัติ" style="font-size:9px;padding:0 5px;border:1px solid #99f6e4;background:#ecfeff;border-radius:5px;cursor:pointer;">🔄 auto</button><br><input id="bswPith" oninput="window._bsw.pithAuto=false;_bswUpd()" style="${inA}border-color:#5eead4;"></label>
+    </div>
+    <div id="bswOut" style="padding:14px 18px;"></div>
+    <div style="padding:0 18px 16px;"><button onclick="_bswPrint()" style="width:100%;padding:10px;border:none;border-radius:9px;background:#0f2a52;color:#fff;font-size:13px;font-weight:800;cursor:pointer;">🖨️ พิมพ์ใบวางบิล</button></div></div>`;
+  bg.style.display='flex'; _bswUpd();
+}
+function _bswUpd(){
+  const s=window._bsw; if(!s)return;
+  const gv=id=>{const e=document.getElementById(id);return e?(parseFloat(String(e.value||'').replace(/,/g,''))||0):0;};
+  s.rate=gv('bswRate'); s.ctr=parseInt(document.getElementById('bswCtr').value)||0; s.transport=gv('bswTr'); s.insurance=gv('bswIns');
+  if(!s.pithAuto) s.pithManual=gv('bswPith');
+  _renderBswOut();
+}
+function _renderBswOut(){
+  const s=window._bsw; if(!s)return; const out=document.getElementById('bswOut'); if(!out)return;
+  const fmt=n=>Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const telex=1500, rows=[];
+  const vat=(name,gross)=>{ const base=gross/1.07; rows.push({name,base,vat:gross-base,w3:base*0.03,w1:0}); };
+  const nov=(name,base,w)=>{ rows.push({name,base,vat:0,w3:0,w1:w===1?base*0.01:0}); };
+  nov('OCEAN FREIGHT & OTHER CHARGE', s.ocf, 1);
+  vat('SURRENDER B/L (Telex)', telex);
+  vat('LOCAL CHARGE (ท่าสงขลา)', s.ctic);
+  vat('LO/LO (ICD)', s.icd);
+  nov('ค่าใช้จ่ายศุลกากร', 200, 0);
+  nov('ค่าประกันภัย', s.insurance, 1);
+  nov('ค่าขนส่ง', s.transport, 1);
+  const sm=f=>rows.reduce((a,x)=>a+(x[f]||0),0);
+  const Lbase=sm('base'),Lvat=sm('vat'),L3=sm('w3'),L1=sm('w1'); const Lgross=Lbase+Lvat, Lnet=Lgross-L3-L1;
+  const billing=s.rate*s.ctr + telex + s.insurance;
+  const plug=(billing-Lgross)/1.07;   /* สมการ RCN: วางบิล = Σbase + ΣVAT + X + X×7% */
+  const pith = s.pithAuto ? plug : (s.pithManual||0);
+  if(s.pithAuto){ const pe=document.getElementById('bswPith'); if(pe) pe.value=plug.toFixed(2); }
+  const Rvat=pith*0.07, R3=pith*0.03, Rgross=pith*1.07;
+  const grand=Lgross+Rgross;             /* ยอดรวม(รวม VAT) = วางบิล (ลงตัว) */
+  const whtTot=L3+L1+R3, netRecv=grand-whtTot, margin=billing-grand;
+  let t='<table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr style="background:#0f2a52;color:#fff;"><th style="padding:5px 7px;text-align:left;">รายการ (คอลัมน์ซ้าย = ต้นทุนจริง)</th><th style="padding:5px;text-align:right;">ยอด</th><th style="padding:5px;text-align:right;">VAT</th><th style="padding:5px;text-align:right;">หัก3%</th><th style="padding:5px;text-align:right;">หัก1%</th></tr></thead><tbody>';
+  rows.forEach((r,i)=>{ t+=`<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #eef2f7;"><td style="padding:4px 7px;">${h(r.name)}</td><td style="padding:4px 5px;text-align:right;">${fmt(r.base)}</td><td style="padding:4px 5px;text-align:right;color:#64748b;">${r.vat?fmt(r.vat):'—'}</td><td style="padding:4px 5px;text-align:right;color:#b45309;">${r.w3?fmt(r.w3):'—'}</td><td style="padding:4px 5px;text-align:right;color:#b45309;">${r.w1?fmt(r.w1):'—'}</td></tr>`; });
+  t+=`<tr style="background:#eff6ff;font-weight:800;border-top:2px solid #1e40af;"><td style="padding:5px 7px;">รวม · สุทธิ ${fmt(Lnet)}</td><td style="padding:5px;text-align:right;">${fmt(Lbase)}</td><td style="padding:5px;text-align:right;">${fmt(Lvat)}</td><td style="padding:5px;text-align:right;">${fmt(L3)}</td><td style="padding:5px;text-align:right;">${fmt(L1)}</td></tr></tbody></table>`;
+  const box=`<div style="margin-top:12px;display:flex;gap:12px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:240px;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;background:#f0fdf4;">
+      <div style="font-size:12px;font-weight:800;color:#166534;margin-bottom:6px;">คอลัมน์ขวา — ค่าพิธีการ ${s.pithAuto?'<span style="font-size:9px;font-weight:400;color:#15803d;">(auto ดูดให้ลงตัว)</span>':'<span style="font-size:9px;color:#b45309;">(ปรับเอง)</span>'}</div>
+      <div style="font-size:18px;font-weight:900;color:#0f766e;">${fmt(pith)} ฿</div>
+      <div style="font-size:10.5px;color:#475569;margin-top:4px;">+VAT 7% ${fmt(Rvat)} → รวม VAT ${fmt(Rgross)} · (หัก ณ ที่จ่าย 3% = ${fmt(R3)})</div></div>
+    <div style="flex:1;min-width:240px;border:1px solid #bfdbfe;border-radius:10px;padding:10px 12px;background:#eff6ff;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;"><span>ยอดวางบิล (${fmt(s.rate)}×${s.ctr}+telex+ประกัน)</span><b>${fmt(billing)}</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px;"><span>ยอดรวมในใบ (ซ้าย+ขวา รวม VAT)</span><b style="color:${Math.abs(margin)<0.01?'#166534':'#dc2626'};">${fmt(grand)}${Math.abs(margin)<0.01?' ✓':''}</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:11.5px;margin-top:4px;color:#b45309;"><span>หัก ณ ที่จ่าย รวม (3%+1%)</span><b>−${fmt(whtTot)}</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;padding-top:5px;border-top:1px dashed #bfdbfe;font-weight:800;color:#0f766e;"><span>รับเงินจริง (หลังหัก)</span><b>${fmt(netRecv)}</b></div></div></div>
+    <div style="font-size:10px;color:#94a3b8;margin-top:8px;">💡 ซ้าย = OCEAN/Telex/LOCAL(CTIC)/LO-LO(ICD) ดึงจากบัญชีสงขลา · ขนส่ง+ประกัน กรอกมือ · ค่าพิธีการ auto = ดูดให้ยอดรวม=วางบิล (กด 🔄 auto เพื่อคืนค่า / พิมพ์ทับเพื่อปรับเอง)</div>`;
+  out.innerHTML=t+box;
+}
+function _bswPrint(){ const out=document.getElementById('bswOut'); if(!out)return; const s=window._bsw; const w=window.open('','_blank'); if(!w)return; w.document.write(`<!DOCTYPE html><meta charset="utf-8"><title>ใบวางบิล ${h(s.inv)}</title><style>table{width:100%;border-collapse:collapse;font-size:12px;}th,td{border:1px solid #cbd5e1;padding:5px 7px;}@page{margin:14mm;}</style><body style="font-family:Tahoma,sans-serif;color:#0f172a;"><h3 style="text-align:center;margin:0 0 10px;">Draft บิลเงินทดลองจ่าย — ${h(s.inv)}</h3>${out.innerHTML}</body>`); w.document.close(); w.focus(); setTimeout(()=>w.print(),300); }
 function _prToggleAll(on){ document.querySelectorAll('#skhPrintBg ._prInv').forEach(c=>c.checked=on); _prUpdateCount(); }
 function _prUpdateCount(){ const n=document.querySelectorAll('#skhPrintBg ._prInv:checked').length; const e=document.getElementById('_prCount'); if(e)e.textContent='เลือก '+n+' ใบ'; }
 function _skhAcctPrint(){   /* เปิดโมดอลติ๊กเลือกอินวอยซ์ก่อนพิมพ์ */
