@@ -996,6 +996,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#eef2f7;colo
       <div id="icdRptBar" style="max-width:1800px;margin:14px auto 0;padding:0 20px;width:100%;box-sizing:border-box;display:none;">
         <button onclick="openIcdMonthReport()" style="font-size:12px;padding:8px 16px;background:#b45309;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;">🧾 ค่ายกตู้ ICD รายเดือน (สงขลา)</button>
         <button onclick="openIcdCarrier()" style="font-size:12px;padding:8px 16px;background:#1e40af;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;margin-left:8px;">🚚 ICD ต่อขนส่ง</button>
+        <button onclick="openTruckWeight()" style="font-size:12px;padding:8px 16px;background:#0f766e;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;margin-left:8px;">⚖️ น้ำหนักรถ</button>
       </div>
       <div id="reportWrap" style="max-width:1800px;margin:0 auto;padding:20px;width:100%;box-sizing:border-box;"></div>
     </div>
@@ -3668,6 +3669,72 @@ const TRUCK_CARRIER = {
   '72-1953':'วรภัทร','72-0901':'วรภัทร',   /* ขนส่งวรภัทร เพิ่มท่าเรือสงขลา (คู่ 17 · head 1953/tail 0901) — 13 พ.ย.69 */
 };
 function _carrierOf(plate){ const p=String(plate||'').split(/[,\s]+/).filter(Boolean)[0]||''; return TRUCK_CARRIER[p] || (p?('อื่นๆ ('+p+')'):'— ไม่ระบุ'); }
+
+/* ══ ⚖️ น้ำหนักรถฝูงสงขลา (หัว+หาง) — skh_truck_weights (RCN 13 พ.ย.69) ══ */
+const SKH_FLEET=[  /* [หัว, หาง, ขนส่ง] — 17 คัน */
+  ['71-9538','72-2109','ธีรา'],['72-1620','72-1621','ธีรา'],['72-2237','72-2238','ธีรา'],['72-3148','72-3149','ธีรา'],
+  ['72-3997','72-3998','คมกฤษ'],['72-3550','72-3551','คมกฤษ'],['72-4091','72-4417','คมกฤษ'],
+  ['72-2331','72-2332','เค-ทรานส์'],['72-1658','71-8835','เค-ทรานส์'],['72-2333','72-2334','เค-ทรานส์'],
+  ['71-8290','72-0746','อุ้มทรัพย์'],['70-4575','70-4503','อุ้มทรัพย์'],
+  ['72-1176','72-1458','บังหมาน'],
+  ['70-0642','70-0885','นาลาน'],['70-0996','70-0997','นาลาน'],
+  ['72-2330','72-2903','SHL'],
+  ['72-1953','72-0901','วรภัทร'],
+];
+let _twData=null;
+const _qtw=s=>String(s==null?'':s).replace(/['"\\<>]/g,'');
+function _twTotal(w){ if(!w)return null; if(w.total_kg!=null)return Number(w.total_kg); const h=Number(w.head_kg)||0,t=Number(w.tail_kg)||0; return (h||t)?h+t:null; }
+async function openTruckWeight(){
+  let bg=document.getElementById('twBg');
+  if(!bg){ bg=document.createElement('div'); bg.id='twBg';
+    bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9300;align-items:center;justify-content:center;padding:14px;';
+    bg.innerHTML=`<div style="background:#fff;border-radius:16px;max-width:620px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+      <div style="padding:14px 18px;border-bottom:1px solid #e8edf5;display:flex;align-items:center;justify-content:space-between;background:#f0fdfa;border-radius:16px 16px 0 0;">
+        <span style="font-size:14px;font-weight:800;color:#0f766e;">⚖️ น้ำหนักรถฝูงสงขลา <span style="font-size:11px;font-weight:400;color:#64748b;">— หัว+หาง (กก.)</span></span>
+        <button onclick="document.getElementById('twBg').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:#94a3b8;">✕</button></div>
+      <div style="overflow-y:auto;padding:14px 18px;" id="twBody"></div></div>`;
+    document.body.appendChild(bg);
+  }
+  bg.style.display='flex';
+  document.getElementById('twBody').innerHTML='<div style="padding:26px;text-align:center;color:#64748b;">กำลังโหลด…</div>';
+  try{ _twData=await sbFetch('skh_truck_weights','select=head_plate,tail_plate,carrier,head_kg,tail_kg,total_kg,note'); }
+  catch(e){ _twData=[]; }
+  _renderTruckWeight();
+}
+function _renderTruckWeight(){
+  const body=document.getElementById('twBody'); if(!body)return;
+  const byHead=new Map(); (_twData||[]).forEach(w=>byHead.set(w.head_plate,w));
+  const fmt=n=>n==null?'—':Number(n).toLocaleString('th-TH');
+  let nFill=0; const carriers=[...new Set(SKH_FLEET.map(f=>f[2]))];
+  let html='<table style="width:100%;border-collapse:collapse;font-size:12.5px;"><thead><tr style="background:#0f2a52;color:#fff;"><th style="padding:7px;text-align:left;">ขนส่ง</th><th style="padding:7px;text-align:left;">หัว</th><th style="padding:7px;text-align:left;">หาง</th><th style="padding:7px;text-align:right;">น้ำหนัก (กก.)</th><th style="padding:7px;"></th></tr></thead><tbody>';
+  carriers.forEach(c=>{
+    SKH_FLEET.filter(f=>f[2]===c).forEach((f,i)=>{ const w=byHead.get(f[0]); const tot=_twTotal(w); if(tot!=null)nFill++;
+      html+=`<tr style="border-bottom:1px solid #eef2f7;background:${tot!=null?'#f7fefb':'#fff'};">
+        <td style="padding:6px 7px;font-weight:700;color:#0f766e;">${i===0?h(c):''}</td>
+        <td style="padding:6px 7px;font-family:monospace;">${h(f[0])}</td>
+        <td style="padding:6px 7px;font-family:monospace;color:#64748b;">${h(f[1])}</td>
+        <td style="padding:6px 7px;text-align:right;font-weight:800;color:${tot!=null?'#0f172a':'#cbd5e1'};">${fmt(tot)}</td>
+        <td style="padding:6px 7px;text-align:center;"><button onclick="editTruckWeight('${f[0]}','${f[1]}','${_qtw(c)}')" style="font-size:10px;padding:2px 9px;border:1px solid #99f6e4;background:#ecfeff;color:#0f766e;border-radius:6px;cursor:pointer;font-weight:700;">✏️ แก้</button></td></tr>`;
+    });
+  });
+  html+='</tbody></table>';
+  body.innerHTML=`<div style="font-size:11.5px;color:#64748b;margin-bottom:8px;">กรอกแล้ว <b style="color:#0f766e;">${nFill}</b> / ${SKH_FLEET.length} คัน · คลิก ✏️ เพื่อใส่/แก้น้ำหนัก (หัว+หาง รวม)</div>`+html;
+}
+async function editTruckWeight(head,tail,carrier){
+  const cur=(_twData||[]).find(w=>w.head_plate===head);
+  const curTot=cur?_twTotal(cur):null;
+  const v=prompt(`น้ำหนักรถ (หัว+หาง) กก. — ${carrier} ${head}/${tail}\nใส่น้ำหนักรวม เช่น 14280 · เว้นว่าง=ลบ`, curTot!=null?curTot:'');
+  if(v===null)return;
+  const s=String(v).replace(/,/g,'').trim();
+  const total=s===''?null:(parseFloat(s)||0);
+  const hdr={'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'};
+  try{
+    if(total==null){ const r=await fetch(`${SB_URL}/rest/v1/skh_truck_weights?head_plate=eq.${encodeURIComponent(head)}`,{method:'DELETE',headers:{...hdr,'Prefer':'return=minimal'}}); if(!r.ok)throw new Error(await r.text()); }
+    else { const r=await fetch(`${SB_URL}/rest/v1/skh_truck_weights?on_conflict=head_plate`,{method:'POST',headers:{...hdr,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({head_plate:head,tail_plate:tail,carrier:carrier,total_kg:total,updated_at:new Date().toISOString()})}); if(!r.ok)throw new Error(await r.text()); }
+    _twData=await sbFetch('skh_truck_weights','select=head_plate,tail_plate,carrier,head_kg,tail_kg,total_kg,note');
+    _renderTruckWeight();
+  }catch(e){ alert('บันทึกไม่สำเร็จ: '+e.message+'\n\n(ตาราง skh_truck_weights สร้างหรือยัง? ให้รัน SQL ก่อนครับ)'); }
+}
 function _icdStatus(r){
   /* 2 สถานะ (RCN 3 พ.ย.69): จ่ายคืนแล้ว = มี reimbursed_date หรือ ธีรา (in-house) หรือ SHL (รถโรงงาน) — ไม่ต้องคืน · ที่เหลือ = รอวางบิล */
   if(r&&(r.reimbursed_date||_carrierOf(r.truck_plate)==='ธีรา'||_carrierOf(r.truck_plate)==='SHL')) return {t:'จ่ายคืนแล้ว',c:'#166534',bg:'#dcfce7'};
