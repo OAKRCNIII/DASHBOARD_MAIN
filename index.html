@@ -7761,9 +7761,12 @@ function openBswBill(inv){
   const N0=icd?Math.round(icd/1070):0;
   const _tr=(typeof TR_DATA!=='undefined'&&TR_DATA)?TR_DATA.find(t=>normInv(t.inv)===k):null;   /* ค่าขนส่งต่อใบ (gross) จาก transport_bills */
   const trCost=_tr?(Number(_tr.totalPaid)||0):0;
+  const _rm=new Map();   /* แยกเรตค่าขนส่ง (ตู้ราคาต่างกัน) → [{rate,qty}] */
+  if(_tr&&Array.isArray(_tr.details)) _tr.details.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const p=Number(m.price)||0; if(p>0)_rm.set(p,(_rm.get(p)||0)+1); } });
+  const trRates=[..._rm.entries()].sort((a,b)=>b[0]-a[0]).map(([rate,qty])=>({rate,qty}));
   const _C2={BSW:{label:'ADDITIONAL MOVE',rate:1500,dr:29000}, INV:{label:'THC',rate:4500,dr:31000}};   /* คอลัมน์ขวาต่อโรงงาน: BSW=ADD MOVE 1,500 · INV=THC 4,500 */
   const c2=_C2[String(inv).slice(0,3).toUpperCase()]||{label:'ADDITIONAL MOVE',rate:1500,dr:29000};
-  window._bsw={inv:inv, ctr:N0||10, pithAuto:true, pithManual:0, col2Label:c2.label, col2Rate:c2.rate, transport:trCost, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX')||1500, icd:icd};
+  window._bsw={inv:inv, ctr:N0||10, pithAuto:true, pithManual:0, col2Label:c2.label, col2Rate:c2.rate, transport:trCost, trRates:trRates, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX')||1500, icd:icd};
   let bg=document.getElementById('bswBillBg');
   if(!bg){ bg=document.createElement('div'); bg.id='bswBillBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;'; document.body.appendChild(bg); }
   const inA='font-size:13px;padding:6px 9px;border:1.5px solid #cbd5e1;border-radius:7px;font-family:inherit;width:110px;box-sizing:border-box;';
@@ -7853,7 +7856,7 @@ function _renderBswOut(){
       <tr><td style="${td}">ค่าเอกสาร CERTIFICATE OF ORIGIN ออกโดย</td><td colspan="3" style="border-bottom:1px solid #999;"></td></tr>
       <tr><td style="${td}">ค่าส่งเอกสารไปต่างประเทศโดย DHL NO.</td><td colspan="3"></td></tr>
       <tr><td style="${td}">ค่าประกันภัย</td><td style="${td}">X 1</td><td style="${tr}">${fmt(cINS)}</td><td></td></tr>
-      <tr><td style="${td}">ค่าขนส่ง</td><td></td><td style="${tr}">${fmt(cTRANS)}</td><td></td></tr>
+      <tr><td style="${td}">ค่าขนส่ง</td><td style="${td}">${(s.trRates&&s.trRates.length)?s.trRates.map(r=>fmt(r.rate)+' X '+r.qty).join('<br>'):''}</td><td style="${tr}">${fmt(cTRANS)}</td><td></td></tr>
       <tr><td style="${td}">อื่นๆ ค่าทำการล่วงเวลา (กรมศุลกากร)</td><td></td><td style="${tr}">${s.other?fmt(s.other):dash}</td><td></td></tr>
      </tbody></table>
     <table style="width:56%;margin-left:44%;border-collapse:collapse;border-top:2px solid #000;">
