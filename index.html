@@ -4133,6 +4133,9 @@ function printSkhLiftReport(){
   let rows='', grand=0;
   _skhLiftFees.forEach((f,i)=>{ const amt=Number(f.amount_total)||0; grand+=amt;
     rows+=`<tr><td class="c">${i+1}</td><td class="c">${h(f.truck_plate||'')}</td><td class="c b">${h(f.container_no||'')}</td><td class="c">ICD-OUT ${h(f.receipt_no||'')}</td><td class="c">${dtxt(f.receipt_date)}</td><td class="r b">${fmt(amt)}</td></tr>`; });
+  const _payer=_whtPickFac(inv), _payee=ICD_WHT;   /* ผู้หัก = โรงงาน (toggle ANTS ได้) · ผู้ถูกหัก = ICD */
+  const _spaceTax=t=>String(t||'').split('').join('&nbsp;');
+  const _whtBox=(label,o)=>`<div class="whtrow"><div class="whtL"><div class="whtT">${label} :</div><div style="margin-top:3px;">ชื่อ&nbsp;&nbsp;<b>${h(o.name||'-')}</b></div><div class="hint">(ให้ระบุว่าเป็น บุคคล นิติบุคคล บริษัท สมาคม หรือคณะบุคคล)</div><div style="margin-top:3px;">ที่อยู่&nbsp;&nbsp;${h(o.addr||'-')}</div><div class="hint">(ให้ระบุ เลขที่ ตรอก/ซอย หมู่ที่ ถนน ตำบล/แขวง อำเภอ/เขต จังหวัด)</div></div><div class="whtR"><div class="hint" style="text-align:center;">เลขประจำตัวผู้เสียภาษีอากร (13 หลัก)</div><div class="taxno">${_spaceTax(o.tax)}</div></div></div>`;
   const w=window.open('','_blank','width=900,height=1100'); if(!w){ alert('⚠️ อนุญาต Pop-up ก่อนครับ'); return; }
   w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>ใบปะหน้าค่ายกตู้ ICD ${h(inv)}</title>
   <style>
@@ -4149,10 +4152,19 @@ function printSkhLiftReport(){
     th{font-weight:800;text-align:center;}
     .c{text-align:center;} .r{text-align:right;} .b{font-weight:700;}
     tfoot td{font-weight:800;font-size:15px;}
+    .whtblk{border:1.5px solid #000;margin-bottom:11px;}
+    .whtrow{display:flex;border-bottom:1.5px solid #000;}
+    .whtrow:last-child{border-bottom:none;}
+    .whtL{flex:1;padding:6px 10px;font-size:13.5px;line-height:1.35;}
+    .whtR{width:235px;border-left:1.5px solid #000;padding:6px 8px;display:flex;flex-direction:column;justify-content:center;}
+    .whtT{font-weight:700;}
+    .hint{font-size:10.5px;color:#444;}
+    .taxno{border:1.5px solid #000;text-align:center;font-weight:800;font-size:15px;padding:5px 2px;margin-top:5px;}
   </style></head><body>
     <div class="titlebox"><div class="t1">ค่ายกตู้ บริษัท อินเตอร์ คอนเทนเนอร์ เดโป จำกัด</div></div>
     <div class="sub">ท่าเรือสงขลา</div>
     <div class="inv">${h(inv)}</div>
+    <div class="whtblk">${_whtBox('ผู้มีหน้าที่หักภาษี ณ ที่จ่าย',_payer)}${_whtBox('ผู้ถูกหักภาษี ณ ที่จ่าย',_payee)}</div>
     <table>
       <thead><tr><th style="width:8%">ลำดับ</th><th style="width:15%">ทะเบียนรถ</th><th style="width:22%">เบอร์ตู้</th><th style="width:22%">ใบเสร็จเลขที่</th><th style="width:19%">วันที่ใบเสร็จ</th><th style="width:14%">ค่าบริการ</th></tr></thead>
       <tbody>${rows}</tbody>
