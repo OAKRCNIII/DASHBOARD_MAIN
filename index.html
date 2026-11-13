@@ -7774,7 +7774,23 @@ function _bswKeep(){   /* snapshot ค่ากรอกมือก่อน re
   const rates={}; (s.subFac||[]).forEach((f,i)=>{ const e=document.getElementById('bswSR'+i); if(e&&e.value!=='')rates[f.factory]=parseFloat(String(e.value).replace(/,/g,''))||0; });
   return {ins:gv('bswIns'), other:gv('bswOther'), pithAuto:s.pithAuto, pithManual:s.pithManual, rates, rate:document.getElementById('bswRate')?gv('bswRate'):null};
 }
-function _bswAddInv(){
+function _bswInvCands(group, inv){   /* อินวอยซ์ที่เลือกเพิ่มได้ (bills∪TR∪lifts ที่ยังไม่อยู่ในกลุ่ม) — prefix เดียวกันขึ้นก่อน */
+  const _TR=(typeof TR_DATA!=='undefined'&&TR_DATA)?TR_DATA:[];
+  const m=new Map();   /* nk → disp (เลขที่สะกดจริง) */
+  (_skhAcctCache.bills||[]).forEach(b=>{ const nk=normInv(b.invoice_no); if(nk&&!m.has(nk))m.set(nk,String(b.invoice_no).trim()); });
+  _TR.forEach(t=>{ const nk=normInv(t.inv); if(nk&&!m.has(nk))m.set(nk,String(t.inv).trim()); });
+  (_skhAcctCache.lifts||[]).forEach(l=>{ if(l.invoice_no){ const nk=normInv(l.invoice_no); if(nk&&!m.has(nk))m.set(nk,String(l.invoice_no).trim()); } });
+  const gs=new Set(group); const pfx=String(inv||'').slice(0,3).toUpperCase();
+  return [...m.entries()].filter(([nk])=>!gs.has(nk)).map(([nk,disp])=>({nk,disp}))
+    .sort((a,b)=>{ const pa=a.disp.slice(0,3).toUpperCase()===pfx?0:1, pb=b.disp.slice(0,3).toUpperCase()===pfx?0:1; return (pa-pb)||a.disp.localeCompare(b.disp,'th'); });
+}
+function _bswAddInvSel(sel){   /* เลือกจาก dropdown */
+  const s=window._bsw; if(!s||!sel.value)return;
+  if(sel.value==='__manual__'){ sel.value=''; _bswAddInv(); return; }
+  const nk=sel.value; if(s.group.includes(nk)){ sel.value=''; return; }
+  _bswRender(s.inv, [...s.group, nk], _bswKeep());
+}
+function _bswAddInv(){   /* fallback: พิมพ์เลขเอง (ใบที่ยังไม่อยู่ในระบบ) */
   const s=window._bsw; if(!s)return;
   const v=prompt('ใส่เลขอินวอยซ์ที่จะรวมเพิ่ม (เช่น OGM(J)010A/2026)'); if(!v)return;
   const nk=normInv(v); if(s.group.includes(nk)){ alert('ใบนี้อยู่ในกลุ่มแล้ว'); return; }
@@ -7813,6 +7829,7 @@ function _bswRender(startInv, group, keep){
     const _ord=f=>{ for(let i=0;i<SELL_RATE.length;i++){ if(String(f||'').includes(SELL_RATE[i][0]))return i; } return 99; };   /* เรียง นาวา→นาเมือง→กนก ตาม SELL_RATE */
     subFac.sort((a,b)=>_ord(a.factory)-_ord(b.factory)); }
   window._bsw={inv:inv, group:group, invDisplay:invDisplay, nSet:nSet, ctr:N0||10, pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, subFac:subFac, transport:trCost, trRates:trRates, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd};
+  const addCands=_bswInvCands(group, inv);   /* อินวอยซ์ที่เลือกเพิ่มได้ใน dropdown */
   let bg=document.getElementById('bswBillBg');
   if(!bg){ bg=document.createElement('div'); bg.id='bswBillBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;'; document.body.appendChild(bg); }
   const inA='font-size:13px;padding:6px 9px;border:1.5px solid #cbd5e1;border-radius:7px;font-family:inherit;width:110px;box-sizing:border-box;';
@@ -7825,7 +7842,7 @@ function _bswRender(startInv, group, keep){
       <button onclick="document.getElementById('bswBillBg').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:#94a3b8;">✕</button></div>
     <div style="padding:9px 18px;border-bottom:1px solid #f1f5f9;background:#fafbff;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
       <span style="font-size:11px;color:#64748b;font-weight:700;">อินวอยซ์:</span>${group.map(gk=>`<span style="display:inline-flex;align-items:center;gap:5px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;color:#3730a3;">${h(disp(gk))}${group.length>1?`<span onclick="_bswRemoveInv('${gk}')" title="เอาออก" style="cursor:pointer;color:#dc2626;font-weight:800;">✕</span>`:''}</span>`).join('')}
-      <button onclick="_bswAddInv()" style="font-size:10.5px;padding:3px 11px;border:1px dashed #0f766e;background:#ecfeff;color:#0f766e;border-radius:6px;cursor:pointer;font-weight:700;">➕ อินวอยซ์</button>
+      <select onchange="_bswAddInvSel(this)" style="font-size:10.5px;padding:3px 9px;border:1px dashed #0f766e;background:#ecfeff;color:#0f766e;border-radius:6px;cursor:pointer;font-weight:700;font-family:inherit;max-width:230px;"><option value="">➕ เพิ่มอินวอยซ์…</option>${addCands.map(c=>`<option value="${h(c.nk)}">${h(c.disp)}</option>`).join('')}<option value="__manual__">⌨️ พิมพ์เลขเอง…</option></select>
       ${nSet>1?`<span style="font-size:10px;color:#0f766e;">รวม ${nSet} ใบ · B/L ${nSet} ชุด</span>`:''}</div>
     <div style="padding:14px 18px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid #f1f5f9;background:#f8fafc;">
       ${rateInputsHtml}
