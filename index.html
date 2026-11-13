@@ -7772,7 +7772,8 @@ function openBswBill(inv){
 function _bswKeep(){   /* snapshot ค่ากรอกมือก่อน rebuild (เพิ่ม/ลบอินวอยซ์) */
   const s=window._bsw||{}; const gv=id=>{const e=document.getElementById(id);return e?(parseFloat(String(e.value||'').replace(/,/g,''))||0):0;};
   const rates={}; (s.subFac||[]).forEach((f,i)=>{ const e=document.getElementById('bswSR'+i); if(e&&e.value!=='')rates[f.factory]=parseFloat(String(e.value).replace(/,/g,''))||0; });
-  return {ins:gv('bswIns'), other:gv('bswOther'), pithAuto:s.pithAuto, pithManual:s.pithManual, rates, rate:document.getElementById('bswRate')?gv('bswRate'):null};
+  const insByInv={}; (s.group||[]).forEach((gk,i)=>{ const e=document.getElementById('bswIns'+i); if(e&&e.value!=='')insByInv[gk]=parseFloat(String(e.value).replace(/,/g,''))||0; });   /* ประกันแยกต่อใบ (เกณฑ์ <1,000 ไม่หัก คิดรายใบ) */
+  return {insByInv, other:gv('bswOther'), pithAuto:s.pithAuto, pithManual:s.pithManual, rates, rate:document.getElementById('bswRate')?gv('bswRate'):null};
 }
 function _bswInvCands(group, inv){   /* อินวอยซ์ที่เลือกเพิ่มได้ (bills∪TR∪lifts ที่ยังไม่อยู่ในกลุ่ม) — prefix เดียวกันขึ้นก่อน */
   const _TR=(typeof TR_DATA!=='undefined'&&TR_DATA)?TR_DATA:[];
@@ -7784,20 +7785,13 @@ function _bswInvCands(group, inv){   /* อินวอยซ์ที่เล�
   return [...m.entries()].filter(([nk])=>!gs.has(nk)).map(([nk,disp])=>({nk,disp}))
     .sort((a,b)=>{ const pa=a.disp.slice(0,3).toUpperCase()===pfx?0:1, pb=b.disp.slice(0,3).toUpperCase()===pfx?0:1; return (pa-pb)||a.disp.localeCompare(b.disp,'th'); });
 }
-function _bswAddInvSel(sel){   /* เลือกจาก dropdown */
-  const s=window._bsw; if(!s||!sel.value)return;
-  if(sel.value==='__manual__'){ sel.value=''; _bswAddInv(); return; }
-  const nk=sel.value; if(s.group.includes(nk)){ sel.value=''; return; }
-  _bswRender(s.inv, [...s.group, nk], _bswKeep());
-}
-function _bswAddInv(){   /* fallback: พิมพ์เลขเอง (ใบที่ยังไม่อยู่ในระบบ) */
-  const s=window._bsw; if(!s)return;
-  const v=prompt('ใส่เลขอินวอยซ์ที่จะรวมเพิ่ม (เช่น OGM(J)010A/2026)'); if(!v)return;
-  const nk=normInv(v); if(s.group.includes(nk)){ alert('ใบนี้อยู่ในกลุ่มแล้ว'); return; }
+function _bswAddInvType(inp){   /* พิมพ์กรอง/เลือกจาก datalist (เหมือน CADO search) → รวมใบ */
+  const s=window._bsw; if(!s)return; const v=String(inp.value||'').trim(); if(!v)return;
+  const nk=normInv(v); if(s.group.includes(nk)){ inp.value=''; return; }
   const _TR=(typeof TR_DATA!=='undefined'&&TR_DATA)?TR_DATA:[];
   const has=(_skhAcctCache.bills||[]).some(b=>normInv(b.invoice_no)===nk)||_TR.some(t=>normInv(t.inv)===nk)||(_skhAcctCache.lifts||[]).some(l=>l.invoice_no&&normInv(l.invoice_no)===nk);
-  if(!has && !confirm('⚠️ ไม่พบข้อมูลใบ '+v+' ในระบบ — รวมต่อไหม?')) return;
-  _bswRender(s.inv, [...s.group, nk], _bswKeep());
+  if(!has && !confirm('⚠️ ไม่พบข้อมูลใบ '+v+' ในระบบ — รวมต่อไหม?')){ inp.value=''; return; }
+  _bswRender(s.inv, [...s.group, nk], _bswKeep());   /* re-render: input ถูกสร้างใหม่ ค่าเคลียร์เอง */
 }
 function _bswRemoveInv(nk){ const s=window._bsw; if(!s)return; const ng=s.group.filter(x=>x!==nk); if(ng.length) _bswRender(s.inv, ng, _bswKeep()); }
 function _bswRender(startInv, group, keep){
@@ -7828,7 +7822,7 @@ function _bswRender(startInv, group, keep){
   if(c2.vat==='excl'&&trDetailsAll.length){ const fm=new Map(); trDetailsAll.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const f=m.factory||'ไม่ระบุ'; fm.set(f,(fm.get(f)||0)+1); } }); subFac=[...fm.entries()].map(([factory,count])=>({factory,count,rate:(keep.rates&&keep.rates[factory]!=null)?keep.rates[factory]:_sr(factory)}));
     const _ord=f=>{ for(let i=0;i<SELL_RATE.length;i++){ if(String(f||'').includes(SELL_RATE[i][0]))return i; } return 99; };   /* เรียง นาวา→นาเมือง→กนก ตาม SELL_RATE */
     subFac.sort((a,b)=>_ord(a.factory)-_ord(b.factory)); }
-  window._bsw={inv:inv, group:group, invDisplay:invDisplay, nSet:nSet, ctr:N0||10, pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, subFac:subFac, transport:trCost, trRates:trRates, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd};
+  window._bsw={inv:inv, group:group, invDisplay:invDisplay, nSet:nSet, ctr:N0||10, insByInv:(keep.insByInv||{}), insurance:group.reduce((a,gk)=>a+(Number((keep.insByInv||{})[gk])||0),0), pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, subFac:subFac, transport:trCost, trRates:trRates, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd};
   const addCands=_bswInvCands(group, inv);   /* อินวอยซ์ที่เลือกเพิ่มได้ใน dropdown */
   let bg=document.getElementById('bswBillBg');
   if(!bg){ bg=document.createElement('div'); bg.id='bswBillBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;'; document.body.appendChild(bg); }
@@ -7842,14 +7836,16 @@ function _bswRender(startInv, group, keep){
       <button onclick="document.getElementById('bswBillBg').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:#94a3b8;">✕</button></div>
     <div style="padding:9px 18px;border-bottom:1px solid #f1f5f9;background:#fafbff;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
       <span style="font-size:11px;color:#64748b;font-weight:700;">อินวอยซ์:</span>${group.map(gk=>`<span style="display:inline-flex;align-items:center;gap:5px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;color:#3730a3;">${h(disp(gk))}${group.length>1?`<span onclick="_bswRemoveInv('${gk}')" title="เอาออก" style="cursor:pointer;color:#dc2626;font-weight:800;">✕</span>`:''}</span>`).join('')}
-      <select onchange="_bswAddInvSel(this)" style="font-size:10.5px;padding:3px 9px;border:1px dashed #0f766e;background:#ecfeff;color:#0f766e;border-radius:6px;cursor:pointer;font-weight:700;font-family:inherit;max-width:230px;"><option value="">➕ เพิ่มอินวอยซ์…</option>${addCands.map(c=>`<option value="${h(c.nk)}">${h(c.disp)}</option>`).join('')}<option value="__manual__">⌨️ พิมพ์เลขเอง…</option></select>
+      <input id="bswAddInvInp" list="bswAddInvList" placeholder="➕ พิมพ์/เลือกอินวอยซ์…" autocomplete="off" onchange="_bswAddInvType(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();_bswAddInvType(this);}" style="font-size:10.5px;padding:4px 10px;border:1px dashed #0f766e;background:#ecfeff;color:#0f766e;border-radius:6px;font-weight:700;font-family:inherit;width:210px;box-sizing:border-box;outline:none;"><datalist id="bswAddInvList">${addCands.map(c=>`<option value="${h(c.disp)}"></option>`).join('')}</datalist>
       ${nSet>1?`<span style="font-size:10px;color:#0f766e;">รวม ${nSet} ใบ · B/L ${nSet} ชุด</span>`:''}</div>
     <div style="padding:14px 18px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid #f1f5f9;background:#f8fafc;">
       ${rateInputsHtml}
       <label style="font-size:11px;font-weight:700;color:#475569;">จำนวนตู้ (รวม)<br><input id="bswCtr" value="${N0||10}" oninput="_bswUpd()" style="${inA}width:70px;"></label>
       <label style="font-size:11px;font-weight:700;color:#475569;">ใบขน (หน่วย)<br><input id="bswDecl" value="${nSet}" oninput="_bswUpd()" style="${inA}width:70px;"></label>
       <div style="font-size:11px;font-weight:700;color:#475569;">ค่าขนส่ง <span style="font-size:9px;color:#0f766e;">(auto)</span><br><div style="${inA}background:#f0fdf4;${trCost?'color:#0f766e;font-weight:800;':'color:#dc2626;'}display:flex;align-items:center;">${trCost?trCost.toLocaleString('th-TH'):'— ไม่พบในระบบ'}</div></div>
-      <label style="font-size:11px;font-weight:700;color:#475569;">ค่าประกันภัย<br><input id="bswIns" value="${keep.ins?keep.ins:''}" placeholder="กรอก" oninput="_bswUpd()" style="${inA}"></label>
+      ${(group.length>1
+        ? `<div style="font-size:11px;font-weight:700;color:#475569;">ค่าประกันภัย <span style="font-size:9px;color:#b45309;">(ต่อใบ · &lt;1,000 ไม่หัก)</span><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">`+group.map((gk,i)=>`<label style="font-size:10.5px;color:#334155;">${h(disp(gk))}<br><input id="bswIns${i}" value="${(keep.insByInv&&keep.insByInv[gk]!=null)?keep.insByInv[gk]:''}" placeholder="กรอก" oninput="_bswUpd()" style="${inA}width:102px;"></label>`).join('')+`</div></div>`
+        : `<label style="font-size:11px;font-weight:700;color:#475569;">ค่าประกันภัย<br><input id="bswIns0" value="${(keep.insByInv&&keep.insByInv[group[0]]!=null)?keep.insByInv[group[0]]:''}" placeholder="กรอก" oninput="_bswUpd()" style="${inA}"></label>`)}
       <label style="font-size:11px;font-weight:700;color:#475569;">อื่นๆ (ล่วงเวลา)<br><input id="bswOther" value="${keep.other?keep.other:''}" placeholder="0" oninput="_bswUpd()" style="${inA}width:85px;"></label>
       <label style="font-size:11px;font-weight:700;color:#0f766e;">ค่าพิธีการ <button onclick="window._bsw.pithAuto=true;_bswUpd()" title="คำนวณอัตโนมัติ" style="font-size:9px;padding:0 5px;border:1px solid #99f6e4;background:#ecfeff;border-radius:5px;cursor:pointer;">🔄 auto</button><br><input id="bswPith" oninput="window._bsw.pithAuto=false;_bswUpd()" style="${inA}border-color:#5eead4;"></label>
     </div>
@@ -7860,7 +7856,8 @@ function _bswRender(startInv, group, keep){
 function _bswUpd(){
   const s=window._bsw; if(!s)return;
   const gv=id=>{const e=document.getElementById(id);return e?(parseFloat(String(e.value||'').replace(/,/g,''))||0):0;};
-  s.ctr=parseInt(document.getElementById('bswCtr').value)||0; s.insurance=gv('bswIns'); s.other=gv('bswOther'); s.decl=parseInt(document.getElementById('bswDecl').value)||1;   /* transport = auto (ไม่มีช่องกรอก) */
+  s.ctr=parseInt(document.getElementById('bswCtr').value)||0; s.other=gv('bswOther'); s.decl=parseInt(document.getElementById('bswDecl').value)||1;   /* transport = auto (ไม่มีช่องกรอก) */
+  s.insByInv={}; let _insTot=0; (s.group||[]).forEach((gk,i)=>{ const v=gv('bswIns'+i); s.insByInv[gk]=v; _insTot+=v; }); s.insurance=_insTot;   /* ประกันแยกต่อใบ → รวมเป็น total */
   if(s.vatMode==='excl'&&Array.isArray(s.subFac)){ s.subFac.forEach((f,i)=>{ const e=document.getElementById('bswSR'+i); if(e)f.rate=parseFloat(String(e.value||'').replace(/,/g,''))||0; }); }
   else { s.rate=gv('bswRate'); }
   if(!s.pithAuto) s.pithManual=gv('bswPith');
@@ -7877,7 +7874,7 @@ function _renderBswOut(){
   vat('LOCAL CHARGE (ท่าสงขลา)', s.ctic);
   vat('LO/LO (ICD)', s.icd);
   nov('ค่าใช้จ่ายศุลกากร', 200*(s.decl||1), 0);   /* 200 × จำนวนใบขน */
-  nov('ค่าประกันภัย', s.insurance, 1);
+  { const _insW1=Object.values(s.insByInv||{}).reduce((a,v)=>a+((Number(v)||0)>=1000?(Number(v)||0)*0.01:0),0); rows.push({name:'ค่าประกันภัย',base:s.insurance,vat:0,w3:0,w1:_insW1}); }   /* หัก 1% รายใบ เฉพาะใบที่ประกัน ≥1,000 (RCN 13 พ.ย.69) */
   nov('ค่าขนส่ง', s.transport, 1);
   nov('อื่นๆ (ค่าล่วงเวลา)', s.other||0, 0);
   const sm=f=>rows.reduce((a,x)=>a+(x[f]||0),0);
