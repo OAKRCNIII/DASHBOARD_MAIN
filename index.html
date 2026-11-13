@@ -7758,12 +7758,12 @@ function openBswBill(inv){
   const lines=(_skhAcctCache.bills||[]).filter(b=>normInv(b.invoice_no)===k);
   const gOf=T=>{ const b=lines.find(l=>l.type===T); return b?((Number(b.grand_total)||0)+(Number(b.wht_amount)||0)):0; };   /* ยอดก่อนหัก (รวม VAT) */
   const icd=(_skhAcctCache.lifts||[]).filter(l=>normInv(l.invoice_no)===k).reduce((s,l)=>s+(Number(l.amount_total)||0),0);
-  const N0=icd?Math.round(icd/1070):0;
   const _tr=(typeof TR_DATA!=='undefined'&&TR_DATA)?TR_DATA.find(t=>normInv(t.inv)===k):null;   /* ค่าขนส่งต่อใบ (gross) จาก transport_bills */
   const trCost=_tr?(Number(_tr.totalPaid)||0):0;
   const _rm=new Map();   /* แยกเรตค่าขนส่ง (ตู้ราคาต่างกัน) → [{rate,qty}] */
   if(_tr&&Array.isArray(_tr.details)) _tr.details.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const p=Number(m.price)||0; if(p>0)_rm.set(p,(_rm.get(p)||0)+1); } });
   const trRates=[..._rm.entries()].sort((a,b)=>b[0]-a[0]).map(([rate,qty])=>({rate,qty}));
+  const N0=(_tr&&Array.isArray(_tr.details)&&_tr.details.length)?_tr.details.length:(icd?Math.round(icd/1070):0);   /* จำนวนตู้ default = จำนวนตู้ที่ขนส่งจริง (เชื่อถือกว่า ICD) */
   const _C2={BSW:{label:'ADDITIONAL MOVE',rate:1500,dr:29000}, INV:{label:'THC',rate:4500,dr:31000}};   /* คอลัมน์ขวาต่อโรงงาน: BSW=ADD MOVE 1,500 · INV=THC 4,500 */
   const c2=_C2[String(inv).slice(0,3).toUpperCase()]||{label:'ADDITIONAL MOVE',rate:1500,dr:29000};
   window._bsw={inv:inv, ctr:N0||10, pithAuto:true, pithManual:0, col2Label:c2.label, col2Rate:c2.rate, transport:trCost, trRates:trRates, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX')||1500, icd:icd};
