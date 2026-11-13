@@ -3932,6 +3932,7 @@ const FAC_WHT_MAP={
   NMP:{name:'บริษัท นาเมืองเพชรพาราวู้ด จำกัด',tax:'0925556000851',addr:'138/2 ม.4 ต.นาเมืองเพชร อ.สิเกา จ.ตรัง 92000'},
   INV:{name:'บริษัท เดอะวัน พาราวู้ด จำกัด',tax:'0805565003167',addr:'308 ม.9 ต.ไสหร้า อ.ฉวาง จ.นครศรีธรรมราช 80150'},
   OGM:{name:'บริษัท วัน โกลด์ มาร์เก็ตติ้ง จำกัด',tax:'0925562000026',addr:'111/2 ม.9 ต.โคกหล่อ อ.เมืองตรัง จ.ตรัง 92000'},
+  SHL:{name:'บริษัท เอส.เอช.แอล.พาราวู้ด จำกัด (สำนักงานใหญ่)',tax:'0905542001485',addr:'191 ม.6 ต.กำแพงเพชร อ.รัตภูมิ จ.สงขลา 90180'},   /* RCN 13 พ.ย.69 — อ่านทวนจากใบจริงทุกตัวอักษร */
   PTN:{name:'บริษัท ปัตตานีอุตสาหกรรม(1971) จำกัด',tax:'0945522000025',addr:'76-82 ถ.ปรีดา ต.อาเนาะรู อ.เมืองปัตตานี จ.ปัตตานี 94000'},
   WKP:{name:'บริษัท วรเกียรติ์พาณิชย์ จำกัด',tax:'0845537001309',addr:'139 ม.6 ต.ควนศรี อ.บ้านนาสาร จ.สุราษฎร์ธานี 84270'}   /* WKP-OS=นาสาร(default นี้) · WKP-ND=นาเดิม override ใน _whtFac — RCN 11 พ.ย.69 */
 };
@@ -7766,19 +7767,32 @@ async function deleteBillNote(){
    ค่าพิธีการ = plug ให้ยอดรวมสุทธิ = วางบิล (29,000×ตู้ + telex + ประกัน) · ปรับเองได้ */
 function openBswBill(inv){
   if(!_skhAcctCache){ alert('เปิดแท็บบัญชีสงขลาก่อนครับ'); return; }
-  const k=normInv(inv);
-  const _baseKey=iv=>normInv(iv).replace(/A\//,'/');   /* รวมคู่ 010/010A ด้วยเลขฐาน (OGM วางบิลรวม) */
-  const bk=_baseKey(inv);
+  _bswRender(inv, [normInv(inv)], null);
+}
+function _bswKeep(){   /* snapshot ค่ากรอกมือก่อน rebuild (เพิ่ม/ลบอินวอยซ์) */
+  const s=window._bsw||{}; const gv=id=>{const e=document.getElementById(id);return e?(parseFloat(String(e.value||'').replace(/,/g,''))||0):0;};
+  const rates={}; (s.subFac||[]).forEach((f,i)=>{ const e=document.getElementById('bswSR'+i); if(e&&e.value!=='')rates[f.factory]=parseFloat(String(e.value).replace(/,/g,''))||0; });
+  return {ins:gv('bswIns'), other:gv('bswOther'), pithAuto:s.pithAuto, pithManual:s.pithManual, rates, rate:document.getElementById('bswRate')?gv('bswRate'):null};
+}
+function _bswAddInv(){
+  const s=window._bsw; if(!s)return;
+  const v=prompt('ใส่เลขอินวอยซ์ที่จะรวมเพิ่ม (เช่น OGM(J)010A/2026)'); if(!v)return;
+  const nk=normInv(v); if(s.group.includes(nk)){ alert('ใบนี้อยู่ในกลุ่มแล้ว'); return; }
   const _TR=(typeof TR_DATA!=='undefined'&&TR_DATA)?TR_DATA:[];
-  const grpSet=new Set([k]);
-  (_skhAcctCache.bills||[]).forEach(b=>{ if(_baseKey(b.invoice_no)===bk) grpSet.add(normInv(b.invoice_no)); });
-  _TR.forEach(t=>{ if(_baseKey(t.inv)===bk) grpSet.add(normInv(t.inv)); });
-  (_skhAcctCache.lifts||[]).forEach(l=>{ if(l.invoice_no&&_baseKey(l.invoice_no)===bk) grpSet.add(normInv(l.invoice_no)); });
-  const group=[...grpSet];
+  const has=(_skhAcctCache.bills||[]).some(b=>normInv(b.invoice_no)===nk)||_TR.some(t=>normInv(t.inv)===nk)||(_skhAcctCache.lifts||[]).some(l=>l.invoice_no&&normInv(l.invoice_no)===nk);
+  if(!has && !confirm('⚠️ ไม่พบข้อมูลใบ '+v+' ในระบบ — รวมต่อไหม?')) return;
+  _bswRender(s.inv, [...s.group, nk], _bswKeep());
+}
+function _bswRemoveInv(nk){ const s=window._bsw; if(!s)return; const ng=s.group.filter(x=>x!==nk); if(ng.length) _bswRender(s.inv, ng, _bswKeep()); }
+function _bswRender(startInv, group, keep){
+  keep=keep||{};
+  const inv=startInv;
+  const _TR=(typeof TR_DATA!=='undefined'&&TR_DATA)?TR_DATA:[];
   const dispMap=new Map();
   (_skhAcctCache.bills||[]).forEach(b=>{ const nk=normInv(b.invoice_no); if(group.includes(nk)&&!dispMap.has(nk))dispMap.set(nk,String(b.invoice_no).trim()); });
   _TR.forEach(t=>{ const nk=normInv(t.inv); if(group.includes(nk)&&!dispMap.has(nk))dispMap.set(nk,String(t.inv).trim()); });
-  const invDisplay=group.map(gk=>dispMap.get(gk)||gk).sort().join(', ');
+  const disp=gk=>dispMap.get(gk)||gk;
+  const invDisplay=group.map(disp).join(', ');
   const nSet=group.length;   /* จำนวนใบในกลุ่ม = จำนวนชุด B/L (telex) */
   const lines=(_skhAcctCache.bills||[]).filter(b=>group.includes(normInv(b.invoice_no)));
   const gOf=T=>lines.filter(l=>l.type===T).reduce((s,b)=>s+(Number(b.grand_total)||0)+(Number(b.wht_amount)||0),0);   /* รวม type ข้ามกลุ่ม (ยอดก่อนหัก) */
@@ -7795,27 +7809,31 @@ function openBswBill(inv){
   const SELL_RATE=[['นาวา',31200],['นาเมือง',30600],['กนก',27800]];
   const _sr=f=>{ for(const[kw,r]of SELL_RATE){ if(String(f||'').includes(kw))return r; } return 0; };
   let subFac=[];
-  if(c2.vat==='excl'&&trDetailsAll.length){ const fm=new Map(); trDetailsAll.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const f=m.factory||'ไม่ระบุ'; fm.set(f,(fm.get(f)||0)+1); } }); subFac=[...fm.entries()].map(([factory,count])=>({factory,count,rate:_sr(factory)}));
+  if(c2.vat==='excl'&&trDetailsAll.length){ const fm=new Map(); trDetailsAll.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const f=m.factory||'ไม่ระบุ'; fm.set(f,(fm.get(f)||0)+1); } }); subFac=[...fm.entries()].map(([factory,count])=>({factory,count,rate:(keep.rates&&keep.rates[factory]!=null)?keep.rates[factory]:_sr(factory)}));
     const _ord=f=>{ for(let i=0;i<SELL_RATE.length;i++){ if(String(f||'').includes(SELL_RATE[i][0]))return i; } return 99; };   /* เรียง นาวา→นาเมือง→กนก ตาม SELL_RATE */
     subFac.sort((a,b)=>_ord(a.factory)-_ord(b.factory)); }
-  window._bsw={inv:inv, invDisplay:invDisplay, nSet:nSet, ctr:N0||10, pithAuto:true, pithManual:0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, subFac:subFac, transport:trCost, trRates:trRates, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd};
+  window._bsw={inv:inv, group:group, invDisplay:invDisplay, nSet:nSet, ctr:N0||10, pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, subFac:subFac, transport:trCost, trRates:trRates, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd};
   let bg=document.getElementById('bswBillBg');
   if(!bg){ bg=document.createElement('div'); bg.id='bswBillBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;'; document.body.appendChild(bg); }
   const inA='font-size:13px;padding:6px 9px;border:1.5px solid #cbd5e1;border-radius:7px;font-family:inherit;width:110px;box-sizing:border-box;';
   const rateInputsHtml = c2.vat==='excl'
     ? `<div style="font-size:11px;font-weight:700;color:#475569;width:100%;">เรตขายต่อโรงงานย่อย <span style="font-size:9px;color:#b45309;">(แยก VAT · ตู้ auto)</span><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">${subFac.length?subFac.map((f,i)=>`<label style="font-size:10.5px;color:#334155;">${h(f.factory)} ×${f.count}<br><input id="bswSR${i}" value="${f.rate||''}" placeholder="เรต" oninput="_bswUpd()" style="${inA}width:96px;"></label>`).join(''):'<span style="color:#dc2626;font-size:10px;">⚠️ ไม่พบตู้ขนส่งในระบบ</span>'}</div></div>`
-    : `<label style="font-size:11px;font-weight:700;color:#475569;">เรต/ตู้ (รวม VAT)<br><input id="bswRate" value="${c2.dr}" oninput="_bswUpd()" style="${inA}"></label>`;
+    : `<label style="font-size:11px;font-weight:700;color:#475569;">เรต/ตู้ (รวม VAT)<br><input id="bswRate" value="${(keep.rate!=null&&keep.rate>0)?keep.rate:c2.dr}" oninput="_bswUpd()" style="${inA}"></label>`;
   bg.innerHTML=`<div style="background:#fff;border-radius:16px;max-width:780px;width:100%;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
     <div style="padding:13px 18px;border-bottom:1px solid #e8edf5;display:flex;align-items:center;justify-content:space-between;background:#eff6ff;border-radius:16px 16px 0 0;">
-      <span style="font-size:14px;font-weight:800;color:#1e40af;">🧾 Draft ใบวางบิลเงินทดลองจ่าย — ${h(invDisplay)}${nSet>1?` <span style="font-size:10px;color:#0f766e;">(รวม ${nSet} ใบ)</span>`:''}</span>
+      <span style="font-size:14px;font-weight:800;color:#1e40af;">🧾 Draft ใบวางบิลเงินทดลองจ่าย</span>
       <button onclick="document.getElementById('bswBillBg').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:#94a3b8;">✕</button></div>
+    <div style="padding:9px 18px;border-bottom:1px solid #f1f5f9;background:#fafbff;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+      <span style="font-size:11px;color:#64748b;font-weight:700;">อินวอยซ์:</span>${group.map(gk=>`<span style="display:inline-flex;align-items:center;gap:5px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;color:#3730a3;">${h(disp(gk))}${group.length>1?`<span onclick="_bswRemoveInv('${gk}')" title="เอาออก" style="cursor:pointer;color:#dc2626;font-weight:800;">✕</span>`:''}</span>`).join('')}
+      <button onclick="_bswAddInv()" style="font-size:10.5px;padding:3px 11px;border:1px dashed #0f766e;background:#ecfeff;color:#0f766e;border-radius:6px;cursor:pointer;font-weight:700;">➕ อินวอยซ์</button>
+      ${nSet>1?`<span style="font-size:10px;color:#0f766e;">รวม ${nSet} ใบ · B/L ${nSet} ชุด</span>`:''}</div>
     <div style="padding:14px 18px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid #f1f5f9;background:#f8fafc;">
       ${rateInputsHtml}
       <label style="font-size:11px;font-weight:700;color:#475569;">จำนวนตู้ (รวม)<br><input id="bswCtr" value="${N0||10}" oninput="_bswUpd()" style="${inA}width:70px;"></label>
       <label style="font-size:11px;font-weight:700;color:#475569;">ใบขน (หน่วย)<br><input id="bswDecl" value="${nSet}" oninput="_bswUpd()" style="${inA}width:70px;"></label>
       <div style="font-size:11px;font-weight:700;color:#475569;">ค่าขนส่ง <span style="font-size:9px;color:#0f766e;">(auto)</span><br><div style="${inA}background:#f0fdf4;${trCost?'color:#0f766e;font-weight:800;':'color:#dc2626;'}display:flex;align-items:center;">${trCost?trCost.toLocaleString('th-TH'):'— ไม่พบในระบบ'}</div></div>
-      <label style="font-size:11px;font-weight:700;color:#475569;">ค่าประกันภัย<br><input id="bswIns" value="" placeholder="กรอก" oninput="_bswUpd()" style="${inA}"></label>
-      <label style="font-size:11px;font-weight:700;color:#475569;">อื่นๆ (ล่วงเวลา)<br><input id="bswOther" value="" placeholder="0" oninput="_bswUpd()" style="${inA}width:85px;"></label>
+      <label style="font-size:11px;font-weight:700;color:#475569;">ค่าประกันภัย<br><input id="bswIns" value="${keep.ins?keep.ins:''}" placeholder="กรอก" oninput="_bswUpd()" style="${inA}"></label>
+      <label style="font-size:11px;font-weight:700;color:#475569;">อื่นๆ (ล่วงเวลา)<br><input id="bswOther" value="${keep.other?keep.other:''}" placeholder="0" oninput="_bswUpd()" style="${inA}width:85px;"></label>
       <label style="font-size:11px;font-weight:700;color:#0f766e;">ค่าพิธีการ <button onclick="window._bsw.pithAuto=true;_bswUpd()" title="คำนวณอัตโนมัติ" style="font-size:9px;padding:0 5px;border:1px solid #99f6e4;background:#ecfeff;border-radius:5px;cursor:pointer;">🔄 auto</button><br><input id="bswPith" oninput="window._bsw.pithAuto=false;_bswUpd()" style="${inA}border-color:#5eead4;"></label>
     </div>
     <div id="bswOut" style="padding:14px 18px;"></div>
