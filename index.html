@@ -7759,6 +7759,8 @@ function openBswBill(inv){
   const gOf=T=>{ const b=lines.find(l=>l.type===T); return b?((Number(b.grand_total)||0)+(Number(b.wht_amount)||0)):0; };   /* ยอดก่อนหัก (รวม VAT) */
   const icd=(_skhAcctCache.lifts||[]).filter(l=>normInv(l.invoice_no)===k).reduce((s,l)=>s+(Number(l.amount_total)||0),0);
   const N0=icd?Math.round(icd/1070):0;
+  const _tr=(typeof TR_DATA!=='undefined'&&TR_DATA)?TR_DATA.find(t=>normInv(t.inv)===k):null;   /* ค่าขนส่งต่อใบ (gross) จาก transport_bills */
+  const trCost=_tr?(Number(_tr.totalPaid)||0):0;
   window._bsw={inv:inv, ctr:N0||10, pithAuto:true, pithManual:0, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX')||1500, icd:icd};
   let bg=document.getElementById('bswBillBg');
   if(!bg){ bg=document.createElement('div'); bg.id='bswBillBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;'; document.body.appendChild(bg); }
@@ -7770,7 +7772,7 @@ function openBswBill(inv){
     <div style="padding:14px 18px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid #f1f5f9;background:#f8fafc;">
       <label style="font-size:11px;font-weight:700;color:#475569;">เรต/ตู้ (รวม VAT)<br><input id="bswRate" value="29000" oninput="_bswUpd()" style="${inA}"></label>
       <label style="font-size:11px;font-weight:700;color:#475569;">จำนวนตู้<br><input id="bswCtr" value="${N0||10}" oninput="_bswUpd()" style="${inA}width:70px;"></label>
-      <label style="font-size:11px;font-weight:700;color:#475569;">ค่าขนส่ง (รวม)<br><input id="bswTr" value="" placeholder="กรอก" oninput="_bswUpd()" style="${inA}"></label>
+      <label style="font-size:11px;font-weight:700;color:#475569;">ค่าขนส่ง ${trCost?'<span style="font-size:9px;color:#0f766e;">(auto)</span>':'<span style="font-size:9px;color:#b45309;">(ไม่พบ กรอก)</span>'}<br><input id="bswTr" value="${trCost||''}" placeholder="กรอก" oninput="_bswUpd()" style="${inA}"></label>
       <label style="font-size:11px;font-weight:700;color:#475569;">ค่าประกันภัย<br><input id="bswIns" value="" placeholder="กรอก" oninput="_bswUpd()" style="${inA}"></label>
       <label style="font-size:11px;font-weight:700;color:#0f766e;">ค่าพิธีการ <button onclick="window._bsw.pithAuto=true;_bswUpd()" title="คำนวณอัตโนมัติ" style="font-size:9px;padding:0 5px;border:1px solid #99f6e4;background:#ecfeff;border-radius:5px;cursor:pointer;">🔄 auto</button><br><input id="bswPith" oninput="window._bsw.pithAuto=false;_bswUpd()" style="${inA}border-color:#5eead4;"></label>
     </div>
@@ -7805,6 +7807,7 @@ function _renderBswOut(){
   const pith = s.pithAuto ? plug : (s.pithManual||0);
   if(s.pithAuto){ const pe=document.getElementById('bswPith'); if(pe) pe.value=plug.toFixed(2); }
   const Rvat=pith*0.07, R3=pith*0.03, Rgross=pith*1.07;
+  const addMove=1500*s.ctr, pithSvc=pith-addMove;   /* BSW: ADDITIONAL MOVE 1,500/ตู้ แทน THC เบียดค่าพิธีการ */
   const grand=Lgross+Rgross;             /* ยอดรวม(รวม VAT) = วางบิล (ลงตัว) */
   const whtTot=L3+L1+R3, netRecv=grand-whtTot, margin=billing-grand;
   let t='<table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr style="background:#0f2a52;color:#fff;"><th style="padding:5px 7px;text-align:left;">รายการ (คอลัมน์ซ้าย = ต้นทุนจริง)</th><th style="padding:5px;text-align:right;">ยอด</th><th style="padding:5px;text-align:right;">VAT</th><th style="padding:5px;text-align:right;">หัก3%</th><th style="padding:5px;text-align:right;">หัก1%</th></tr></thead><tbody>';
@@ -7812,15 +7815,17 @@ function _renderBswOut(){
   t+=`<tr style="background:#eff6ff;font-weight:800;border-top:2px solid #1e40af;"><td style="padding:5px 7px;">รวม · สุทธิ ${fmt(Lnet)}</td><td style="padding:5px;text-align:right;">${fmt(Lbase)}</td><td style="padding:5px;text-align:right;">${fmt(Lvat)}</td><td style="padding:5px;text-align:right;">${fmt(L3)}</td><td style="padding:5px;text-align:right;">${fmt(L1)}</td></tr></tbody></table>`;
   const box=`<div style="margin-top:12px;display:flex;gap:12px;flex-wrap:wrap;">
     <div style="flex:1;min-width:240px;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;background:#f0fdf4;">
-      <div style="font-size:12px;font-weight:800;color:#166534;margin-bottom:6px;">คอลัมน์ขวา — ค่าพิธีการ ${s.pithAuto?'<span style="font-size:9px;font-weight:400;color:#15803d;">(auto ดูดให้ลงตัว)</span>':'<span style="font-size:9px;color:#b45309;">(ปรับเอง)</span>'}</div>
-      <div style="font-size:18px;font-weight:900;color:#0f766e;">${fmt(pith)} ฿</div>
-      <div style="font-size:10.5px;color:#475569;margin-top:4px;">+VAT 7% ${fmt(Rvat)} → รวม VAT ${fmt(Rgross)} · (หัก ณ ที่จ่าย 3% = ${fmt(R3)})</div></div>
+      <div style="font-size:12px;font-weight:800;color:#166534;margin-bottom:6px;">คอลัมน์ขวา — ค่าบริการ ${s.pithAuto?'<span style="font-size:9px;font-weight:400;color:#15803d;">(auto ดูดให้ลงตัว)</span>':'<span style="font-size:9px;color:#b45309;">(ปรับเอง)</span>'}</div>
+      <div style="font-size:11.5px;display:flex;justify-content:space-between;padding:1px 0;${pithSvc<0?'color:#dc2626;':''}"><span>ค่าพิธีการ</span><b>${fmt(pithSvc)}</b></div>
+      <div style="font-size:11.5px;display:flex;justify-content:space-between;padding:1px 0;"><span>ADDITIONAL MOVE (1,500×${s.ctr})</span><b>${fmt(addMove)}</b></div>
+      <div style="font-size:15px;font-weight:900;color:#0f766e;display:flex;justify-content:space-between;border-top:1px dashed #86efac;margin-top:3px;padding-top:3px;"><span>รวม</span><span>${fmt(pith)} ฿</span></div>
+      <div style="font-size:10px;color:#475569;margin-top:3px;">+VAT 7% ${fmt(Rvat)} → รวม VAT ${fmt(Rgross)} · (หัก 3% ${fmt(R3)})</div></div>
     <div style="flex:1;min-width:240px;border:1px solid #bfdbfe;border-radius:10px;padding:10px 12px;background:#eff6ff;">
       <div style="display:flex;justify-content:space-between;font-size:12px;"><span>ยอดวางบิล (${fmt(s.rate)}×${s.ctr}+telex+ประกัน)</span><b>${fmt(billing)}</b></div>
       <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px;"><span>ยอดรวมในใบ (ซ้าย+ขวา รวม VAT)</span><b style="color:${Math.abs(margin)<0.01?'#166534':'#dc2626'};">${fmt(grand)}${Math.abs(margin)<0.01?' ✓':''}</b></div>
       <div style="display:flex;justify-content:space-between;font-size:11.5px;margin-top:4px;color:#b45309;"><span>หัก ณ ที่จ่าย รวม (3%+1%)</span><b>−${fmt(whtTot)}</b></div>
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;padding-top:5px;border-top:1px dashed #bfdbfe;font-weight:800;color:#0f766e;"><span>รับเงินจริง (หลังหัก)</span><b>${fmt(netRecv)}</b></div></div></div>
-    <div style="font-size:10px;color:#94a3b8;margin-top:8px;">💡 ซ้าย = OCEAN/Telex/LOCAL(CTIC)/LO-LO(ICD) ดึงจากบัญชีสงขลา · ขนส่ง+ประกัน กรอกมือ · ค่าพิธีการ auto = ดูดให้ยอดรวม=วางบิล (กด 🔄 auto เพื่อคืนค่า / พิมพ์ทับเพื่อปรับเอง)</div>`;
+    <div style="font-size:10px;color:#94a3b8;margin-top:8px;">💡 ซ้าย = OCEAN/Telex/LOCAL(CTIC)/LO-LO(ICD)/ขนส่ง ดึงจากระบบ · ประกัน กรอกมือ · ขวา = ค่าพิธีการ + ADDITIONAL MOVE (1,500/ตู้) · ค่าพิธีการ auto ดูดให้ยอดรวม=วางบิล (🔄 auto คืนค่า / พิมพ์ทับปรับเอง)</div>`;
   out.innerHTML=t+box;
 }
 function _bswPrint(){ const out=document.getElementById('bswOut'); if(!out)return; const s=window._bsw; const w=window.open('','_blank'); if(!w)return; w.document.write(`<!DOCTYPE html><meta charset="utf-8"><title>ใบวางบิล ${h(s.inv)}</title><style>table{width:100%;border-collapse:collapse;font-size:12px;}th,td{border:1px solid #cbd5e1;padding:5px 7px;}@page{margin:14mm;}</style><body style="font-family:Tahoma,sans-serif;color:#0f172a;"><h3 style="text-align:center;margin:0 0 10px;">Draft บิลเงินทดลองจ่าย — ${h(s.inv)}</h3>${out.innerHTML}</body>`); w.document.close(); w.focus(); setTimeout(()=>w.print(),300); }
