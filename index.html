@@ -7666,7 +7666,7 @@ async function renderSkhAccount(){
       return `<div id="${cid(inv.invoice_no)}" style="border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;overflow:hidden;transition:box-shadow .2s;">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #eef2f7;">
           <span style="font-weight:800;font-size:13px;color:#0f2a52;">📄 ${h(inv.invoice_no)}</span>
-          <span style="display:flex;gap:6px;align-items:center;">${/^BSW/i.test(inv.invoice_no)?`<button onclick="openBswBill('${_q(inv.invoice_no)}')" title="ออก Draft ใบวางบิลเงินทดลองจ่าย" style="font-size:10px;padding:2px 9px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:6px;cursor:pointer;font-weight:700;">🧾 ใบวางบิล</button>`:''}<span style="font-weight:700;padding:2px 10px;border-radius:8px;font-size:11px;background:${st.bg};color:${st.c};">${st.t}</span></span></div>
+          <span style="display:flex;gap:6px;align-items:center;">${/^(BSW|INV)/i.test(inv.invoice_no)?`<button onclick="openBswBill('${_q(inv.invoice_no)}')" title="ออก Draft ใบวางบิลเงินทดลองจ่าย" style="font-size:10px;padding:2px 9px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:6px;cursor:pointer;font-weight:700;">🧾 ใบวางบิล</button>`:''}<span style="font-weight:700;padding:2px 10px;border-radius:8px;font-size:11px;background:${st.bg};color:${st.c};">${st.t}</span></span></div>
         <table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#eef2f7;color:#64748b;font-size:9.5px;"><th style="padding:3px 10px;text-align:left;">ประเภท</th><th style="padding:3px 10px;text-align:right;">ยอดก่อนหัก</th><th style="padding:3px 10px;text-align:right;">หัก</th><th style="padding:3px 10px;text-align:right;">สุทธิ</th><th style="padding:3px 10px;text-align:right;">สลิป</th><th style="padding:3px 10px;text-align:center;">สถานะ</th><th style="padding:3px 10px;text-align:center;">หัก ณ ที่จ่าย</th></tr></thead><tbody>${rows}${icdRow}</tbody></table>
       </div>`;
     }).join('');
@@ -7761,7 +7761,9 @@ function openBswBill(inv){
   const N0=icd?Math.round(icd/1070):0;
   const _tr=(typeof TR_DATA!=='undefined'&&TR_DATA)?TR_DATA.find(t=>normInv(t.inv)===k):null;   /* ค่าขนส่งต่อใบ (gross) จาก transport_bills */
   const trCost=_tr?(Number(_tr.totalPaid)||0):0;
-  window._bsw={inv:inv, ctr:N0||10, pithAuto:true, pithManual:0, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX')||1500, icd:icd};
+  const _C2={BSW:{label:'ADDITIONAL MOVE',rate:1500,dr:29000}, INV:{label:'THC',rate:4500,dr:31000}};   /* คอลัมน์ขวาต่อโรงงาน: BSW=ADD MOVE 1,500 · INV=THC 4,500 */
+  const c2=_C2[String(inv).slice(0,3).toUpperCase()]||{label:'ADDITIONAL MOVE',rate:1500,dr:29000};
+  window._bsw={inv:inv, ctr:N0||10, pithAuto:true, pithManual:0, col2Label:c2.label, col2Rate:c2.rate, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX')||1500, icd:icd};
   let bg=document.getElementById('bswBillBg');
   if(!bg){ bg=document.createElement('div'); bg.id='bswBillBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;'; document.body.appendChild(bg); }
   const inA='font-size:13px;padding:6px 9px;border:1.5px solid #cbd5e1;border-radius:7px;font-family:inherit;width:110px;box-sizing:border-box;';
@@ -7770,10 +7772,11 @@ function openBswBill(inv){
       <span style="font-size:14px;font-weight:800;color:#1e40af;">🧾 Draft ใบวางบิลเงินทดลองจ่าย — ${h(inv)}</span>
       <button onclick="document.getElementById('bswBillBg').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:#94a3b8;">✕</button></div>
     <div style="padding:14px 18px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid #f1f5f9;background:#f8fafc;">
-      <label style="font-size:11px;font-weight:700;color:#475569;">เรต/ตู้ (รวม VAT)<br><input id="bswRate" value="29000" oninput="_bswUpd()" style="${inA}"></label>
+      <label style="font-size:11px;font-weight:700;color:#475569;">เรต/ตู้ (รวม VAT)<br><input id="bswRate" value="${c2.dr}" oninput="_bswUpd()" style="${inA}"></label>
       <label style="font-size:11px;font-weight:700;color:#475569;">จำนวนตู้<br><input id="bswCtr" value="${N0||10}" oninput="_bswUpd()" style="${inA}width:70px;"></label>
       <label style="font-size:11px;font-weight:700;color:#475569;">ค่าขนส่ง ${trCost?'<span style="font-size:9px;color:#0f766e;">(auto)</span>':'<span style="font-size:9px;color:#b45309;">(ไม่พบ กรอก)</span>'}<br><input id="bswTr" value="${trCost||''}" placeholder="กรอก" oninput="_bswUpd()" style="${inA}"></label>
       <label style="font-size:11px;font-weight:700;color:#475569;">ค่าประกันภัย<br><input id="bswIns" value="" placeholder="กรอก" oninput="_bswUpd()" style="${inA}"></label>
+      <label style="font-size:11px;font-weight:700;color:#475569;">อื่นๆ (ล่วงเวลา)<br><input id="bswOther" value="" placeholder="0" oninput="_bswUpd()" style="${inA}width:85px;"></label>
       <label style="font-size:11px;font-weight:700;color:#0f766e;">ค่าพิธีการ <button onclick="window._bsw.pithAuto=true;_bswUpd()" title="คำนวณอัตโนมัติ" style="font-size:9px;padding:0 5px;border:1px solid #99f6e4;background:#ecfeff;border-radius:5px;cursor:pointer;">🔄 auto</button><br><input id="bswPith" oninput="window._bsw.pithAuto=false;_bswUpd()" style="${inA}border-color:#5eead4;"></label>
     </div>
     <div id="bswOut" style="padding:14px 18px;"></div>
@@ -7783,7 +7786,7 @@ function openBswBill(inv){
 function _bswUpd(){
   const s=window._bsw; if(!s)return;
   const gv=id=>{const e=document.getElementById(id);return e?(parseFloat(String(e.value||'').replace(/,/g,''))||0):0;};
-  s.rate=gv('bswRate'); s.ctr=parseInt(document.getElementById('bswCtr').value)||0; s.transport=gv('bswTr'); s.insurance=gv('bswIns');
+  s.rate=gv('bswRate'); s.ctr=parseInt(document.getElementById('bswCtr').value)||0; s.transport=gv('bswTr'); s.insurance=gv('bswIns'); s.other=gv('bswOther');
   if(!s.pithAuto) s.pithManual=gv('bswPith');
   _renderBswOut();
 }
@@ -7800,6 +7803,7 @@ function _renderBswOut(){
   nov('ค่าใช้จ่ายศุลกากร', 200, 0);
   nov('ค่าประกันภัย', s.insurance, 1);
   nov('ค่าขนส่ง', s.transport, 1);
+  nov('อื่นๆ (ค่าล่วงเวลา)', s.other||0, 0);
   const sm=f=>rows.reduce((a,x)=>a+(x[f]||0),0);
   const Lbase=sm('base'),Lvat=sm('vat'),L3=sm('w3'),L1=sm('w1'); const Lgross=Lbase+Lvat, Lnet=Lgross-L3-L1;
   const billing=s.rate*s.ctr + telex + s.insurance;
@@ -7807,7 +7811,8 @@ function _renderBswOut(){
   const pith = s.pithAuto ? plug : (s.pithManual||0);
   if(s.pithAuto){ const pe=document.getElementById('bswPith'); if(pe) pe.value=plug.toFixed(2); }
   const Rvat=pith*0.07, R3=pith*0.03, Rgross=pith*1.07;
-  const addMove=1500*s.ctr, pithSvc=pith-addMove;   /* BSW: ADDITIONAL MOVE 1,500/ตู้ แทน THC เบียดค่าพิธีการ */
+  const moveRate=s.col2Rate||1500, moveLabel=s.col2Label||'ADDITIONAL MOVE';   /* BSW=ADD MOVE 1,500 · INV=THC 4,500 */
+  const addMove=moveRate*s.ctr, pithSvc=pith-addMove;
   const grand=Lgross+Rgross;             /* ยอดรวม(รวม VAT) = วางบิล (ลงตัว) */
   const whtTot=L3+L1+R3, netRecv=grand-whtTot, margin=billing-grand;
   const _FACCO={BSW:'BANSONG PARAWOOD CO.,LTD.',INV:'THE ONE PARAWOOD CO.,LTD.',KNT:'KANOKTHONG INTERTRADE CO.,LTD',NMP:'NAMUANGPHET PARAWOOD CO.,LTD',OGM:'ONE GOLD MARKETING CO.,LTD'};
@@ -7836,7 +7841,7 @@ function _renderBswOut(){
      <tbody style="border-bottom:1.5px solid #000;">
       <tr><td style="${td}">ค่าพิธีการ</td><td></td><td></td><td style="${tr}">${fmt(pithSvc)}</td></tr>
       <tr><td style="${td}">LOCAL CHARGE (SONGKHLA PORT)</td><td></td><td style="${tr}">${fmt(cLOCAL)}</td><td></td></tr>
-      <tr><td style="${td}">ADDITIONAL MOVE</td><td style="${td}">1,500 X ${N}</td><td></td><td style="${tr}">${fmt(addMove)}</td></tr>
+      <tr><td style="${td}">${h(moveLabel)}</td><td style="${td}">${fmt(moveRate)} X ${N}</td><td></td><td style="${tr}">${fmt(addMove)}</td></tr>
       <tr><td style="${td}">LO/LO (Inter Container Depot)</td><td style="${td}">X ${N} ตู้</td><td style="${tr}">${fmt(cLOLO)}</td><td></td></tr>
       <tr><td style="height:7px;"></td><td></td><td></td><td></td></tr></tbody>
      <tbody>
@@ -7848,7 +7853,7 @@ function _renderBswOut(){
       <tr><td style="${td}">ค่าส่งเอกสารไปต่างประเทศโดย DHL NO.</td><td colspan="3"></td></tr>
       <tr><td style="${td}">ค่าประกันภัย</td><td style="${td}">X 1</td><td style="${tr}">${fmt(cINS)}</td><td></td></tr>
       <tr><td style="${td}">ค่าขนส่ง</td><td></td><td style="${tr}">${fmt(cTRANS)}</td><td></td></tr>
-      <tr><td style="${td}">อื่นๆ ค่าทำการล่วงเวลา (กรมศุลกากร)</td><td></td><td style="${tr}">${dash}</td><td></td></tr>
+      <tr><td style="${td}">อื่นๆ ค่าทำการล่วงเวลา (กรมศุลกากร)</td><td></td><td style="${tr}">${s.other?fmt(s.other):dash}</td><td></td></tr>
      </tbody></table>
     <table style="width:56%;margin-left:44%;border-collapse:collapse;border-top:2px solid #000;">
       <tr><td style="${td}${bd}font-weight:700;">รวม</td><td style="${tr}${bd}">${fmt(Lbase)}</td><td style="${tr}${bd}">${fmt(pith)}</td></tr>
