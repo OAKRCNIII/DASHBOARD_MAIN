@@ -7815,7 +7815,7 @@ function _bswRender(startInv, group, keep){
   trDetailsAll.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const p=Number(m.price)||0; if(p>0)_rm.set(p,(_rm.get(p)||0)+1); } });
   const trRates=[..._rm.entries()].sort((a,b)=>b[0]-a[0]).map(([rate,qty])=>({rate,qty}));
   const N0=trDetailsAll.length||(icd?Math.round(icd/1070):0);   /* จำนวนตู้รวมกลุ่ม */
-  const _C2={BSW:{label:'ADDITIONAL MOVE',rate:1500,dr:29000,vat:'incl'}, INV:{label:'THC',rate:4500,dr:31000,vat:'incl'}, KNT:{label:'THC',rate:4500,dr:0,vat:'excl'}, NMP:{label:'THC',rate:4500,dr:0,vat:'excl'}, OGM:{label:'THC',rate:4500,dr:0,vat:'excl'}};   /* incl=รวม VAT (BSW/INV) · excl=แยก VAT (KNT/NMP/OGM) */
+  const _C2={BSW:{label:'ADDITIONAL MOVE',rate:1500,dr:29000,vat:'incl'}, INV:{label:'THC',rate:4500,dr:31000,vat:'incl'}, KNT:{label:'THC',rate:4500,dr:0,vat:'excl'}, NMP:{label:'THC',rate:4500,dr:0,vat:'excl'}, OGM:{label:'THC',rate:4500,dr:0,vat:'excl'}, WKP:{label:'THC',rate:4500,dr:0,vat:'excl',telexSep:true}};   /* incl=รวม VAT (BSW/INV) · excl=แยก VAT (KNT/NMP/OGM) · WKP=excl แต่ telex บวกแยก (RCN 14 พ.ย.69) */
   const c2=_C2[String(inv).slice(0,3).toUpperCase()]||{label:'THC',rate:4500,dr:0,vat:'excl'};
   /* แยก VAT: จำนวนตู้ต่อโรงงานย่อย auto จาก transport.factory · เรตขาย กรอกมือ (default keyword) */
   const SELL_RATE=[['นาวา',31200],['นาเมือง',30600],['กนก',27800],['นาเดิม',30500],['นาสาร',29000]];   /* default เรตขาย (จาก OGM (A).xlsx) — ราคาจริงดิ้นรายใบ กรอกทับได้ · WKP นาเดิม/นาสาร 14 พ.ย.69 */
@@ -7828,7 +7828,7 @@ function _bswRender(startInv, group, keep){
   if(c2.vat==='excl'&&trDetailsAll.length){ const fm=new Map(); trDetailsAll.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const f=m.factory||'ไม่ระบุ'; fm.set(f,(fm.get(f)||0)+1); } }); subFac=[...fm.entries()].map(([factory,count])=>({factory,count,rate:(keep.rates&&keep.rates[factory]!=null)?keep.rates[factory]:_dsr(factory)}));
     const _ord=f=>{ for(let i=0;i<SELL_RATE.length;i++){ if(String(f||'').includes(SELL_RATE[i][0]))return i; } return 99; };   /* เรียง นาวา→นาเมือง→กนก ตาม SELL_RATE */
     subFac.sort((a,b)=>_ord(a.factory)-_ord(b.factory)); }
-  window._bsw={inv:inv, group:group, invDisplay:invDisplay, nSet:nSet, ctr:N0||10, insByInv:(keep.insByInv||{}), insurance:group.reduce((a,gk)=>a+(Number((keep.insByInv||{})[gk])||0),0), pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, subFac:subFac, transport:trCost, trRates:trRates, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd};
+  window._bsw={inv:inv, group:group, invDisplay:invDisplay, nSet:nSet, ctr:N0||10, insByInv:(keep.insByInv||{}), insurance:group.reduce((a,gk)=>a+(Number((keep.insByInv||{})[gk])||0),0), pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, telexSep:(c2.telexSep||false), subFac:subFac, transport:trCost, trRates:trRates, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd};
   const addCands=_bswInvCands(group, inv);   /* อินวอยซ์ที่เลือกเพิ่มได้ใน dropdown */
   let bg=document.getElementById('bswBillBg');
   if(!bg){ bg=document.createElement('div'); bg.id='bswBillBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;'; document.body.appendChild(bg); }
@@ -7887,7 +7887,7 @@ function _renderBswOut(){
   const Lbase=sm('base'),Lvat=sm('vat'),L3=sm('w3'),L1=sm('w1'); const Lgross=Lbase+Lvat, Lnet=Lgross-L3-L1;
   let billing, plug;
   if(s.vatMode==='excl'){
-    billing = (s.subFac||[]).reduce((a,f)=>a+(Number(f.rate)||0)*(Number(f.count)||0),0);   /* Σ(เรต×ตู้) แยก VAT */
+    billing = (s.subFac||[]).reduce((a,f)=>a+(Number(f.rate)||0)*(Number(f.count)||0),0) + (s.telexSep?telex:0);   /* Σ(เรต×ตู้) แยก VAT · WKP บวก telex แยก (OGM/KNT ไม่บวก) */
     plug = billing + s.insurance - Lbase;   /* X = วางบิล + ประกัน − Σbase (ไม่มี ×7%) */
   } else {
     billing = s.rate*s.ctr + telex + s.insurance;   /* รวม VAT: วางบิล = Σbase + ΣVAT + X + X×7% */
