@@ -7608,8 +7608,6 @@ async function renderSkhAccount(){
       let lifts=[]; try{ lifts=await sbFetch('skh_lift_fees','select=invoice_no,truck_plate,amount_total'); }catch(e){}   /* +truck_plate เพื่อหักตู้รถโรงงาน SHL */
       let notes=[]; try{ notes=await sbFetch('skh_bill_notes','select=invoice_no,expense_type,note,settled'); }catch(e){}   /* หมายเหตุต่อรายการ (settled=ปิดแล้ว ไม่นับค้าง) · ตารางยังไม่สร้าง=ว่าง */
       try{ await loadExpenses(); }catch(e){}   /* EXP_BY_INV = สลิปโอน (skh_expense_payments) ไว้ปุ่มดูสลิป */
-      let sell=[]; try{ sell=await sbFetch('songkhla_sell_price','select=invoice_no,rates'); }catch(e){}   /* ราคาขาย default รายอินวอยซ์ (จาก OGM (A).xlsx) */
-      window.SKH_SELL={}; (sell||[]).forEach(r=>{ if(r.invoice_no&&r.rates) window.SKH_SELL[normInv(r.invoice_no)]=r.rates; });
       _skhAcctCache={invs:invs||[],bills:bills||[],lifts:lifts||[],notes:notes||[]};
     }
     const {invs,bills,lifts,notes}=_skhAcctCache;
@@ -7822,9 +7820,10 @@ function _bswRender(startInv, group, keep){
   /* แยก VAT: จำนวนตู้ต่อโรงงานย่อย auto จาก transport.factory · เรตขาย กรอกมือ (default keyword) */
   const SELL_RATE=[['นาวา',31200],['นาเมือง',30600],['กนก',27800],['นาเดิม',30500],['นาสาร',29000]];   /* default เรตขาย (จาก OGM (A).xlsx) — ราคาจริงดิ้นรายใบ กรอกทับได้ · WKP นาเดิม/นาสาร 14 พ.ย.69 */
   const _sr=f=>{ for(const[kw,r]of SELL_RATE){ if(String(f||'').includes(kw))return r; } return 0; };
-  const _xlRates=(()=>{ const m={}; (group||[]).forEach(nk=>{ const o=(window.SKH_SELL||{})[nk]; if(o)Object.assign(m,o); }); return m; })();   /* ราคาขายจาก OGM (A).xlsx รวมทุกใบในกลุ่ม */
-  const _xlSell=f=>{ const s=String(f||''); for(const k in _xlRates){ if(k==='_')continue; if(s.includes(k)||k.includes(s))return _xlRates[k]; } return 0; };   /* จับโรงงานย่อย↔คีย์ Excel (substring 2 ทาง) */
-  const _dsr=f=>(_xlSell(f)||_sr(f));   /* default เรต: Excel ก่อน → SELL_RATE hardcode */
+  const _peList=(group||[]).map(nk=>findPriceEntry(nk)).filter(Boolean);   /* ราคาขายจาก ogm_prices (findPriceEntry) ของทุกใบในกลุ่ม */
+  const _xlSell=f=>{ const s=String(f||''); for(const pe of _peList){ if(pe.type==='factory'){ for(const k in pe){ if(k==='type'||k==='sheetPrefix')continue; if(s.includes(k)||k.includes(s))return pe[k]; } } } return 0; };   /* จับโรงงานย่อย↔คีย์ (substring 2 ทาง) */
+  const _inclSell=(()=>{ for(const pe of _peList){ if(pe.type==='simple'&&pe.price>0)return pe.price; if(pe.type==='tiered'&&pe.tiers&&pe.tiers[0])return pe.tiers[0].price; } return 0; })();   /* ราคาเดียว/ชั้นแรก (incl) */
+  const _dsr=f=>(_xlSell(f)||_sr(f));   /* default เรต: ogm_prices ก่อน → SELL_RATE hardcode (WKP ยังไม่อยู่ใน ogm_prices) */
   let subFac=[];
   if(c2.vat==='excl'&&trDetailsAll.length){ const fm=new Map(); trDetailsAll.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const f=m.factory||'ไม่ระบุ'; fm.set(f,(fm.get(f)||0)+1); } }); subFac=[...fm.entries()].map(([factory,count])=>({factory,count,rate:(keep.rates&&keep.rates[factory]!=null)?keep.rates[factory]:_dsr(factory)}));
     const _ord=f=>{ for(let i=0;i<SELL_RATE.length;i++){ if(String(f||'').includes(SELL_RATE[i][0]))return i; } return 99; };   /* เรียง นาวา→นาเมือง→กนก ตาม SELL_RATE */
@@ -7836,7 +7835,7 @@ function _bswRender(startInv, group, keep){
   const inA='font-size:13px;padding:6px 9px;border:1.5px solid #cbd5e1;border-radius:7px;font-family:inherit;width:110px;box-sizing:border-box;';
   const rateInputsHtml = c2.vat==='excl'
     ? `<div style="font-size:11px;font-weight:700;color:#475569;width:100%;">เรตขายต่อโรงงานย่อย <span style="font-size:9px;color:#b45309;">(แยก VAT · ตู้ auto)</span><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">${subFac.length?subFac.map((f,i)=>`<label style="font-size:10.5px;color:#334155;">${h(f.factory)} ×${f.count}<br><input id="bswSR${i}" value="${f.rate||''}" placeholder="เรต" oninput="_bswUpd()" style="${inA}width:96px;"></label>`).join(''):'<span style="color:#dc2626;font-size:10px;">⚠️ ไม่พบตู้ขนส่งในระบบ</span>'}</div></div>`
-    : `<label style="font-size:11px;font-weight:700;color:#475569;">เรต/ตู้ (รวม VAT)<br><input id="bswRate" value="${(keep.rate!=null&&keep.rate>0)?keep.rate:(_xlRates._||c2.dr)}" oninput="_bswUpd()" style="${inA}"></label>`;
+    : `<label style="font-size:11px;font-weight:700;color:#475569;">เรต/ตู้ (รวม VAT)<br><input id="bswRate" value="${(keep.rate!=null&&keep.rate>0)?keep.rate:(_inclSell||c2.dr)}" oninput="_bswUpd()" style="${inA}"></label>`;
   bg.innerHTML=`<div style="background:#fff;border-radius:16px;max-width:780px;width:100%;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
     <div style="padding:13px 18px;border-bottom:1px solid #e8edf5;display:flex;align-items:center;justify-content:space-between;background:#eff6ff;border-radius:16px 16px 0 0;">
       <span style="font-size:14px;font-weight:800;color:#1e40af;">🧾 Draft ใบวางบิลเงินทดลองจ่าย</span>
