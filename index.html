@@ -7818,7 +7818,7 @@ function _bswRender(startInv, group, keep){
   const _C2={BSW:{label:'ADDITIONAL MOVE',rate:1500,dr:29000,vat:'incl'}, INV:{label:'THC',rate:4500,dr:31000,vat:'incl'}, KNT:{label:'THC',rate:4500,dr:0,vat:'excl'}, NMP:{label:'THC',rate:4500,dr:0,vat:'excl'}, OGM:{label:'THC',rate:4500,dr:0,vat:'excl'}};   /* incl=รวม VAT (BSW/INV) · excl=แยก VAT (KNT/NMP/OGM) */
   const c2=_C2[String(inv).slice(0,3).toUpperCase()]||{label:'THC',rate:4500,dr:0,vat:'excl'};
   /* แยก VAT: จำนวนตู้ต่อโรงงานย่อย auto จาก transport.factory · เรตขาย กรอกมือ (default keyword) */
-  const SELL_RATE=[['นาวา',31200],['นาเมือง',30600],['กนก',27800]];
+  const SELL_RATE=[['นาวา',31200],['นาเมือง',30600],['กนก',27800],['นาเดิม',30500],['นาสาร',29000]];   /* default เรตขาย (จาก OGM (A).xlsx) — ราคาจริงดิ้นรายใบ กรอกทับได้ · WKP นาเดิม/นาสาร 14 พ.ย.69 */
   const _sr=f=>{ for(const[kw,r]of SELL_RATE){ if(String(f||'').includes(kw))return r; } return 0; };
   let subFac=[];
   if(c2.vat==='excl'&&trDetailsAll.length){ const fm=new Map(); trDetailsAll.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const f=m.factory||'ไม่ระบุ'; fm.set(f,(fm.get(f)||0)+1); } }); subFac=[...fm.entries()].map(([factory,count])=>({factory,count,rate:(keep.rates&&keep.rates[factory]!=null)?keep.rates[factory]:_sr(factory)}));
