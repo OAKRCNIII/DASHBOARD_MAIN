@@ -4134,7 +4134,7 @@ function printSkhLiftReport(){
   const fmt=n=>Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
   const dtxt=d=>{ const p=String(_icdDayKey(d)).split('-'); if(p.length<3)return h(d||''); const y=+p[0],mo=+p[1],da=+p[2]; const wd=new Date(Date.UTC(y,mo-1,da)).getUTCDay(); return WD[wd]+' '+da+' '+_ICD_MON[mo-1]; };
   let rows='', grand=0;
-  _skhLiftFees.forEach((f,i)=>{ const amt=Number(f.amount_total)||0; grand+=amt;
+  _skhLiftFees.forEach((f,i)=>{ const amt=Number(f.amount_base)||Math.round(((Number(f.amount_total)||1070)/1.07)); grand+=amt;   /* ค่าบริการก่อน VAT (1,000 · PTN 500) ไม่ใช่ amount_total (รวม VAT 1,070) — RCN 14 พ.ย.69 */
     rows+=`<tr><td class="c">${i+1}</td><td class="c">${h(f.truck_plate||'')}</td><td class="c b">${h(f.container_no||'')}</td><td class="c">ICD-OUT ${h(f.receipt_no||'')}</td><td class="c">${dtxt(f.receipt_date)}</td><td class="r b">${fmt(amt)}</td></tr>`; });
   const _payer=_whtPickFac(inv), _payee=ICD_WHT;   /* ผู้หัก = โรงงาน (toggle ANTS ได้) · ผู้ถูกหัก = ICD */
   const _spaceTax=t=>String(t||'').split('').join('&nbsp;');
@@ -4169,7 +4169,7 @@ function printSkhLiftReport(){
     <div class="inv">${h(inv)}</div>
     <div class="whtblk">${_whtBox('ผู้มีหน้าที่หักภาษี ณ ที่จ่าย',_payer)}${_whtBox('ผู้ถูกหักภาษี ณ ที่จ่าย',_payee)}</div>
     <table>
-      <thead><tr><th style="width:8%">ลำดับ</th><th style="width:15%">ทะเบียนรถ</th><th style="width:22%">เบอร์ตู้</th><th style="width:22%">ใบเสร็จเลขที่</th><th style="width:19%">วันที่ใบเสร็จ</th><th style="width:14%">ค่าบริการ</th></tr></thead>
+      <thead><tr><th style="width:8%">ลำดับ</th><th style="width:15%">ทะเบียนรถ</th><th style="width:22%">เบอร์ตู้</th><th style="width:22%">ใบเสร็จเลขที่</th><th style="width:19%">วันที่ใบเสร็จ</th><th style="width:14%">ค่าบริการ (ก่อน VAT)</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr><td colspan="5" class="r">รวมทั้งสิ้น</td><td class="r">${fmt(grand)}</td></tr></tfoot>
     </table>
