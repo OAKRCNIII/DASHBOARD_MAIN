@@ -8267,11 +8267,14 @@ async function printCticNotice(vessel, date){
   if(!rows.length){ alert('เรือนี้ไม่มีอินวอยซ์ท่าสงขลา (CTIC)'); return; }
   let ctrs=[]; try{ ctrs=await sbFetch('skh_containers','select=invoice_no,container_no'); }catch(e){ alert('โหลดเบอร์ตู้ไม่ได้: '+(e.message||e)); return; }
   const byInv=new Map(); (ctrs||[]).forEach(c=>{ if(!c.container_no)return; const k=normInv(c.invoice_no); if(!byInv.has(k))byInv.set(k,[]); byInv.get(k).push(String(c.container_no).trim()); });
+  let lifts=[]; try{ lifts=await sbFetch('skh_lift_fees','select=invoice_no,received_is_ants,container_no'); }catch(e){}   /* ชื่อออกบิล ANTS/โรงงาน = ตามธง received_is_ants ในใบเสร็จ ICD (เหมือนใบหัก ณ ที่จ่าย _whtComputeReceiver) */
+  const _liftByInv=new Map(); (lifts||[]).forEach(f=>{ const k=normInv(f.invoice_no); if(!_liftByInv.has(k))_liftByInv.set(k,[]); _liftByInv.get(k).push(f); });
+  const _cticAsAnts=inv=>{ const named=(_liftByInv.get(normInv(inv))||[]).filter(f=>f.received_is_ants!=null && !/^ค่าแก้ใบเสร็จ/.test(f.container_no||'')); if(!named.length) return WHT_ANTS_INV.has(normInv(inv)); return named.filter(f=>f.received_is_ants===true).length*2>=named.length; };   /* เสียงข้างมาก เสมอ→ANTS · ไม่มีธง→fallback WHT_ANTS_INV */
   const _sp=t=>String(t||'').split('').join('&nbsp;'), today=_cticThaiDate();
   const pages=rows.map(r=>{
     const inv=r.inv;
     const cs=[...new Set(byInv.get(normInv(inv))||[])].sort();
-    const fac=WHT_ANTS_INV.has(normInv(inv))?ANTS_WHT:_whtFac(inv);   /* ชื่อออกบิล: ANTS (ตาม set) หรือโรงงานตาม prefix — เหมือนใบหัก ณ ที่จ่าย */
+    const fac=_cticAsAnts(inv)?ANTS_WHT:_whtFac(inv);   /* ชื่อออกบิล: ANTS/โรงงาน ตามธง ICD received_is_ants (เหมือนใบหัก ณ ที่จ่าย) */
     const n=cs.length, target=Math.max(n, parseInt(r.vol)||0)||n; let trs='';   /* คอลัมน์เดียว ลิสยาว · เติมช่องว่างให้ครบตามจำนวนตู้ที่วางแผน (r.vol) */
     for(let i=0;i<target;i++){ trs+='<tr><td class="c" style="width:16%">'+(i+1)+'</td><td class="c b">'+(cs[i]?h(cs[i]):'')+'</td></tr>'; }
     return `<div class="page"><div class="titlebox"><div class="t1">แจ้งข้อมูลเพื่อออกใบวางบิล / ใบเสร็จรับเงิน</div></div>
