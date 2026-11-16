@@ -1784,7 +1784,7 @@ async function toggleLockTop(inv,on,el){
 /* ── ลบอินวอยซ์ออกจากระบบ (เฉพาะ OAK_THIRA + PIN ทุกครั้ง) — ลบ orphan ที่เอาออกจาก Excel แล้ว · SYNC จะเอากลับถ้ายังมีใน Excel (RCN 16 พ.ย.69) ── */
 function deleteInvoiceRow(inv){
   if(LOGGED_USER!=='OAK_THIRA'){ alert('เฉพาะ OAK_THIRA เท่านั้นที่ลบได้'); return; }
-  requirePin(()=>_doDeleteInvoiceRow(inv), `ยืนยันลบอินวอยซ์ ${inv} ออกจากระบบ\n(ถ้ายังมีใน Excel จะกลับมาตอน SYNC)`, PLA_PIN);
+  requirePin(()=>_doDeleteInvoiceRow(inv), `ยืนยันลบอินวอยซ์ ${inv} ออกจากระบบ\n(ถ้ายังมีใน Excel จะกลับมาตอน SYNC)`);   /* ใช้รหัสหลัก 625465 อย่างเดียว ไม่รับ PLA 123456 (OAK-only destructive) */
 }
 async function _doDeleteInvoiceRow(inv){
   const hdr={'apikey':SB_KEY,'Authorization':`Bearer ${SB_TOKEN}`,'Content-Type':'application/json'};
