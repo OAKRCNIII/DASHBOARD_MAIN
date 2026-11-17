@@ -8331,25 +8331,28 @@ async function cticDetailReport(vessel, date){
   (VESSEL_DRAFT||[]).forEach(r=>{ if(pf(r)&&!rows.some(x=>normInv(x.inv)===normInv(r.inv))) rows.push(r); });
   if(!rows.length){ alert('เรือนี้ไม่มีอินวอยซ์ท่าสงขลา (CTIC)'); return; }
   const invSet=new Set(rows.map(r=>normInv(r.inv)));
-  let bills=[]; try{ bills=await sbFetch('skh_expense_bills','select=invoice_no,grand_total,lines&type=eq.CTIC'); }catch(e){ alert('โหลดข้อมูล CTIC ไม่ได้: '+(e.message||e)); return; }
+  let bills=[]; try{ bills=await sbFetch('skh_expense_bills','select=invoice_no,grand_total,wht_amount,pdf_msg,lines&type=eq.CTIC'); }catch(e){ alert('โหลดข้อมูล CTIC ไม่ได้: '+(e.message||e)); return; }
   /* รวม lines ทุกใบที่จับคู่อินวอยซ์ของเรือลำนี้ (บางอินวอยซ์มีหลาย debit note) */
-  const byInv=new Map(); rows.forEach(r=>byInv.set(normInv(r.inv),{lines:[],gt:0,hasBill:false}));
-  (bills||[]).forEach(b=>{ const k=normInv(b.invoice_no); if(!invSet.has(k))return; const e=byInv.get(k); e.hasBill=true; e.gt+=Number(b.grand_total)||0; if(Array.isArray(b.lines)) b.lines.forEach(l=>e.lines.push(l)); });
+  const byInv=new Map(); rows.forEach(r=>byInv.set(normInv(r.inv),{lines:[],gt:0,wht:0,hasBill:false,hasPdf:false}));
+  (bills||[]).forEach(b=>{ const k=normInv(b.invoice_no); if(!invSet.has(k))return; const e=byInv.get(k); e.hasBill=true; if(b.pdf_msg)e.hasPdf=true; e.gt+=Number(b.grand_total)||0; e.wht+=Number(b.wht_amount)||0; if(Array.isArray(b.lines)) b.lines.forEach(l=>e.lines.push(l)); });
   /* คำนวณ matrix: อินวอยซ์ × หมวด (ใช้ charge = ยอดก่อน VAT) */
   const _n=v=>Number(String(v==null?0:v).replace(/,/g,''))||0;
   const catTot={}; _CTIC_CATS.forEach(c=>catTot[c[0]]=0);
-  let totCtr=0, grandGT=0, anyNoLines=false;
+  let totCtr=0, grandGT=0, vatRecon=0, whtRecon=0, gtRecon=0, anyWaitSync=false, anyManual=false;
   const recs=rows.map((r,i)=>{
-    const k=normInv(r.inv), e=byInv.get(k)||{lines:[],gt:0,hasBill:false};
+    const k=normInv(r.inv), e=byInv.get(k)||{lines:[],gt:0,wht:0,hasBill:false,hasPdf:false};
     const vol=parseInt(r.vol)||0; totCtr+=vol; grandGT+=e.gt;
     const cat={}; _CTIC_CATS.forEach(c=>cat[c[0]]=0);
-    e.lines.forEach(l=>{ cat[_cticCat(l.code)]+=_n(l.charge); });
+    e.lines.forEach(l=>{ cat[_cticCat(l.code)]+=_n(l.charge); vatRecon+=_n(l.vat); });
     _CTIC_CATS.forEach(c=>catTot[c[0]]+=cat[c[0]]);
     const net=Object.values(cat).reduce((s,v)=>s+v,0);
-    const noLines=e.hasBill && !e.lines.length;   /* มีใบแต่ยังไม่ได้แกะ lines (ยังไม่ sync รอบใหม่) */
+    const hasLines=e.lines.length>0;
+    if(hasLines){ whtRecon+=e.wht; gtRecon+=e.gt; }   /* กระทบยอดเฉพาะใบที่แกะ lines แล้ว */
     const noBill=!e.hasBill;
-    if(e.hasBill && !e.lines.length) anyNoLines=true;
-    return {i:i+1, inv:r.inv, vol, cat, net, gt:e.gt, noLines, noBill};
+    const manual=e.hasBill && !hasLines && !e.hasPdf;   /* กรอกมือ/ส่งผ่าน LINE — ไม่มี PDF ให้ SYNC แกะ */
+    const waitSync=e.hasBill && !hasLines && e.hasPdf;  /* มี PDF แต่ยังไม่แกะ — SYNC เติมได้ */
+    if(waitSync) anyWaitSync=true; if(manual) anyManual=true;
+    return {i:i+1, inv:r.inv, vol, cat, net, gt:e.gt, waitSync, manual, noBill};
   });
   /* คอลัมน์ที่โชว์: core 5 เสมอ + CUSTOMS/OTHER เฉพาะมีข้อมูล */
   const showCats=_CTIC_CATS.filter(c=>['ADMISSION','WEIGHING','STORAGE','LIFT','SURCHARGE'].includes(c[0]) || catTot[c[0]]>0.0001);
@@ -8362,7 +8365,8 @@ async function cticDetailReport(vessel, date){
   th+=`<th style="min-width:96px;background:#f1f5f9;">รวมก่อน VAT</th>`;
   let tb='';
   recs.forEach(r=>{
-    let tds=`<td class="c dim">${r.i}</td><td style="font-weight:600;">${h(r.inv)}${r.noBill?' <span class="tag" style="background:#fee2e2;color:#b91c1c;">ยังไม่มีบิล</span>':r.noLines?' <span class="tag" style="background:#fef3c7;color:#92400e;">รอ SYNC</span>':''}</td><td class="c" style="color:#16a34a;font-weight:700;">${r.vol||'-'}</td>`;
+    const _tag=r.noBill?'<span class="tag" style="background:#fee2e2;color:#b91c1c;">ยังไม่มีบิล</span>':r.manual?'<span class="tag" style="background:#ffedd5;color:#c2410c;">กรอกมือ · ไม่มีดีเทล</span>':r.waitSync?'<span class="tag" style="background:#fef3c7;color:#92400e;">รอ SYNC</span>':'';
+    let tds=`<td class="c dim">${r.i}</td><td style="font-weight:600;">${h(r.inv)}${_tag?' '+_tag:''}</td><td class="c" style="color:#16a34a;font-weight:700;">${r.vol||'-'}</td>`;
     showCats.forEach(c=>{ tds+=`<td class="r">${fmt(r.cat[c[0]])}</td>`; });
     tds+=`<td class="r" style="font-weight:800;background:#f8fafc;color:#0f172a;">${fmt(r.net)}</td>`;
     tb+=`<tr>${tds}</tr>`;
@@ -8375,8 +8379,12 @@ async function cticDetailReport(vessel, date){
   let avgtds=`<td colspan="2" class="r" style="font-weight:700;color:#7c3aed;">เฉลี่ย / ตู้ (÷ ${totCtr})</td><td class="c dim">—</td>`;
   showCats.forEach(c=>{ const a=totCtr>0?catTot[c[0]]/totCtr:0; avgtds+=`<td class="r" style="color:#7c3aed;font-weight:700;">${a>0?a.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}):'-'}</td>`; });
   avgtds+=`<td class="r" style="font-weight:800;color:#6d28d9;background:#f5f3ff;">${totCtr>0?(netTot/totCtr).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}):'-'}</td>`;
-  const vatTot=Math.round(netTot*0.07*100)/100;
-  const css=`.crp{width:100%;border-collapse:collapse;font-size:12.5px;}.crp th,.crp td{border:1px solid #e2e8f0;padding:6px 9px;}.crp th{background:#f8fafc;font-weight:700;text-align:right;color:#334155;font-size:11.5px;}.crp td.c{text-align:center;}.crp td.r{text-align:right;font-variant-numeric:tabular-nums;}.crp td.dim{color:#cbd5e1;}.crp tbody tr:nth-child(even){background:#fcfdff;}.crp .tag{font-size:9px;font-weight:800;border-radius:4px;padding:0 5px;margin-left:3px;white-space:nowrap;}`;
+  /* ── กระทบยอด: NET + VAT7% − WHT3% = ยอดโอน (เฉพาะใบที่แกะ lines แล้ว) ── */
+  const vatTot=vatRecon||Math.round(netTot*0.07*100)/100;
+  const payCalc=Math.round((netTot+vatTot-whtRecon)*100)/100;
+  const reconOK=gtRecon>0 && Math.abs(payCalc-gtRecon)<1.0;
+  const fB=v=>v.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const css=`.crp{width:100%;border-collapse:collapse;font-size:12.5px;}.crp th,.crp td{border:1px solid #e2e8f0;padding:6px 9px;}.crp th{background:#f8fafc;font-weight:700;text-align:right;color:#334155;font-size:11.5px;}.crp td.c{text-align:center;}.crp td.r{text-align:right;font-variant-numeric:tabular-nums;}.crp td.dim{color:#cbd5e1;}.crp tbody tr:nth-child(even){background:#fcfdff;}.crp .tag{font-size:9px;font-weight:800;border-radius:4px;padding:0 5px;margin-left:3px;white-space:nowrap;}.crp2{border-collapse:collapse;font-size:12.5px;min-width:270px;}.crp2 td{padding:4px 12px;border-bottom:1px solid #eef2f7;}.crp2 td.r{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;}`;
   const inner=`<style>${css}</style>
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
       <div><div style="font-size:16px;font-weight:800;color:#0f172a;">📊 สรุปต้นทุน CTIC — ${h(vessel)}</div>
@@ -8385,10 +8393,19 @@ async function cticDetailReport(vessel, date){
     <div style="overflow-x:auto;"><table class="crp"><thead><tr>${th}</tr></thead><tbody>${tb}
       <tr style="border-top:2px solid #94a3b8;background:#eff6ff;">${sumtds}</tr>
       <tr style="background:#faf5ff;">${avgtds}</tr></tbody></table></div>
-    <div style="margin-top:9px;font-size:11.5px;color:#64748b;line-height:1.7;">
-      • ตัวเลข = <b>CHARGE ก่อน VAT</b> (ยอดจริงในใบ debit note) · VAT 7% รวม ≈ <b>${fmt0(vatTot)} ฿</b> · ก่อนหัก ณ ที่จ่าย 3%<br>
-      • ยอดโอนจริงรวม (หลัง VAT − WHT ตามที่บันทึก) = <b>${grandGT>0?grandGT.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}):'—'} ฿</b>
-      ${anyNoLines?'<br>• <span style="color:#92400e;">⚠️ บางใบขึ้น "รอ SYNC" = มีบิลแล้วแต่ยังไม่ได้แกะดีเทล กด SYNC GMAIL รอบใหม่เพื่อเติม</span>':''}</div>`;
+    <div style="margin-top:12px;display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;">
+      <table class="crp2"><tbody>
+        <tr><td>รวมก่อน VAT (NET)</td><td class="r">${fB(netTot)}</td></tr>
+        <tr><td style="color:#15803d;">+ VAT 7%</td><td class="r" style="color:#15803d;">${fB(vatTot)}</td></tr>
+        <tr><td style="color:#b91c1c;">− หัก ณ ที่จ่าย 3%</td><td class="r" style="color:#b91c1c;">${whtRecon>0?'('+fB(whtRecon)+')':'-'}</td></tr>
+        <tr style="background:#eff6ff;"><td style="font-weight:800;color:#075985;">= ยอดโอนจริง</td><td class="r" style="font-weight:800;color:#075985;font-size:14px;">${fB(payCalc)}</td></tr>
+      </tbody></table>
+      <div style="font-size:11.5px;color:#64748b;line-height:1.8;max-width:430px;">
+        • ตัวเลขในตาราง = <b>CHARGE ก่อน VAT</b> (ยอดจริงในใบ debit note)<br>
+        • <b>ยอดโอนจริง = NET + VAT 7% − หัก ณ ที่จ่าย 3%</b> ${reconOK?'<span style="color:#15803d;font-weight:700;">✓ ตรงกับยอดที่บันทึก ('+fB(gtRecon)+')</span>':(gtRecon>0?'<span style="color:#b45309;font-weight:700;">⚠️ ยอดบันทึก '+fB(gtRecon)+' ต่าง '+fB(Math.abs(payCalc-gtRecon))+' (อาจมีใบ &lt;1,000 ไม่หัก/ปัดเศษ)</span>':'')}<br>
+        ${anyManual?'• <span style="color:#c2410c;">🖊️ "กรอกมือ · ไม่มีดีเทล" = ใบนี้กรอกมือ (ส่งผ่าน LINE ไม่มี PDF ในเมล) SYNC เติมดีเทลไม่ได้ ต้องเติมแยก</span><br>':''}
+        ${anyWaitSync?'• <span style="color:#92400e;">⏳ "รอ SYNC" = มี PDF แล้วแต่ยังไม่แกะดีเทล กด SYNC GMAIL รอบใหม่ (เมลต้องอยู่ใน 60 วัน)</span>':''}
+      </div></div>`;
   window.__cticRepHtml=inner; window.__cticRepTitle='CTIC '+vessel+' ('+date+')';
   let bg=document.getElementById('cticRepBg');
   if(!bg){ bg=document.createElement('div'); bg.id='cticRepBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9400;align-items:flex-start;justify-content:center;padding:28px 14px;overflow-y:auto;';
