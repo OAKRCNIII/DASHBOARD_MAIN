@@ -3912,7 +3912,7 @@ function _renderSkhLift(){
   const _warnHtml=_whtNameWarn.length?`<div style="margin-bottom:10px;padding:8px 11px;border:1px solid #fecaca;background:#fef2f2;border-radius:9px;font-size:11px;color:#b91c1c;font-weight:700;line-height:1.5;">⚠️ "ได้รับเงินจาก" ในชุดนี้ปนกัน (ANTS/โรงงาน) — เช็กก่อนออกใบ หัก ณ ที่จ่าย:<br>${_whtNameWarn.map(w=>`• #${h(w.receipt_no)} → ${w.isAnts?'ชื่อ ANTS':'ชื่อโรงงาน'} (ต่างจากชุด)`).join('<br>')}</div>`:'';
   let html=_warnHtml+`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
       <span style="font-size:12px;color:#64748b;">${realFees.length} ใบ · รวม <b style="color:#b45309;">${fm(tot)}</b> บาท${nPend?` · <b style="color:#b45309;">⏳ ${nPend}</b> ยังไม่มีใบเสร็จ`:''}</span>
-      <button onclick="printSkhLiftReport()" style="margin-left:auto;padding:5px 13px;border:1px solid #0f2a52;background:#0f2a52;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🖨️ ใบปะหน้า</button>
+      <button onclick="_skhLiftReportPick()" style="margin-left:auto;padding:5px 13px;border:1px solid #0f2a52;background:#0f2a52;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🖨️ ใบปะหน้า ▾</button>
       ${nPhoto?`<button onclick="printSkhSlips()" style="padding:5px 13px;border:1px solid #1e40af;background:#1e40af;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📄 รูป ใบเสร็จ PDF</button>`:''}
       <div style="display:flex;align-items:stretch;border:1px solid #cbd5e1;border-radius:7px;overflow:hidden;font-size:11px;" title="เลือกชื่อผู้มีหน้าที่หักภาษี ณ ที่จ่าย บนใบ (ดีฟอลต์ตามที่ใบเสร็จระบุ)">
         <span style="padding:5px 7px;color:#64748b;font-weight:700;background:#f1f5f9;display:flex;align-items:center;">ออกในนาม</span>
@@ -4194,6 +4194,91 @@ function printSkhLiftReport(){
     </table>
   </body></html>`);
   w.document.close(); w.focus(); setTimeout(()=>{try{w.print();}catch(e){}},350);
+}
+/* เลือกรูปแบบใบปะหน้า: PDF หรือ Excel (RCN 17 พ.ย.69) */
+function _skhLiftReportPick(){
+  if(!_skhLiftFees||!_skhLiftFees.length){ alert('ยังไม่มีใบเสร็จค่ายกตู้'); return; }
+  let bg=document.getElementById('liftFmtBg');
+  if(!bg){ bg=document.createElement('div'); bg.id='liftFmtBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9500;align-items:center;justify-content:center;';
+    bg.onclick=e=>{ if(e.target===bg) bg.style.display='none'; };
+    bg.innerHTML=`<div style="background:#fff;border-radius:16px;padding:22px 26px;box-shadow:0 20px 60px rgba(0,0,0,.35);text-align:center;min-width:280px;">
+      <div style="font-size:15px;font-weight:800;color:#0f172a;margin-bottom:4px;">🖨️ ใบปะหน้าค่ายกตู้ ICD</div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:16px;">เลือกรูปแบบไฟล์</div>
+      <div style="display:flex;gap:12px;justify-content:center;">
+        <button onclick="document.getElementById('liftFmtBg').style.display='none';printSkhLiftReport();" style="padding:12px 22px;border:1.5px solid #b91c1c;border-radius:10px;background:#fef2f2;color:#b91c1c;font-size:13px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="font-size:22px;">📄</span>PDF</button>
+        <button onclick="document.getElementById('liftFmtBg').style.display='none';exportSkhLiftExcel();" style="padding:12px 22px;border:1.5px solid #15803d;border-radius:10px;background:#f0fdf4;color:#15803d;font-size:13px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="font-size:22px;">📊</span>Excel</button>
+      </div></div>`;
+    document.body.appendChild(bg);
+  }
+  bg.style.display='flex';
+}
+/* ใบปะหน้าค่ายกตู้ ICD เป็น Excel — จัดหน้าสวยเหมือน PDF (xlsx-js-style: border/bold/merge/fill) */
+async function exportSkhLiftExcel(){
+  if(!_skhLiftFees||!_skhLiftFees.length){ alert('ยังไม่มีใบเสร็จค่ายกตู้'); return; }
+  await _lazyScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
+  const inv=_skhLiftInv||'';
+  const WD=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัส','ศุกร์','เสาร์'];
+  const fmt=n=>Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const dtxt=d=>{ const p=String(_icdDayKey(d)).split('-'); if(p.length<3)return String(d||''); const y=+p[0],mo=+p[1],da=+p[2]; const wd=new Date(Date.UTC(y,mo-1,da)).getUTCDay(); return WD[wd]+' '+da+' '+_ICD_MON[mo-1]; };
+  const payer=_whtPickFac(inv), payee=ICD_WHT;
+  /* ── สไตล์ ── */
+  const BK={rgb:'000000'}, thin={style:'thin',color:BK}, med={style:'medium',color:BK};
+  const bAll={top:thin,bottom:thin,left:thin,right:thin}, bMed={top:med,bottom:med,left:med,right:med};
+  const C='center', L='left', R='right', M='center';
+  const sTitle={font:{bold:true,sz:16},alignment:{horizontal:C,vertical:M,wrapText:true},border:bMed};
+  const sSub={font:{bold:true,sz:13},alignment:{horizontal:C,vertical:M}};
+  const sInv={font:{bold:true,sz:13},alignment:{horizontal:C,vertical:M}};
+  const sLbl={font:{bold:true,sz:11},alignment:{horizontal:L,vertical:M,wrapText:true},border:bAll};
+  const sVal={font:{sz:11},alignment:{horizontal:L,vertical:M,wrapText:true},border:bAll};
+  const sHint={font:{sz:9,color:{rgb:'444444'}},alignment:{horizontal:C,vertical:M,wrapText:true},border:bAll};
+  const sTax={font:{bold:true,sz:13},alignment:{horizontal:C,vertical:M},border:bAll};
+  const sTh={font:{bold:true,sz:11},alignment:{horizontal:C,vertical:M,wrapText:true},fill:{fgColor:{rgb:'F1F5F9'}},border:bAll};
+  const sC={font:{sz:11},alignment:{horizontal:C,vertical:M},border:bAll};
+  const sCb={font:{bold:true,sz:11},alignment:{horizontal:C,vertical:M},border:bAll};
+  const sR={font:{bold:true,sz:11},alignment:{horizontal:R,vertical:M},border:bAll};
+  const sFootL={font:{bold:true,sz:12},alignment:{horizontal:R,vertical:M},border:bAll};
+  const sFootR={font:{bold:true,sz:13},alignment:{horizontal:R,vertical:M},fill:{fgColor:{rgb:'FEF3C7'}},border:bAll};
+  const blank=()=>({v:'',s:{border:bAll}});
+  /* ── ประกอบแถว (array of {v,s}) ── */
+  const rows=[], merges=[];
+  const row=cells=>{ rows.push(cells); return rows.length-1; };
+  const mg=(r1,c1,r2,c2)=>merges.push({s:{r:r1,c:c1},e:{r:r2,c:c2}});
+  // 0 title
+  let r=row([{v:'ค่ายกตู้ บริษัท อินเตอร์ คอนเทนเนอร์ เดโป จำกัด',s:sTitle},{},{},{},{},{}]); mg(r,0,r,5);
+  // 1 sub
+  r=row([{v:'ท่าเรือสงขลา',s:sSub},{},{},{},{},{}]); mg(r,0,r,5);
+  // 2 inv
+  r=row([{v:inv,s:sInv},{},{},{},{},{}]); mg(r,0,r,5);
+  // 3 spacer
+  row([{v:''},{},{},{},{},{}]);
+  // WHT party block (3 rows each): A:C label/val | D:F hint/taxno
+  const party=(label,o)=>{
+    let rr=row([{v:label+' :',s:sLbl},{v:'',s:sLbl},{v:'',s:sLbl},{v:'เลขประจำตัวผู้เสียภาษีอากร (13 หลัก)',s:sHint},{v:'',s:sHint},{v:'',s:sHint}]); mg(rr,0,rr,2); mg(rr,3,rr,5);
+    rr=row([{v:'ชื่อ  '+(o.name||'-'),s:sVal},{v:'',s:sVal},{v:'',s:sVal},{v:String(o.tax||'').split('').join(' '),s:sTax},{v:'',s:sTax},{v:'',s:sTax}]); mg(rr,0,rr,2); mg(rr,3,rr,5);
+    rr=row([{v:'ที่อยู่  '+(o.addr||'-'),s:sVal},{v:'',s:sVal},{v:'',s:sVal},{v:'',s:sTax},{v:'',s:sTax},{v:'',s:sTax}]); mg(rr,0,rr,2); mg(rr,3,rr,5);
+  };
+  party('ผู้มีหน้าที่หักภาษี ณ ที่จ่าย',payer);
+  party('ผู้ถูกหักภาษี ณ ที่จ่าย',payee);
+  // spacer
+  row([{v:''},{},{},{},{},{}]);
+  // table header
+  row([{v:'ลำดับ',s:sTh},{v:'ทะเบียนรถ',s:sTh},{v:'เบอร์ตู้',s:sTh},{v:'ใบเสร็จเลขที่',s:sTh},{v:'วันที่ใบเสร็จ',s:sTh},{v:'ค่าบริการ (ก่อน VAT)',s:sTh}]);
+  // data
+  let grand=0;
+  _skhLiftFees.forEach((f,i)=>{ const amt=Number(f.amount_base)||Math.round(((Number(f.amount_total)||1070)/1.07)); grand+=amt;
+    row([{v:i+1,s:sC},{v:f.truck_plate||'',s:sC},{v:f.container_no||'',s:sCb},{v:'ICD-OUT '+(f.receipt_no||''),s:sC},{v:dtxt(f.receipt_date),s:sC},{v:fmt(amt),s:sR}]); });
+  // footer
+  r=row([{v:'รวมทั้งสิ้น',s:sFootL},{v:'',s:sFootL},{v:'',s:sFootL},{v:'',s:sFootL},{v:'',s:sFootL},{v:fmt(grand),s:sFootR}]); mg(r,0,r,4);
+  /* ── สร้าง worksheet ── */
+  const ws={}; const nR=rows.length, nC=6;
+  for(let ri=0;ri<nR;ri++){ for(let ci=0;ci<nC;ci++){ const cell=rows[ri][ci]; if(!cell||cell.v===undefined)continue; const addr=XLSX.utils.encode_cell({r:ri,c:ci}); const isNum=typeof cell.v==='number'; ws[addr]={t:isNum?'n':'s',v:cell.v,s:cell.s||{}}; } }
+  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:nR-1,c:nC-1}});
+  ws['!merges']=merges;
+  ws['!cols']=[{wch:7},{wch:13},{wch:20},{wch:21},{wch:18},{wch:17}];
+  ws['!rows']=rows.map((_,i)=>({hpt: i===0?30:(i===1||i===2?20:19)}));
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'ใบปะหน้า ICD');
+  const safe=String(inv).replace(/[\\/:*?"<>|]/g,'-');
+  XLSX.writeFile(wb,`ใบปะหน้า ICD ${safe}.xlsx`);
 }
 /* รูปสลิปใบเสร็จ ICD เป็น PDF หน้าละใบ (รายอินวอยซ์) — ไม่หมุน (บอทหมุนให้ตอนเก็บ) */
 function printSkhSlips(){
