@@ -7736,8 +7736,9 @@ async function renderSkhAccount(){
       if(!lines.length) return {k:'none',t:'⚪ ยังไม่มีบิล',c:'#64748b',bg:'#f1f5f9'};
       const vis=lines.filter(b=>{const n=nByKey.get(normInv(inv)+'|'+b.type);return !(n&&n.settled);});   /* ปิดแล้ว (หมายเหตุ settled) = ไม่คิดสถานะ */
       if(!vis.length) return {k:'full',t:'✅ ปิดแล้ว (หมายเหตุ)',c:'#166534',bg:'#dcfce7'};
+      const byT={}; for(const b of vis){ const o=byT[b.type]||(byT[b.type]={g:0,mis:false,b});o.g+=Number(b.grand_total)||0; if(/⚠️|ไม่ตรง/.test(b.status||''))o.mis=true; }   /* รวมต่อ type ก่อน (บิลแยกหลายใบ เช่น WATR 2 บิล) */
       let anyWait=false,anyMis=false;
-      for(const b of vis){ if(/⚠️|ไม่ตรง/.test(b.status||'')){anyMis=true;continue;} const sp=paidOf(inv,b); if(sp==null)anyWait=true; else if(Math.abs(sp-(Number(b.grand_total)||0))>0.01)anyMis=true; }
+      for(const T in byT){ const o=byT[T]; if(o.mis){anyMis=true;continue;} const sp=paidOf(inv,o.b); if(sp==null)anyWait=true; else if(Math.abs(sp-o.g)>0.01)anyMis=true; }
       if(anyMis) return {k:'mismatch',t:'⚠️ ยอดไม่ตรง',c:'#b45309',bg:'#fef3c7'};
       if(anyWait) return {k:'wait',t:'📋 วางบิลแล้ว · รอจ่าย',c:'#1d4ed8',bg:'#dbeafe'};
       return {k:'full',t:'✅ จ่ายครบ ยอดตรง',c:'#166534',bg:'#dcfce7'};
@@ -7762,20 +7763,33 @@ async function renderSkhAccount(){
       };
       const slipBtnFor=T=>{ const its=_expItems(inv.invoice_no,T).filter(s=>s.has_photo); if(!its.length)return ''; const n=its.length; return `<button onclick="openExpList('${_q(inv.invoice_no)}','${T}')" title="ดู/จัดการสลิปโอน${n>1?' ('+n+' ใบ)':''} — ลบใบที่ผิดได้" style="${btnS}border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1;">💸${n>1?`<sup style="font-size:8px;font-weight:700;">${n}</sup>`:''}</button>`; };
       const rows=['OCF','TLX','CTIC','WATR'].map(T=>{
-        const b=lines.find(l=>l.type===T); const sp=b?paidOf(inv.invoice_no,b):null; let ts=typeSt(b,sp);
-        const note=nByKey.get(k+'|'+T); const settled=!!(note&&note.settled); if(settled) ts={t:'✅ ปิดแล้ว',c:'#166534',bg:'#dcfce7'};   /* หมายเหตุ settled = ปิดแล้ว (จ่ายรวมในใบอื่น) ไม่ขึ้น "ยังไม่วางบิล" */
-        { const _g=Number(b&&b.grand_total)||0; if(b && _g>0 && !settled && (sp==null || sp<_g-0.01)) pendByType[T].push({inv:inv.invoice_no,amt:_g,paid:(sp!=null&&sp>0.01)?sp:0}); }   /* รอจ่าย(sp=null) + จ่ายไม่ครบ(sp<บิล) · settled ข้าม */
-        const gross=(b&&b.grand_total!=null)?(Number(b.grand_total)||0)+(Number(b.wht_amount)||0):null;
-        const nSlip=_expItems(inv.invoice_no,T).filter(s=>s.has_photo).length;   /* รวมไฟล์แนบ (บิล+ใบเสร็จ+สลิป) → ปุ่มเดียว 📎 ไฟล์แนบ */
-        const nFiles=(b&&b.pdf_att?1:0)+(b&&b.receipt_att?1:0)+nSlip;
+        const bs=lines.filter(l=>l.type===T); const b=bs[0]||null;   /* รวมทุกบิลต่อ type (คุณวัสอาจวางแยก 2 บิล เช่น BSW-T-34 2,500+250) */
+        const grandSum=bs.reduce((s,x)=>s+(Number(x.grand_total)||0),0);
+        const whtSum=bs.reduce((s,x)=>s+(Number(x.wht_amount)||0),0);
+        const sp=bs.length?paidOf(inv.invoice_no,b):null;
+        const note=nByKey.get(k+'|'+T); const settled=!!(note&&note.settled);
+        let ts;
+        if(!bs.length) ts={t:'ยังไม่วางบิล',c:'#94a3b8',bg:'#f1f5f9'};
+        else { const anyMis=bs.some(x=>/⚠️|ไม่ตรง/.test(x.status||''));
+          if(sp==null) ts=anyMis?{t:'⚠️ ไม่ตรง',c:'#b45309',bg:'#fef3c7'}:{t:'📋 รอจ่าย',c:'#1d4ed8',bg:'#dbeafe'};
+          else if(Math.abs(sp-grandSum)<=0.01) ts={t:'✅ จ่ายแล้ว',c:'#166534',bg:'#dcfce7'};
+          else if(sp<grandSum) ts={t:'⚠️ จ่ายไม่ครบ',c:'#b45309',bg:'#fef3c7'};
+          else ts={t:'⚠️ เกินยอด',c:'#b45309',bg:'#fef3c7'};
+        }
+        if(settled) ts={t:'✅ ปิดแล้ว',c:'#166534',bg:'#dcfce7'};   /* หมายเหตุ settled = ปิดแล้ว (จ่ายรวมในใบอื่น) */
+        if(bs.length && grandSum>0 && !settled && (sp==null || sp<grandSum-0.01)) pendByType[T].push({inv:inv.invoice_no,amt:grandSum,paid:(sp!=null&&sp>0.01)?sp:0});   /* รอจ่าย/จ่ายไม่ครบ */
+        const gross=bs.length?grandSum+whtSum:null;
+        const nSlip=_expItems(inv.invoice_no,T).filter(s=>s.has_photo).length;   /* รวมไฟล์แนบ (บิล+ใบเสร็จ+สลิป) → ปุ่มเดียว 📎 */
+        const nFiles=bs.filter(x=>x.pdf_att).length+bs.filter(x=>x.receipt_att).length+nSlip;
         const filesBtn=nFiles?`<button onclick="openExpList('${_q(inv.invoice_no)}','${T}')" title="ดูไฟล์แนบ — ใบวางบิล/ใบเสร็จ/สลิปโอน" style="${btnS}border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1;padding:1px 9px;">📎 ไฟล์แนบ${nFiles>1?` <b>${nFiles}</b>`:''}</button>`:'';
-        const whtBtn=(b&&b.wht_amount&&SYNC_WHT_PAYEE[T])?`<button onclick="_gbillWht(${b.__ix})" title="ออกใบหัก ณ ที่จ่าย" style="${btnS}border:1px solid #99f6e4;background:#ecfeff;color:#0e7490;">🧾</button>`:'';
+        const whtBtn=(b&&whtSum&&SYNC_WHT_PAYEE[T])?`<button onclick="_gbillWht(${b.__ix})" title="ออกใบหัก ณ ที่จ่าย" style="${btnS}border:1px solid #99f6e4;background:#ecfeff;color:#0e7490;">🧾</button>`:'';
         const noteBtn=`<button onclick="openBillNote('${_q(inv.invoice_no)}','${T}')" title="${note?'แก้หมายเหตุ':'เพิ่มหมายเหตุ'}" style="${btnS}border:1px solid ${note?'#fde68a':'#e5e7eb'};background:${note?'#fffbeb':'#f8fafc'};color:${note?'#b45309':'#9ca3af'};">📝</button>`;
-        return `<tr style="border-top:1px solid #f1f5f9;${b||note?'':'opacity:.55;'}">
-          <td style="padding:4px 10px;white-space:nowrap;"><b style="color:${typeC[T]};font-size:11px;">${T}</b> ${filesBtn}${noteBtn}${note?`<div style="font-size:9px;color:#b45309;margin-top:3px;white-space:normal;max-width:240px;line-height:1.35;">📝 ${h(note.note)}${settled?' <span style="color:#166534;font-weight:700;">· ปิดแล้ว</span>':''}</div>`:''}</td>
+        const multi=bs.length>1?`<span style="font-size:8px;font-weight:700;color:#7c3aed;background:#f5f3ff;border-radius:5px;padding:0 5px;margin-left:3px;" title="${bs.length} บิลรวมกัน">รวม ${bs.length}</span>`:'';
+        return `<tr style="border-top:1px solid #f1f5f9;${bs.length||note?'':'opacity:.55;'}">
+          <td style="padding:4px 10px;white-space:nowrap;"><b style="color:${typeC[T]};font-size:11px;">${T}</b>${multi} ${filesBtn}${noteBtn}${note?`<div style="font-size:9px;color:#b45309;margin-top:3px;white-space:normal;max-width:240px;line-height:1.35;">📝 ${h(note.note)}${settled?' <span style="color:#166534;font-weight:700;">· ปิดแล้ว</span>':''}</div>`:''}</td>
           <td style="padding:4px 10px;text-align:right;font-weight:700;">${fmt(gross)}</td>
-          <td style="padding:4px 10px;text-align:right;color:#b45309;font-size:11px;">${b&&b.wht_amount?fmt(b.wht_amount):'—'}</td>
-          <td style="padding:4px 10px;text-align:right;color:#475569;">${fmt(b?b.grand_total:null)}</td>
+          <td style="padding:4px 10px;text-align:right;color:#b45309;font-size:11px;">${whtSum?fmt(whtSum):'—'}</td>
+          <td style="padding:4px 10px;text-align:right;color:#475569;">${bs.length?fmt(grandSum):fmt(null)}</td>
           <td style="padding:4px 10px;text-align:right;">${fmt(sp)}</td>
           <td style="padding:4px 10px;text-align:center;"><span style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:7px;background:${ts.bg};color:${ts.c};white-space:nowrap;">${ts.t}</span></td>
           <td style="padding:4px 10px;text-align:center;">${whtBtn}</td></tr>`;
