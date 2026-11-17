@@ -7693,7 +7693,7 @@ function setVslPort(p){_vslPort=p;renderVessel();}
 /* ══ 📧 SYNC GMAIL — ดึงใบวางบิล (OCF/TLX/CTIC/คุณวัส) จาก Gmail มาชนกับสลิปโอน (OAK_THIRA) ══ */
 const GMAIL_BILL_API = SB_URL + '/functions/v1/gmail-bill-sync';
 /* ══ 💸 แท็บบัญชีค่าใช้จ่ายสงขลา — ลิสต์ทุกใบสงขลาต่อเดือน + สถานะ 4 ระดับ (อ่านจาก DB skh_expense_bills) ══ */
-let _skhAcctMonth='ALL', _skhAcctCache=null;   /* default = ทุกเดือน (RCN 12 พ.ย.69) */
+let _skhAcctMonth='ALL', _skhAcctCache=null, _skhAcctFilter='all';   /* default = ทุกเดือน (RCN 12 พ.ย.69) · filter: all|todo */
 async function _skhAcctSync(btn){
   if(btn){btn.disabled=true;btn.textContent='⏳ กำลังดึง…';}
   try{
@@ -7747,7 +7747,7 @@ async function renderSkhAccount(){
     const pendByType={OCF:[],CTIC:[],TLX:[],WATR:[]};   /* รอจ่ายแยกประเภท → รายอินวอยซ์ */
     const cid=iv=>'skhcard_'+normInv(iv).replace(/[^A-Za-z0-9]/g,'_');
     const _etdNum=inv=>{ let d=''; const vr=VESSEL.find(r=>normInv(r.inv)===normInv(inv)); if(vr&&vr.date)d=vr.date; else{const vp=VESSEL_PLAN[String(inv||'').toUpperCase()]; if(vp&&vp.etd)d=vp.etd;} if(!d)return Infinity; const t=pDate(d); return (t&&!isNaN(t))?t:Infinity; };   /* เรียงตามวันเรือออก: ยังไม่ขึ้นเรือ=บนสุด · เรือออกก่อน=ล่างสุด */
-    const cards=monthInvs.slice().sort((a,b)=>{const ea=_etdNum(a.invoice_no),eb=_etdNum(b.invoice_no); return (eb-ea)||String(a.invoice_no).localeCompare(String(b.invoice_no));}).map(inv=>{
+    const _cardArr=monthInvs.map(inv=>{
       const k=normInv(inv.invoice_no); const lines=bByInv.get(k)||[]; const icd=lByInv.get(k)||0;
       const st=stOf(lines,inv.invoice_no);
       if(st.k==='none')c0++; else if(st.k==='mismatch')c1++; else if(st.k==='wait')c2++; else c3++;
@@ -7798,13 +7798,28 @@ async function renderSkhAccount(){
       const icdTs=icd>0?{t:'✅ จ่ายแล้ว',c:'#166534',bg:'#dcfce7'}:(_shlIcd?{t:'🏭 รถโรงงาน',c:'#166534',bg:'#dcfce7'}:{t:'ยังไม่วางบิล',c:'#94a3b8',bg:'#f1f5f9'});
       const _shlNoteAcct=_shlIcd?` <span style="font-size:8.5px;color:#166534;font-weight:700;" title="รถโรงงาน SHL ${_shlIcd.n} ตู้ = ${fmt(_shlIcd.amt)} ฿ ไม่นับ ICD">🏭 −${_shlIcd.n} รถโรงงาน</span>`:'';
       const icdRow=`<tr style="border-top:1px solid #f1f5f9;background:#fffdf5;${(icd>0||_shlIcd)?'':'opacity:.55;'}"><td style="padding:4px 10px;white-space:nowrap;"><b style="color:#b45309;font-size:11px;">ICD</b> <span style="font-size:9px;color:#94a3b8;">ค่ายกตู้</span>${_shlNoteAcct}</td><td style="padding:4px 10px;text-align:right;">—</td><td style="padding:4px 10px;text-align:right;">—</td><td style="padding:4px 10px;text-align:right;color:#475569;">${fmt(icd||null)}</td><td style="padding:4px 10px;text-align:right;">—</td><td style="padding:4px 10px;text-align:center;"><span style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:7px;background:${icdTs.bg};color:${icdTs.c};white-space:nowrap;">${icdTs.t}</span></td><td style="padding:4px 10px;"></td></tr>`;
-      return `<div id="${cid(inv.invoice_no)}" style="border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;overflow:hidden;transition:box-shadow .2s;">
+      const _stripe={mismatch:'#f59e0b',wait:'#3b82f6',full:'#22c55e',none:'#cbd5e1'}[st.k]||'#cbd5e1';
+      const _html=`<div id="${cid(inv.invoice_no)}" style="border:1px solid #e2e8f0;border-left:5px solid ${_stripe};border-radius:10px;margin-bottom:10px;overflow:hidden;transition:box-shadow .2s;">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #eef2f7;">
           <span style="font-weight:800;font-size:13px;color:#0f2a52;">📄 ${h(inv.invoice_no)}</span>
           <span style="display:flex;gap:6px;align-items:center;">${/^(BSW|INV|KNT|NMP|OGM|WKP)/i.test(inv.invoice_no)?`<button onclick="openBswBill('${_q(inv.invoice_no)}')" title="ออก Draft ใบวางบิลเงินทดลองจ่าย" style="font-size:10px;padding:2px 9px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:6px;cursor:pointer;font-weight:700;">🧾 ใบวางบิล</button>`:''}<span style="font-weight:700;padding:2px 10px;border-radius:8px;font-size:11px;background:${st.bg};color:${st.c};">${st.t}</span></span></div>
         <table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#eef2f7;color:#64748b;font-size:9.5px;"><th style="padding:3px 10px;text-align:left;">ประเภท</th><th style="padding:3px 10px;text-align:right;">ยอดก่อนหัก</th><th style="padding:3px 10px;text-align:right;">หัก</th><th style="padding:3px 10px;text-align:right;">สุทธิ</th><th style="padding:3px 10px;text-align:right;">สลิป</th><th style="padding:3px 10px;text-align:center;">สถานะ</th><th style="padding:3px 10px;text-align:center;">หัก ณ ที่จ่าย</th></tr></thead><tbody>${rows}${icdRow}</tbody></table>
       </div>`;
-    }).join('');
+      return {k:st.k, etd:_etdNum(inv.invoice_no), inv:inv.invoice_no, html:_html};
+    });
+    /* เรียงตามความสำคัญ: ⚠️ ไม่ตรง → 📋 รอจ่าย → ✅ ครบ → ⚪ ยังไม่มีบิล (ในกลุ่มเรียงตามวันเรือออก) */
+    const _PRIO={mismatch:0,wait:1,full:2,none:3};
+    _cardArr.sort((a,b)=>(_PRIO[a.k]-_PRIO[b.k])||(b.etd-a.etd)||String(a.inv).localeCompare(String(b.inv)));
+    const _todoCards=_cardArr.filter(c=>c.k==='mismatch'||c.k==='wait');
+    const _doneCards=_cardArr.filter(c=>c.k==='full');
+    const _emptyCards=_cardArr.filter(c=>c.k==='none');
+    const _showTodo=_skhAcctFilter==='todo';
+    let cards=_todoCards.map(c=>c.html).join('');
+    if(!_showTodo){
+      cards+=_doneCards.map(c=>c.html).join('');
+      if(_emptyCards.length) cards+=`<div onclick="var e=document.getElementById('_skhEmptyBox');var op=e.style.display==='none';e.style.display=op?'block':'none';this.querySelector('span').textContent=op?'▾':'▸';" style="cursor:pointer;user-select:none;padding:9px 14px;margin-bottom:10px;border:1px dashed #cbd5e1;border-radius:10px;background:#fafbfc;color:#64748b;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:8px;"><span style="font-size:11px;">▸</span>⚪ ยังไม่มีบิล (${_emptyCards.length} ใบ) <span style="font-weight:400;color:#94a3b8;font-size:11px;">— คลิกเพื่อดู</span></div><div id="_skhEmptyBox" style="display:none;">${_emptyCards.map(c=>c.html).join('')}</div>`;
+    }
+    if(!cards && monthInvs.length) cards=`<div style="padding:24px;text-align:center;color:#16a34a;font-weight:700;">✅ ไม่มีรายการที่ต้องทำ — จ่ายครบหมดแล้ว</div>`;
     const moOpts='<option value="ALL"'+(_skhAcctMonth==='ALL'?' selected':'')+'>ทั้งหมด (ทุกเดือน)</option>'+months.map(m=>{const[y,mm]=m.split('-');return `<option value="${m}"${m===_skhAcctMonth?' selected':''}>${_ICD_MON[(+mm)-1]} ${(+y)+543}</option>`;}).join('');
     const pendPanel=(()=>{
       const parts=['OCF','CTIC','TLX','WATR'].filter(T=>pendByType[T].length).map(T=>{
@@ -7833,6 +7848,7 @@ async function renderSkhAccount(){
         <span style="padding:5px 12px;border-radius:8px;background:#fef3c7;color:#b45309;">⚠️ ไม่ตรง ${c1}</span>
         <span style="padding:5px 12px;border-radius:8px;background:#f1f5f9;color:#64748b;">⚪ ยังไม่มีบิล ${c0}</span>
         <span style="padding:5px 12px;border-radius:8px;background:#eef2f7;color:#0f2a52;">รวม ${monthInvs.length} ใบ</span>
+        <button onclick="_skhAcctFilter=(_skhAcctFilter==='todo'?'all':'todo');renderSkhAccount();" style="margin-left:auto;padding:5px 14px;border-radius:8px;border:1.5px solid ${_skhAcctFilter==='todo'?'#f59e0b':'#cbd5e1'};background:${_skhAcctFilter==='todo'?'#fffbeb':'#fff'};color:${_skhAcctFilter==='todo'?'#b45309':'#475569'};font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap;">${_skhAcctFilter==='todo'?'📋 ดูทั้งหมด':'🎯 เฉพาะที่ต้องทำ ('+(c1+c2)+')'}</button>
       </div>
       ${pendPanel}
       ${cards||'<div style="padding:24px;text-align:center;color:#94a3b8;">ไม่มีใบสงขลาในเดือนนี้</div>'}
