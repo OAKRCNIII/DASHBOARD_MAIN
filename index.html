@@ -7739,8 +7739,11 @@ async function renderSkhAccount(){
       const byT={}; for(const b of vis){ const o=byT[b.type]||(byT[b.type]={g:0,mis:false,b});o.g+=Number(b.grand_total)||0; if(/⚠️|ไม่ตรง/.test(b.status||''))o.mis=true; }   /* รวมต่อ type ก่อน (บิลแยกหลายใบ เช่น WATR 2 บิล) */
       let anyWait=false,anyMis=false;
       for(const T in byT){ const o=byT[T]; if(o.mis){anyMis=true;continue;} const sp=paidOf(inv,o.b); if(sp==null)anyWait=true; else if(Math.abs(sp-o.g)>0.01)anyMis=true; }
+      const REQ=['OCF','CTIC','WATR'];   /* บิลที่ต้องมีทุกใบสงขลา (RCN 17 พ.ย.69) — ขาด = รอบิล ไม่นับจ่ายครบ · TLX ไม่บังคับ (มีเฉพาะที่ surrender) */
+      const _have=new Set(lines.map(b=>b.type));
+      const _miss=REQ.filter(T=>!_have.has(T) && !((nByKey.get(normInv(inv)+'|'+T)||{}).settled));   /* required ที่ยังไม่มีบิล + ไม่ได้ปิด (settled) */
       if(anyMis) return {k:'mismatch',t:'⚠️ ยอดไม่ตรง',c:'#b45309',bg:'#fef3c7'};
-      if(anyWait) return {k:'wait',t:'📋 วางบิลแล้ว · รอจ่าย',c:'#1d4ed8',bg:'#dbeafe'};
+      if(anyWait||_miss.length){ const _p=[]; if(anyWait)_p.push('รอจ่าย'); if(_miss.length)_p.push('รอบิล '+_miss.join('/')); return {k:'wait',t:'📋 '+_p.join(' · '),c:'#1d4ed8',bg:'#dbeafe'}; }
       return {k:'full',t:'✅ จ่ายครบ ยอดตรง',c:'#166534',bg:'#dcfce7'};
     };
     let c0=0,c1=0,c2=0,c3=0;
