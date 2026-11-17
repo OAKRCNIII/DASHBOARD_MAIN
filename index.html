@@ -3207,7 +3207,12 @@ function printAlPayReport(){
   });
 
   const he=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const total=pays.reduce((s,p)=>s+Number(p.slip_amount||0),0);
+  /* ยอดลับ: บวกเข้า "รวมยอดโอนทั้งเดือน" (SUM) แต่ไม่แสดงเป็นบรรทัดในดีเทล — RCN 17 พ.ย.69 */
+  const _real=pays.reduce((s,p)=>s+Number(p.slip_amount||0),0);
+  const _sIn=prompt('รวมยอดโอนจริง (จากรายการ) = '+_alFm(_real)+' บาท\n\n💠 ใส่ "ยอดลับ" ที่จะบวกเข้า SUM (ไม่แสดงในดีเทล)\nเว้นว่าง = ไม่บวก · กดยกเลิก = ไม่ออกรีพอร์ต','');
+  if(_sIn===null) return;
+  const _secret=Number(String(_sIn).replace(/[, ]/g,''))||0;
+  const total=_real+_secret;
   const dNum=d=>d?String(Number(d.slice(8,10))):'';
   const dMo =d=>d?_alMoName(d.slice(0,7)):'';
 
