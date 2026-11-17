@@ -7615,7 +7615,8 @@ async function _skhAcctSync(btn){
     const r=await fetch(GMAIL_BILL_API,{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({days:60})});
     const j=await r.json(); if(!r.ok)throw new Error(j.error||('HTTP '+r.status));
     _skhAcctCache=null; await renderSkhAccount();
-    alert('SYNC เสร็จ — บันทึก/อัปเดต '+(j.saved||0)+' รายการ'+(j.skipped?' · ข้าม '+j.skipped+' (เก็บ+จ่ายครบแล้ว)':''));
+    const _nw=j['new']||0, _upd=Math.max(0,(j.saved||0)-_nw), _sk=j.skipped||0;
+    alert('📧 SYNC เสร็จ — '+(_nw>0?('✅ มีใบใหม่ '+_nw+' ใบ'):'ไม่มีใบใหม่')+(_upd?' · อัปเดต '+_upd:'')+(_sk?' · ข้าม '+_sk+' (เก็บ+จ่ายครบแล้ว)':''));
   }catch(e){ alert('SYNC ไม่สำเร็จ: '+(e.message||e)); if(btn){btn.disabled=false;btn.textContent='🔄 SYNC Gmail';} }
 }
 async function renderSkhAccount(){
@@ -8148,7 +8149,9 @@ function _gbillHtml(j){
       <table style="width:100%;border-collapse:collapse;font-size:12px;">
         <thead><tr style="background:#eef2f7;color:#64748b;font-size:9.5px;"><th style="padding:3px 12px;text-align:left;">ประเภท</th><th style="padding:3px 12px;text-align:right;">ยอดก่อน หัก ณ ที่จ่าย</th><th style="padding:3px 12px;text-align:right;">ยอด หัก ณ ที่จ่าย</th><th style="padding:3px 12px;text-align:right;">ยอดบิลสุทธิ</th><th style="padding:3px 12px;text-align:right;">สลิปโอน</th><th style="padding:3px 12px;text-align:center;">สถานะ</th></tr></thead>
         <tbody>${g.rows.sort((a,b)=>['OCF','TLX','CTIC','WATR','ICD'].indexOf(a.type)-['OCF','TLX','CTIC','WATR','ICD'].indexOf(b.type)).map(typeRow).join('')}</tbody></table></div>`).join('');
+  const _nw=j['new']||0;
   return `<div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;font-size:12px;font-weight:700;">
+      <span style="padding:5px 12px;border-radius:8px;${_nw>0?'background:#ede9fe;color:#6d28d9;':'background:#f1f5f9;color:#94a3b8;'}">${_nw>0?'📧 ใบใหม่ '+_nw:'📭 ไม่มีใบใหม่'}</span>
       <span style="padding:5px 12px;border-radius:8px;background:#dcfce7;color:#166534;">✅ ตรง ${ok}</span>
       <span style="padding:5px 12px;border-radius:8px;background:#fef3c7;color:#b45309;">⚠️ ไม่ตรง ${warn}</span>
       <span style="padding:5px 12px;border-radius:8px;background:#dbeafe;color:#1d4ed8;">⏳ ยังไม่จ่าย ${wait}</span>
