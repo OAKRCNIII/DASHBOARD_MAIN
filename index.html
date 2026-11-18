@@ -3968,7 +3968,7 @@ const ANTS_WHT={name:'บริษัท เอ.เอ็น.ที.เอส �
 /* อินวอยซ์ที่ ANTS จ่าย ICD เอง → ผู้หัก=ANTS (ไม่ใช่โรงงาน) · ดูช่อง "ได้รับเงินจาก" ในใบเสร็จ · key=normInv */
 const WHT_ANTS_INV=new Set(['BSW-T-30/2026','OGM(YANG)010/2026']);
 const WKP_ADDR_ND='39/9 ม.7 ต.นาใต้ อ.บ้านนาเดิม จ.สุราษฎร์ธานี 84240';   /* WKP-ND=นาเดิม (RCN 11 พ.ย.69) — WKP-OS=นาสาร อยู่ใน FAC_WHT_MAP */
-function _whtFac(inv){ const s=String(inv||'').toUpperCase(); const p=(s.match(/^[A-Za-z]+/)||[''])[0]; const f=FAC_WHT_MAP[p]||{name:'',tax:'',addr:''}; if(p==='WKP'&&/^WKP[^A-Z]*ND/.test(s)) return {...f,addr:WKP_ADDR_ND}; return f; }
+function _whtFac(inv){ const s=String(inv||'').toUpperCase(); const p=(s.match(/^[A-Za-z]+/)||[''])[0]; const f=FAC_WHT_MAP[p]||{name:'',tax:'',addr:''}; if(p==='WKP'){ const nd=/^WKP[^A-Z]*ND/.test(s); return {...f, name:f.name+(nd?' สาขา00001':' (สำนักงานใหญ่)'), addr:nd?WKP_ADDR_ND:f.addr}; } return f; }   /* WKP วรเกียรติ์: นาเดิม=สาขา00001 (ไม่มีวงเล็บ) · นาสาร=(สำนักงานใหญ่) ใส่ทุกเอกสาร (RCN 18 พ.ย.69) */
 function _whtWithholder(inv){ return WHT_ANTS_INV.has(normInv(inv)) ? ANTS_WHT : _whtFac(inv); }
 function _whtDateThai(d){ if(!d)return''; const m=String(d).match(/^(\d{4})-(\d{2})-(\d{2})/); return m?`${+m[3]}/${+m[2]}/${(+m[1])+543}`:String(d); }
 function _bahtText(amount){
