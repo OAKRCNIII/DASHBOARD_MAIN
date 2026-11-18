@@ -1672,7 +1672,7 @@ function _renderExpList(){
   /* เอกสารจาก Gmail (ใบวางบิล + ใบเสร็จรับเงิน) — รวมอยู่ในปุ่มไฟล์แนบเดียวกับสลิป */
   const b=(window._GBILL||[]).find(x=>normInv(x.invoice_no)===normInv(_expListInv)&&x.type===_expListType);
   let docHtml='';
-  if(b&&b.pdf_att) docHtml+=`<button onclick="_gbillPdf('${_q(b.pdf_msg)}','${_q(b.pdf_att)}','${_q(b.pdf_name||'bill.pdf')}')" style="width:100%;box-sizing:border-box;font-size:12.5px;padding:10px 12px;border:1px solid #bfdbfe;border-radius:9px;background:#eff6ff;color:#1d4ed8;font-weight:700;cursor:pointer;margin-bottom:8px;text-align:left;">📄 ใบวางบิล${b.vendor_inv_no?' · '+h(b.vendor_inv_no):''}</button>`;
+  if(b&&b.pdf_att) docHtml+=`<button onclick="_gbillPdf('${_q(b.pdf_msg)}','${_q(b.pdf_att)}','${_q(b.pdf_name||'bill.pdf')}')" style="width:100%;box-sizing:border-box;font-size:12.5px;padding:10px 12px;border:1px solid #bfdbfe;border-radius:9px;background:#eff6ff;color:#1d4ed8;font-weight:700;cursor:pointer;margin-bottom:8px;text-align:left;">${_expListType==='WATR'?'📄 ใบเสร็จค่าล่วงเวลา':'📄 ใบวางบิล'}${b.vendor_inv_no?' · '+h(b.vendor_inv_no):''}</button>`;
   if(b&&b.receipt_att) docHtml+=`<button onclick="_gbillPdf('${_q(b.receipt_msg)}','${_q(b.receipt_att)}','${_q(b.receipt_name||'receipt.pdf')}')" style="width:100%;box-sizing:border-box;font-size:12.5px;padding:10px 12px;border:1px solid #fbcfe8;border-radius:9px;background:#fdf2f8;color:#be185d;font-weight:700;cursor:pointer;margin-bottom:8px;text-align:left;">📃 ใบเสร็จรับเงิน${b.receipt_no?' '+h(b.receipt_no):''}</button>`;
   if(!docHtml && !its.length){ body.innerHTML='<div style="padding:20px;text-align:center;color:#64748b;">ไม่มีไฟล์แนบ</div>'; return; }
   const nPhoto=its.filter(x=>x.has_photo).length;
