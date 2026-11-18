@@ -6045,7 +6045,7 @@ function switchTab(tab){
   if(tab==='price'){renderPriceLatest();}
   if(tab==='report'){renderReport();}
   if(tab==='profit'){renderTrProfit();}
-  if(tab==='skhprofit'){renderSkhProfit();}
+  if(tab==='skhprofit'){_loadProfitMerge().then(renderSkhProfit);}
   if(tab==='skhacct'){_skhAcctCache=null;renderSkhAccount();}   /* เปิดแท็บ = อ่าน DB สดทุกครั้ง (สลิป/ใบเสร็จอัพแล้วเห็นเลย ไม่ต้อง SYNC Gmail) */
   if(tab==='mhome'){renderMobileHome();renderStatsMain();}
   if(tab==='mmonth'){renderMobileMonthView();}
@@ -12270,6 +12270,58 @@ let _SKHPROFIT_YEAR=null, _SKHPROFIT_MONTH=null, _SKHPROFIT_ROWS=[], _SKHPROFIT_
 function _skhProfitSetYear(y){ _SKHPROFIT_YEAR=y; _SKHPROFIT_MONTH=null; renderSkhProfit(); }
 function _skhProfitSetMonth(m){ _SKHPROFIT_MONTH=(m===''?null:m); renderSkhProfit(); }
 function _skhProfitToggle(p){ if(_SKHPROFIT_OPEN.has(p))_SKHPROFIT_OPEN.delete(p); else _SKHPROFIT_OPEN.add(p); renderSkhProfit(); }
+/* ── รวมใบที่วางบิลรวมกัน → โชว์เป็นการ์ดเดียว (รายรับรวม − ค่าใช้จ่ายรวม) · เก็บ DB skh_profit_merge · RCN 18 พ.ย.69 ── */
+let _SKH_PROFIT_MERGE=new Map(), _SKHPROFIT_RAWROWS=[];   /* normInv(invoice) → group_key */
+async function _loadProfitMerge(){ try{ const d=await sbFetch('skh_profit_merge','select=invoice_no,group_key'); _SKH_PROFIT_MERGE=new Map((d||[]).map(x=>[normInv(x.invoice_no),x.group_key])); }catch(e){ _SKH_PROFIT_MERGE=new Map(); } }
+function _mergeRows(grp){
+  const sum=k=>grp.reduce((s,r)=>s+(Number(r[k])||0),0); const m={...grp[0]};
+  ['ctr','rev','ocf','tlx','ctic','icd','watr','truck','kui','antsFee','cost','trPaid','trTot'].forEach(k=>m[k]=sum(k));
+  m.profit=m.rev-m.cost; m.billed=grp.some(r=>r.billed); m.merged=true;
+  m.mergedInvs=grp.map(r=>r.inv); m.inv=grp.map(r=>r.inv).join(' + '); m.trLines=grp.flatMap(r=>r.trLines||[]);
+  return m;
+}
+function _applyProfitMerge(rows){
+  const mm=_SKH_PROFIT_MERGE; if(!mm||!mm.size) return rows;
+  const byKey=new Map(), order=[];
+  rows.forEach(r=>{ const key=mm.get(normInv(r.inv))||('_'+normInv(r.inv)); if(!byKey.has(key)){byKey.set(key,[]);order.push(key);} byKey.get(key).push(r); });
+  return order.map(key=>{ const grp=byKey.get(key); return grp.length>1?_mergeRows(grp):grp[0]; });
+}
+function _skhMergeModal(){
+  const raw=_SKHPROFIT_RAWROWS||[];
+  const he=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const fm=n=>Math.round(Number(n)||0).toLocaleString('th-TH');
+  const gMap=new Map(); _SKH_PROFIT_MERGE.forEach((gk,ni)=>{ if(!gMap.has(gk))gMap.set(gk,[]); gMap.get(gk).push(ni); });
+  let cur=''; gMap.forEach((nis,gk)=>{ if(nis.length<2)return; const names=raw.filter(r=>nis.includes(normInv(r.inv))).map(r=>he(r.inv)); cur+=`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;border:1px solid #bbf7d0;border-radius:8px;margin-bottom:6px;background:#f0fdf4;"><span style="font-size:12px;font-weight:700;color:#166534;">📎 ${names.join(' + ')||gk}</span><button onclick="_skhUnmerge('${String(gk).replace(/'/g,"\\'")}')" style="font-size:10px;padding:2px 10px;border:1px solid #fca5a5;background:#fef2f2;color:#b91c1c;border-radius:6px;cursor:pointer;font-weight:700;">แยก</button></div>`; });
+  const opts=raw.filter(r=>!r.merged).map(r=>{ const inG=_SKH_PROFIT_MERGE.has(normInv(r.inv)); return `<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-bottom:1px solid #f1f5f9;font-size:12px;cursor:pointer;${inG?'opacity:.45;':''}"><input type="checkbox" class="_mgC" value="${he(r.inv)}" ${inG?'disabled':''}><span style="font-weight:600;">${he(r.inv)}</span><span style="color:#94a3b8;font-size:10px;">${r.ctr} ตู้ · รายรับ ${fm(r.rev)} · จ่าย ${fm(r.cost)}</span></label>`; }).join('');
+  let bg=document.getElementById('skhMergeBg');
+  if(!bg){ bg=document.createElement('div'); bg.id='skhMergeBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9600;align-items:flex-start;justify-content:center;padding:28px 14px;overflow-y:auto;'; bg.onclick=e=>{if(e.target===bg)bg.style.display='none';}; document.body.appendChild(bg); }
+  bg.innerHTML=`<div style="background:#fff;border-radius:14px;max-width:560px;width:100%;padding:18px 20px;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><div style="font-size:15px;font-weight:800;color:#065f46;">🔗 รวมใบที่วางบิลรวมกัน</div><button onclick="document.getElementById('skhMergeBg').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;">✕</button></div>
+    ${cur?`<div style="margin-bottom:10px;"><div style="font-size:11px;color:#64748b;margin-bottom:4px;">กลุ่มที่รวมแล้ว:</div>${cur}</div>`:''}
+    <div style="font-size:11px;color:#64748b;margin-bottom:4px;">เลือกใบที่วางบิลรวมกัน (2 ใบขึ้นไป):</div>
+    <div style="max-height:46vh;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:12px;">${opts||'<div style="padding:16px;text-align:center;color:#94a3b8;">ไม่มีใบให้รวม</div>'}</div>
+    <button onclick="_skhDoMerge()" style="width:100%;padding:10px;border:none;border-radius:8px;background:#065f46;color:#fff;font-size:13px;font-weight:800;cursor:pointer;">🔗 รวมใบที่เลือก</button>
+  </div>`;
+  bg.style.display='flex';
+}
+async function _skhDoMerge(){
+  const sel=[...document.querySelectorAll('._mgC:checked')].map(c=>c.value);
+  if(sel.length<2){ alert('เลือกอย่างน้อย 2 ใบที่วางบิลรวมกัน'); return; }
+  try{
+    const gk='G'+Date.now(); const rows=sel.map(inv=>({invoice_no:inv,group_key:gk}));
+    const r=await fetch(`${SB_URL}/rest/v1/skh_profit_merge?on_conflict=invoice_no`,{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_TOKEN,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},body:JSON.stringify(rows)});
+    if(!r.ok) throw new Error('HTTP '+r.status+' '+(await r.text()).slice(0,120));
+    const bgEl=document.getElementById('skhMergeBg'); if(bgEl)bgEl.style.display='none';
+    await _loadProfitMerge(); renderSkhProfit();
+  }catch(e){ alert('รวมไม่สำเร็จ: '+(e.message||e)+'\n(รัน CREATE TABLE skh_profit_merge หรือยัง?)'); }
+}
+async function _skhUnmerge(gk){
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/skh_profit_merge?group_key=eq.${encodeURIComponent(gk)}`,{method:'DELETE',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_TOKEN,'Prefer':'return=minimal'}});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    await _loadProfitMerge(); _skhMergeModal(); renderSkhProfit();
+  }catch(e){ alert('แยกไม่สำเร็จ: '+(e.message||e)); }
+}
 /* การ์ดกำไร 1 ใบ (2 กล่อง) — ใช้ร่วมทั้งบนจอและ print */
 function _skhProfitCardHtml(r){
   const fm=n=>Math.round(n).toLocaleString('th-TH');
@@ -12284,6 +12336,7 @@ function _skhProfitCardHtml(r){
       ${pb(r.prefix)}<span style="font-weight:800;font-size:13px;color:#0f172a;">${he(r.inv)}</span>
       <span style="font-size:11px;color:#64748b;">${ml(r.month)} · ${r.ctr} ตู้</span>
       ${r.billed?'':'<span style="font-size:10px;font-weight:700;color:#b45309;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:1px 8px;">⏳ ยังไม่วางบิล</span>'}
+      ${r.merged?'<span style="font-size:10px;font-weight:700;color:#065f46;background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:1px 8px;">📎 วางบิลรวม '+r.mergedInvs.length+' ใบ</span>':''}
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
       <div style="flex:1;min-width:170px;background:${r.rev>0?'#f0fdf4':'#f8fafc'};border:1px solid ${r.rev>0?'#bbf7d0':'#e2e8f0'};border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;justify-content:center;">
@@ -12341,6 +12394,8 @@ function renderSkhProfit(){
   if(_SKHPROFIT_MONTH!==null&&!allMonths.includes(_SKHPROFIT_MONTH))_SKHPROFIT_MONTH=null;
   rows=rows.filter(r=>_SKHPROFIT_MONTH===null||r.month===_SKHPROFIT_MONTH);
   rows.sort((a,b)=>(mSort?mSort(b.month,a.month):0)||String(a.inv).localeCompare(String(b.inv)));
+  _SKHPROFIT_RAWROWS=rows.slice();   /* ก่อนรวม — ไว้ให้ modal เลือกใบ */
+  rows=_applyProfitMerge(rows);      /* รวมใบที่วางบิลรวมกัน (skh_profit_merge) → การ์ดเดียว */
   _SKHPROFIT_ROWS=rows;
   const T={rev:0,cost:0,profit:0,ctr:0}; rows.forEach(r=>{T.rev+=r.rev;T.cost+=r.cost;T.profit+=r.profit;T.ctr+=r.ctr;});
   const marg=T.rev>0?(T.profit/T.rev*100):0;
@@ -12373,7 +12428,8 @@ function renderSkhProfit(){
       <div style="font-size:15px;font-weight:900;color:#065f46;">💰 กำไรสงขลา <span style="font-size:11px;font-weight:500;color:#64748b;">(รวมใบที่ยังไม่วางบิล = ติดลบไว้ก่อน)</span></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">${yb}</div>
       ${mo}
-      <button onclick="openSkhProfitPrint()" style="margin-left:auto;padding:5px 13px;border:1px solid #0f2a52;background:#0f2a52;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">🖨️ Print PDF</button>
+      <button onclick="_skhMergeModal()" style="margin-left:auto;padding:5px 13px;border:1.5px solid #065f46;background:#fff;color:#065f46;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">🔗 รวมใบ (วางบิลรวม)</button>
+      <button onclick="openSkhProfitPrint()" style="padding:5px 13px;border:1px solid #0f2a52;background:#0f2a52;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">🖨️ Print PDF</button>
       <button onclick="_skhProfitExcel()" style="padding:5px 13px;border:1px solid #065f46;background:#065f46;color:#fff;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">📊 Excel</button>
     </div>
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
