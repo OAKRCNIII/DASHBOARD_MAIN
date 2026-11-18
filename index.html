@@ -3643,7 +3643,7 @@ function _icdWhtDoPrint(){
   const recs=_icdWhtRecs(ds).sort((a,b)=>_icdDayKey(a.receipt_date).localeCompare(_icdDayKey(b.receipt_date))||String(a.receipt_no).localeCompare(String(b.receipt_no)));
   if(!recs.length){ alert('ไม่มีใบเสร็จในวันที่เลือก'); return; }
   const bg=document.getElementById('icdWhtBg'); if(bg)bg.style.display='none';
-  _whtPrint(recs.map(r=>_whtPage(r,{allowNew:true})).join(''));
+  _whtModePick(allowNew=>_whtPrint(recs.map(r=>_whtPage(r,{allowNew})).join('')));
 }
 async function _excelIcdRpt(){
   if(!_icdRptMonth){ alert('เลือกเดือนก่อนครับ'); return; }
@@ -4053,7 +4053,7 @@ function _whtPage(f,opts){
   const uw=opts.incomeWord||'ค่าบริการ';   /* ขีดเส้นใต้คำในข้อ 5: ICD/TLX/CTIC=ค่าบริการ · OCF=ค่าขนส่ง */
   const inc5='<b>ค่าเช่า '+(uw==='ค่าขนส่ง'?'<u>ค่าขนส่ง</u>':'ค่าขนส่ง')+' '+(uw==='ค่าขนส่ง'?'ค่าบริการ':'<u>ค่าบริการ</u>')+'</b>';
   const refnote=opts.refnote||('INV: <b>'+h(inv)+'</b><br>ตู้: <b>'+h(f.container_no||'')+'</b><br>ใบเสร็จ ICD #'+h(f.receipt_no||''));
-  const useNew=opts.allowNew===true && (typeof getPfx==='function') && getPfx(inv)==='WKP';   /* ฟอร์มใหม่: แถว "กระทำการแทนโดย ANTS" + ตัดวงเล็บ (ให้ระบุ...) — เฉพาะ WKP ก่อน (RCN 18 พ.ย.69) */
+  const useNew=opts.allowNew===true;   /* ฟอร์มใหม่: แถว "กระทำการแทนโดย ANTS" + ตัดวงเล็บ (ให้ระบุ...) — เลือกจาก dialog ตอนออกใบ (ทุกโรงงาน · อนาคตจะเป็นค่าเริ่มต้น RCN 18 พ.ย.69) */
   const _h2='<div class="hint">(ให้ระบุว่าเป็น บุคคล นิติบุคคล บริษัท สมาคม หรือคณะบุคคล)</div>', _h3='<div class="hint">(ให้ระบุ เลขที่ ตรอก/ซอย หมู่ที่ ถนน ตำบล/แขวง อำเภอ/เขต จังหวัด)</div>';
   return `<div class="pg${useNew?' tight':''}">
   <div class="refnote">${refnote}</div>
@@ -4134,8 +4134,23 @@ function _whtComputeReceiver(inv){
   _whtAsAnts=consAnts;
   named.forEach(f=>{ if((f.received_is_ants===true)!==consAnts) _whtNameWarn.push({receipt_no:f.receipt_no,isAnts:f.received_is_ants===true}); });
 }
-function printWhtCert(ix){ const f=_skhLiftFees[ix]; if(!f){alert('ไม่พบใบเสร็จ');return;} _whtPrint(_whtPage(f,{fac:_whtPickFac(f.invoice_no||_skhLiftInv),allowNew:true})); }
-function printAllWhtCerts(){ if(!_skhLiftFees||!_skhLiftFees.length){alert('ยังไม่มีใบเสร็จค่ายกตู้');return;} _whtPrint(_skhLiftFees.map(f=>_whtPage(f,{fac:_whtPickFac(f.invoice_no||_skhLiftInv),allowNew:true})).join('')); }
+/* หน้าต่างเลือกรูปแบบก่อนออกใบหัก ณ ที่จ่าย: มีกระทำการแทน (ANTS) / ไม่มี — RCN 18 พ.ย.69 (ช่วงคาบเกี่ยว · อนาคตจะมีหมด) */
+function _whtModePick(cb){
+  let bg=document.getElementById('whtModeBg');
+  if(!bg){ bg=document.createElement('div'); bg.id='whtModeBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9800;align-items:center;justify-content:center;padding:16px;'; bg.onclick=e=>{if(e.target===bg)bg.style.display='none';}; document.body.appendChild(bg); }
+  window.__whtModeCb=cb;
+  bg.innerHTML=`<div style="background:#fff;border-radius:14px;max-width:390px;width:100%;padding:20px 22px;box-shadow:0 20px 60px rgba(0,0,0,.35);text-align:center;">
+    <div style="font-size:15px;font-weight:800;color:#0e7490;margin-bottom:3px;">🧾 ออกใบหัก ณ ที่จ่าย</div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:16px;">เลือกรูปแบบเอกสาร</div>
+    <button onclick="_whtModeGo(true)" style="width:100%;padding:12px;margin-bottom:9px;border:none;border-radius:10px;background:#0e7490;color:#fff;font-size:13.5px;font-weight:800;cursor:pointer;">✅ มีกระทำการแทน (ANTS)</button>
+    <button onclick="_whtModeGo(false)" style="width:100%;padding:12px;border:1.5px solid #cbd5e1;border-radius:10px;background:#fff;color:#475569;font-size:13.5px;font-weight:700;cursor:pointer;">ไม่มีกระทำการแทน (แบบเดิม)</button>
+    <button onclick="document.getElementById('whtModeBg').style.display='none'" style="margin-top:12px;background:none;border:none;color:#94a3b8;font-size:12px;cursor:pointer;">ยกเลิก</button>
+  </div>`;
+  bg.style.display='flex';
+}
+function _whtModeGo(allowNew){ const bg=document.getElementById('whtModeBg'); if(bg)bg.style.display='none'; const cb=window.__whtModeCb; window.__whtModeCb=null; if(typeof cb==='function')cb(allowNew); }
+function printWhtCert(ix){ const f=_skhLiftFees[ix]; if(!f){alert('ไม่พบใบเสร็จ');return;} _whtModePick(allowNew=>_whtPrint(_whtPage(f,{fac:_whtPickFac(f.invoice_no||_skhLiftInv),allowNew}))); }
+function printAllWhtCerts(){ if(!_skhLiftFees||!_skhLiftFees.length){alert('ยังไม่มีใบเสร็จค่ายกตู้');return;} _whtModePick(allowNew=>_whtPrint(_skhLiftFees.map(f=>_whtPage(f,{fac:_whtPickFac(f.invoice_no||_skhLiftInv),allowNew})).join(''))); }
 /* 📊 ออกไฟล์ Excel (.xlsx) หนังสือรับรองหัก ณ ที่จ่าย รายใบ — ใช้ฟอร์มต้นฉบับ wht53_template.xlsx
    เติมเฉพาะค่าลงเซลล์ (JSZip แก้ XML ตรง) → เก็บ format/merge/page setup ครบ สั่งปริ้นเหมือน PDF (RCN 5 พ.ย.) */
 function _whtSetCell(xml,ref,val){
