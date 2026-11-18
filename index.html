@@ -3643,7 +3643,7 @@ function _icdWhtDoPrint(){
   const recs=_icdWhtRecs(ds).sort((a,b)=>_icdDayKey(a.receipt_date).localeCompare(_icdDayKey(b.receipt_date))||String(a.receipt_no).localeCompare(String(b.receipt_no)));
   if(!recs.length){ alert('ไม่มีใบเสร็จในวันที่เลือก'); return; }
   const bg=document.getElementById('icdWhtBg'); if(bg)bg.style.display='none';
-  _whtPrint(recs.map(r=>_whtPage(r)).join(''));
+  _whtPrint(recs.map(r=>_whtPage(r,{allowNew:true})).join(''));
 }
 async function _excelIcdRpt(){
   if(!_icdRptMonth){ alert('เลือกเดือนก่อนครับ'); return; }
@@ -4034,6 +4034,8 @@ function _whtPage(f,opts){
   const uw=opts.incomeWord||'ค่าบริการ';   /* ขีดเส้นใต้คำในข้อ 5: ICD/TLX/CTIC=ค่าบริการ · OCF=ค่าขนส่ง */
   const inc5='<b>ค่าเช่า '+(uw==='ค่าขนส่ง'?'<u>ค่าขนส่ง</u>':'ค่าขนส่ง')+' '+(uw==='ค่าขนส่ง'?'ค่าบริการ':'<u>ค่าบริการ</u>')+'</b>';
   const refnote=opts.refnote||('INV: <b>'+h(inv)+'</b><br>ตู้: <b>'+h(f.container_no||'')+'</b><br>ใบเสร็จ ICD #'+h(f.receipt_no||''));
+  const useNew=opts.allowNew===true && (typeof getPfx==='function') && getPfx(inv)==='WKP';   /* ฟอร์มใหม่: แถว "กระทำการแทนโดย ANTS" + ตัดวงเล็บ (ให้ระบุ...) — เฉพาะ WKP ก่อน (RCN 18 พ.ย.69) */
+  const _h2='<div class="hint">(ให้ระบุว่าเป็น บุคคล นิติบุคคล บริษัท สมาคม หรือคณะบุคคล)</div>', _h3='<div class="hint">(ให้ระบุ เลขที่ ตรอก/ซอย หมู่ที่ ถนน ตำบล/แขวง อำเภอ/เขต จังหวัด)</div>';
   return `<div class="pg">
   <div class="refnote">${refnote}</div>
   <div class="cp">ฉบับที่ 1 &nbsp;(สำหรับผู้ถูกหักภาษี ณ ที่จ่ายใช้แนบพร้อมกับแบบแสดงรายการภาษี)</div>
@@ -4044,17 +4046,23 @@ function _whtPage(f,opts){
     <div class="tidbox"><div class="l">เลขประจำตัวผู้เสียภาษีอากร (13 หลัก)</div><div class="n">${h(fac.tax)}</div></div>
     <div class="sec">ผู้มีหน้าที่หักภาษี ณ ที่จ่าย :</div>
     <div class="ln"><span class="lbl">ชื่อ</span><span class="nm">${h(fac.name)}</span></div>
-    <div class="hint">(ให้ระบุว่าเป็น บุคคล นิติบุคคล บริษัท สมาคม หรือคณะบุคคล)</div>
+    ${useNew?'':_h2}
     <div class="ln"><span class="lbl">ที่อยู่</span><span class="ad">${h(fac.addr)}</span></div>
-    <div class="hint">(ให้ระบุ เลขที่ ตรอก/ซอย หมู่ที่ ถนน ตำบล/แขวง อำเภอ/เขต จังหวัด)</div>
+    ${useNew?'':_h3}
   </div>
+  ${useNew?`<div class="blk psec">
+    <div class="tidbox"><div class="l">เลขประจำตัวผู้เสียภาษีอากร (13 หลัก)</div><div class="n">${h(ANTS_WHT.tax)}</div></div>
+    <div class="sec">กระทำการแทนโดย :</div>
+    <div class="ln"><span class="lbl">ชื่อ</span><span class="nm">${h(ANTS_WHT.name)}</span></div>
+    <div class="ln"><span class="lbl">ที่อยู่</span><span class="ad">${h(ANTS_WHT.addr)}</span></div>
+  </div>`:''}
   <div class="blk psec">
     <div class="tidbox"><div class="l">เลขประจำตัวผู้เสียภาษีอากร (13 หลัก)</div><div class="n">${h(payee.tax)}</div></div>
     <div class="sec">ผู้ถูกหักภาษี ณ ที่จ่าย :</div>
     <div class="ln"><span class="lbl">ชื่อ</span><span class="nm">${h(payee.name)}</span></div>
-    ${payee.sub?`<div class="ln"><span class="lbl"></span><span class="nm">${h(payee.sub)}</span></div>`:'<div class="hint">(ให้ระบุว่าเป็น บุคคล นิติบุคคล บริษัท สมาคม หรือคณะบุคคล)</div>'}
+    ${payee.sub?`<div class="ln"><span class="lbl"></span><span class="nm">${h(payee.sub)}</span></div>`:(useNew?'':_h2)}
     <div class="ln"><span class="lbl">ที่อยู่</span><span class="ad">${h(payee.addr)}</span></div>
-    <div class="hint">(ให้ระบุ เลขที่ ตรอก/ซอย หมู่ที่ ถนน ตำบล/แขวง อำเภอ/เขต จังหวัด)</div>
+    ${useNew?'':_h3}
   </div>
   <div class="blk pndsec">
     <span class="lbl" style="font-weight:400;">ลำดับที่ ............</span><span style="font-weight:400;">ในแบบ</span>
@@ -4107,8 +4115,8 @@ function _whtComputeReceiver(inv){
   _whtAsAnts=consAnts;
   named.forEach(f=>{ if((f.received_is_ants===true)!==consAnts) _whtNameWarn.push({receipt_no:f.receipt_no,isAnts:f.received_is_ants===true}); });
 }
-function printWhtCert(ix){ const f=_skhLiftFees[ix]; if(!f){alert('ไม่พบใบเสร็จ');return;} _whtPrint(_whtPage(f,{fac:_whtPickFac(f.invoice_no||_skhLiftInv)})); }
-function printAllWhtCerts(){ if(!_skhLiftFees||!_skhLiftFees.length){alert('ยังไม่มีใบเสร็จค่ายกตู้');return;} _whtPrint(_skhLiftFees.map(f=>_whtPage(f,{fac:_whtPickFac(f.invoice_no||_skhLiftInv)})).join('')); }
+function printWhtCert(ix){ const f=_skhLiftFees[ix]; if(!f){alert('ไม่พบใบเสร็จ');return;} _whtPrint(_whtPage(f,{fac:_whtPickFac(f.invoice_no||_skhLiftInv),allowNew:true})); }
+function printAllWhtCerts(){ if(!_skhLiftFees||!_skhLiftFees.length){alert('ยังไม่มีใบเสร็จค่ายกตู้');return;} _whtPrint(_skhLiftFees.map(f=>_whtPage(f,{fac:_whtPickFac(f.invoice_no||_skhLiftInv),allowNew:true})).join('')); }
 /* 📊 ออกไฟล์ Excel (.xlsx) หนังสือรับรองหัก ณ ที่จ่าย รายใบ — ใช้ฟอร์มต้นฉบับ wht53_template.xlsx
    เติมเฉพาะค่าลงเซลล์ (JSZip แก้ XML ตรง) → เก็บ format/merge/page setup ครบ สั่งปริ้นเหมือน PDF (RCN 5 พ.ย.) */
 function _whtSetCell(xml,ref,val){
