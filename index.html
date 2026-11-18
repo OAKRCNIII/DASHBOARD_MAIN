@@ -7759,7 +7759,7 @@ async function renderSkhAccount(){
   try{
     if(!_skhAcctCache){
       const invs=await sbFetch('invoices','select=invoice_no,month,year&port=eq.SONGKHLA');
-      let bills=[]; try{ bills=await sbFetch('skh_expense_bills','select=invoice_no,type,vendor,vendor_inv_no,bill_date,wht_rate,wht_base,wht_amount,grand_total,slip_paid,status,pdf_msg,pdf_att,pdf_name,receipt_no,receipt_msg,receipt_att,receipt_name&order=bill_date.desc'); }catch(e){ try{ bills=await sbFetch('skh_expense_bills','select=invoice_no,type,vendor,vendor_inv_no,bill_date,wht_rate,wht_base,wht_amount,grand_total,slip_paid,status,pdf_msg,pdf_att,pdf_name&order=bill_date.desc'); }catch(e2){} }
+      let bills=[]; try{ bills=await sbFetch('skh_expense_bills','select=invoice_no,type,vendor,vendor_inv_no,bill_date,wht_rate,wht_base,wht_amount,grand_total,slip_paid,status,pdf_msg,pdf_att,pdf_name,receipt_no,receipt_msg,receipt_att,receipt_name,lines&order=bill_date.desc'); }catch(e){ try{ bills=await sbFetch('skh_expense_bills','select=invoice_no,type,vendor,vendor_inv_no,bill_date,wht_rate,wht_base,wht_amount,grand_total,slip_paid,status,pdf_msg,pdf_att,pdf_name&order=bill_date.desc'); }catch(e2){} }
       let lifts=[]; try{ lifts=await sbFetch('skh_lift_fees','select=invoice_no,truck_plate,amount_total'); }catch(e){}   /* +truck_plate เพื่อหักตู้รถโรงงาน SHL */
       let notes=[]; try{ notes=await sbFetch('skh_bill_notes','select=invoice_no,expense_type,note,settled'); }catch(e){}   /* หมายเหตุต่อรายการ (settled=ปิดแล้ว ไม่นับค้าง) · ตารางยังไม่สร้าง=ว่าง */
       try{ await loadExpenses(); }catch(e){}   /* EXP_BY_INV = สลิปโอน (skh_expense_payments) ไว้ปุ่มดูสลิป */
@@ -7999,6 +7999,7 @@ function _bswRender(startInv, group, keep){
   const invDisplay=group.map(disp).join(', ');
   const nSet=group.length;   /* จำนวนใบในกลุ่ม = จำนวนชุด B/L (telex) */
   const lines=(_skhAcctCache.bills||[]).filter(b=>group.includes(normInv(b.invoice_no)));
+  const _watrOt=lines.filter(b=>b.type==='WATR').reduce((s,b)=>{ const ls=Array.isArray(b.lines)?b.lines:[]; return s+ls.filter(x=>/ล่วงเวลา/.test(String(x.description||''))).reduce((a,x)=>a+(Number(x.amount)||0),0); },0);   /* ค่าล่วงเวลาจาก WATR (คุณวัส) → เติมช่อง "อื่นๆ (ล่วงเวลา)" อัตโนมัติ ไม่ต้องกรอกเอง (RCN 18 พ.ย.69) */
   const gOf=T=>lines.filter(l=>l.type===T).reduce((s,b)=>s+(Number(b.grand_total)||0)+(Number(b.wht_amount)||0),0);   /* รวม type ข้ามกลุ่ม (ยอดก่อนหัก) */
   const icd=(_skhAcctCache.lifts||[]).filter(l=>group.includes(normInv(l.invoice_no))).reduce((s,l)=>s+(Number(l.amount_total)||0),0);
   let trCost=0; const trDetailsAll=[];
@@ -8044,7 +8045,7 @@ function _bswRender(startInv, group, keep){
       ${(group.length>1
         ? `<div style="font-size:11px;font-weight:700;color:#475569;">ค่าประกันภัย <span style="font-size:9px;color:#b45309;">(ต่อใบ · &lt;1,000 ไม่หัก)</span> <button onclick="_bswSaveIns()" title="บันทึก → ครั้งหน้าขึ้นเอง + โชว์ในหน้ากำไร" style="font-size:9px;padding:0 6px;border:1px solid #0f766e;background:#ecfeff;color:#0f766e;border-radius:5px;cursor:pointer;font-weight:700;">💾 ADD DATA</button><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">`+group.map((gk,i)=>`<label style="font-size:10.5px;color:#334155;">${h(disp(gk))}<br><input id="bswIns${i}" value="${(keep.insByInv&&keep.insByInv[gk]!=null)?keep.insByInv[gk]:''}" placeholder="กรอก" oninput="_bswUpd()" style="${inA}width:102px;"></label>`).join('')+`</div></div>`
         : `<label style="font-size:11px;font-weight:700;color:#475569;">ค่าประกันภัย <button onclick="_bswSaveIns()" title="บันทึก → ครั้งหน้าขึ้นเอง + โชว์ในหน้ากำไร" style="font-size:9px;padding:0 6px;border:1px solid #0f766e;background:#ecfeff;color:#0f766e;border-radius:5px;cursor:pointer;font-weight:700;">💾 ADD DATA</button><br><input id="bswIns0" value="${(keep.insByInv&&keep.insByInv[group[0]]!=null)?keep.insByInv[group[0]]:''}" placeholder="กรอก" oninput="_bswUpd()" style="${inA}"></label>`)}
-      <label style="font-size:11px;font-weight:700;color:#475569;">อื่นๆ (ล่วงเวลา)<br><input id="bswOther" value="${keep.other?keep.other:''}" placeholder="0" oninput="_bswUpd()" style="${inA}width:85px;"></label>
+      <label style="font-size:11px;font-weight:700;color:#475569;">อื่นๆ (ล่วงเวลา)${_watrOt>0?' <span style="font-size:9px;color:#0f766e;">(WATR auto)</span>':''}<br><input id="bswOther" value="${(keep.other!=null?keep.other:_watrOt)||''}" placeholder="0" oninput="_bswUpd()" style="${inA}width:85px;"></label>
       <label style="font-size:11px;font-weight:700;color:#0f766e;">ค่าพิธีการ <button onclick="window._bsw.pithAuto=true;_bswUpd()" title="คำนวณอัตโนมัติ" style="font-size:9px;padding:0 5px;border:1px solid #99f6e4;background:#ecfeff;border-radius:5px;cursor:pointer;">🔄 auto</button><br><input id="bswPith" oninput="window._bsw.pithAuto=false;_bswUpd()" style="${inA}border-color:#5eead4;"></label>
     </div>
     <div id="bswOut" style="padding:14px 18px;"></div>
