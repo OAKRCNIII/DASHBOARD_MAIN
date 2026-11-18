@@ -6072,7 +6072,7 @@ function switchTab(tab){
   if(tab==='price'){renderPriceLatest();}
   if(tab==='report'){renderReport();}
   if(tab==='profit'){renderTrProfit();}
-  if(tab==='skhprofit'){_loadProfitMerge().then(renderSkhProfit);}
+  if(tab==='skhprofit'){Promise.all([_loadProfitMerge(),_loadSkhIns()]).then(renderSkhProfit);}
   if(tab==='skhacct'){_skhAcctCache=null;renderSkhAccount();}   /* เปิดแท็บ = อ่าน DB สดทุกครั้ง (สลิป/ใบเสร็จอัพแล้วเห็นเลย ไม่ต้อง SYNC Gmail) */
   if(tab==='mhome'){renderMobileHome();renderStatsMain();}
   if(tab==='mmonth'){renderMobileMonthView();}
@@ -7942,7 +7942,7 @@ async function deleteBillNote(){
    ค่าพิธีการ = plug ให้ยอดรวมสุทธิ = วางบิล (29,000×ตู้ + telex + ประกัน) · ปรับเองได้ */
 function openBswBill(inv){
   if(!_skhAcctCache){ alert('เปิดแท็บบัญชีสงขลาก่อนครับ'); return; }
-  _bswRender(inv, [normInv(inv)], null);
+  _loadSkhIns().then(()=>_bswRender(inv, [normInv(inv)], null)).catch(()=>_bswRender(inv, [normInv(inv)], null));   /* โหลดค่าประกันที่บันทึกไว้ก่อน → prefill (RCN 18 พ.ย.69) */
 }
 function _bswKeep(){   /* snapshot ค่ากรอกมือก่อน rebuild (เพิ่ม/ลบอินวอยซ์) */
   const s=window._bsw||{}; const gv=id=>{const e=document.getElementById(id);return e?(parseFloat(String(e.value||'').replace(/,/g,''))||0):0;};
@@ -7971,6 +7971,10 @@ function _bswAddInvType(inp){   /* พิมพ์กรอง/เลือก�
 function _bswRemoveInv(nk){ const s=window._bsw; if(!s)return; const ng=s.group.filter(x=>x!==nk); if(ng.length) _bswRender(s.inv, ng, _bswKeep()); }
 function _bswRender(startInv, group, keep){
   keep=keep||{};
+  const _savedIns=window._SKH_INS||new Map();   /* prefill ค่าประกันที่เคยบันทึก (ถ้าช่องยังว่าง) */
+  const _insInit=Object.assign({}, keep.insByInv||{});
+  (group||[]).forEach(gk=>{ if(_insInit[gk]==null && _savedIns.has(gk)) _insInit[gk]=_savedIns.get(gk); });
+  keep=Object.assign({}, keep, {insByInv:_insInit});
   const inv=startInv;
   const _TR=(typeof TR_DATA!=='undefined'&&TR_DATA)?TR_DATA:[];
   const dispMap=new Map();
@@ -8001,7 +8005,7 @@ function _bswRender(startInv, group, keep){
   if(c2.vat==='excl'&&trDetailsAll.length){ const fm=new Map(); trDetailsAll.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const f=m.factory||'ไม่ระบุ'; fm.set(f,(fm.get(f)||0)+1); } }); subFac=[...fm.entries()].map(([factory,count])=>({factory,count,rate:(keep.rates&&keep.rates[factory]!=null)?keep.rates[factory]:_dsr(factory)}));
     const _ord=f=>{ for(let i=0;i<SELL_RATE.length;i++){ if(String(f||'').includes(SELL_RATE[i][0]))return i; } return 99; };   /* เรียง นาวา→นาเมือง→กนก ตาม SELL_RATE */
     subFac.sort((a,b)=>_ord(a.factory)-_ord(b.factory)); }
-  window._bsw={inv:inv, group:group, invDisplay:invDisplay, nSet:nSet, ctr:N0||10, insByInv:(keep.insByInv||{}), insurance:group.reduce((a,gk)=>a+(Number((keep.insByInv||{})[gk])||0),0), pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, telexSep:(c2.telexSep||false), subFac:subFac, transport:trCost, trRates:trRates, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd};
+  window._bsw={inv:inv, group:group, dispByGk:Object.fromEntries(group.map(gk=>[gk,disp(gk)])), invDisplay:invDisplay, nSet:nSet, ctr:N0||10, insByInv:(keep.insByInv||{}), insurance:group.reduce((a,gk)=>a+(Number((keep.insByInv||{})[gk])||0),0), pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, telexSep:(c2.telexSep||false), subFac:subFac, transport:trCost, trRates:trRates, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd};
   const addCands=_bswInvCands(group, inv);   /* อินวอยซ์ที่เลือกเพิ่มได้ใน dropdown */
   let bg=document.getElementById('bswBillBg');
   if(!bg){ bg=document.createElement('div'); bg.id='bswBillBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;'; document.body.appendChild(bg); }
@@ -8029,7 +8033,10 @@ function _bswRender(startInv, group, keep){
       <label style="font-size:11px;font-weight:700;color:#0f766e;">ค่าพิธีการ <button onclick="window._bsw.pithAuto=true;_bswUpd()" title="คำนวณอัตโนมัติ" style="font-size:9px;padding:0 5px;border:1px solid #99f6e4;background:#ecfeff;border-radius:5px;cursor:pointer;">🔄 auto</button><br><input id="bswPith" oninput="window._bsw.pithAuto=false;_bswUpd()" style="${inA}border-color:#5eead4;"></label>
     </div>
     <div id="bswOut" style="padding:14px 18px;"></div>
-    <div style="padding:0 18px 16px;"><button onclick="_bswPrint()" style="width:100%;padding:10px;border:none;border-radius:9px;background:#0f2a52;color:#fff;font-size:13px;font-weight:800;cursor:pointer;">🖨️ พิมพ์ใบวางบิล</button></div></div>`;
+    <div style="padding:0 18px 16px;display:flex;gap:10px;">
+      <button onclick="_bswSaveIns()" title="บันทึกค่าประกันภัย → ครั้งหน้าเปิดมาขึ้นเอง + โชว์ในหน้ากำไร" style="flex:0 0 auto;padding:10px 16px;border:1.5px solid #0f766e;border-radius:9px;background:#ecfeff;color:#0f766e;font-size:13px;font-weight:800;cursor:pointer;">💾 ADD DATA (ค่าประกัน)</button>
+      <button onclick="_bswPrint()" style="flex:1;padding:10px;border:none;border-radius:9px;background:#0f2a52;color:#fff;font-size:13px;font-weight:800;cursor:pointer;">🖨️ พิมพ์ใบวางบิล</button>
+    </div></div>`;
   bg.style.display='flex'; _bswUpd();
 }
 function _bswUpd(){
@@ -8041,6 +8048,18 @@ function _bswUpd(){
   else { s.rate=gv('bswRate'); }
   if(!s.pithAuto) s.pithManual=gv('bswPith');
   _renderBswOut();
+}
+async function _bswSaveIns(){   /* บันทึกค่าประกันภัยต่อใบ → skh_profit_ins (ใช้ร่วมหน้ากำไร) */
+  const s=window._bsw; if(!s)return;
+  _bswUpd();   /* sync ค่าล่าสุดจากช่องกรอกก่อน */
+  const ins=s.insByInv||{}, disp=s.dispByGk||{}, up=[], del=[];
+  (s.group||[]).forEach(gk=>{ const v=Number(ins[gk])||0; const inv=disp[gk]||gk; if(v>0) up.push({invoice_no:inv,amount:v,updated_at:new Date().toISOString()}); else del.push(inv); });
+  try{
+    if(up.length){ const r=await fetch(`${SB_URL}/rest/v1/skh_profit_ins?on_conflict=invoice_no`,{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_TOKEN,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},body:JSON.stringify(up)}); if(!r.ok) throw new Error('HTTP '+r.status+' '+(await r.text()).slice(0,120)); }
+    for(const inv of del){ await fetch(`${SB_URL}/rest/v1/skh_profit_ins?invoice_no=eq.${encodeURIComponent(inv)}`,{method:'DELETE',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_TOKEN,'Prefer':'return=minimal'}}); }
+    await _loadSkhIns();
+    alert('✅ บันทึกค่าประกันแล้ว'+(up.length?'\n'+up.map(u=>'· '+u.invoice_no+' = '+Number(u.amount).toLocaleString('th-TH')+' ฿').join('\n'):' (เคลียร์)')+'\n\nครั้งหน้าเปิดมาขึ้นเอง + โชว์ในหน้ากำไร');
+  }catch(e){ alert('บันทึกค่าประกันไม่สำเร็จ: '+(e.message||e)+'\n(รัน CREATE TABLE skh_profit_ins หรือยัง?)'); }
 }
 function _renderBswOut(){
   const s=window._bsw; if(!s)return; const out=document.getElementById('bswOut'); if(!out)return;
@@ -12300,9 +12319,12 @@ function _skhProfitToggle(p){ if(_SKHPROFIT_OPEN.has(p))_SKHPROFIT_OPEN.delete(p
 /* ── รวมใบที่วางบิลรวมกัน → โชว์เป็นการ์ดเดียว (รายรับรวม − ค่าใช้จ่ายรวม) · เก็บ DB skh_profit_merge · RCN 18 พ.ย.69 ── */
 let _SKH_PROFIT_MERGE=new Map(), _SKHPROFIT_RAWROWS=[];   /* normInv(invoice) → group_key */
 async function _loadProfitMerge(){ try{ const d=await sbFetch('skh_profit_merge','select=invoice_no,group_key'); _SKH_PROFIT_MERGE=new Map((d||[]).map(x=>[normInv(x.invoice_no),x.group_key])); }catch(e){ _SKH_PROFIT_MERGE=new Map(); } }
+/* ค่าประกันภัย กรอกมือต่อใบ (skh_profit_ins) — บันทึกจาก Draft ใบวางบิล (ปุ่ม ADD DATA) · ใช้ร่วมกับหน้ากำไร (RCN 18 พ.ย.69) */
+window._SKH_INS=window._SKH_INS||new Map();   /* normInv(invoice) → amount */
+async function _loadSkhIns(){ try{ const d=await sbFetch('skh_profit_ins','select=invoice_no,amount'); window._SKH_INS=new Map((d||[]).map(x=>[normInv(x.invoice_no),Number(x.amount)||0])); }catch(e){ window._SKH_INS=window._SKH_INS||new Map(); } }
 function _mergeRows(grp){
   const sum=k=>grp.reduce((s,r)=>s+(Number(r[k])||0),0); const m={...grp[0]};
-  ['ctr','rev','ocf','tlx','ctic','icd','watr','truck','kui','antsFee','cost','trPaid','trTot'].forEach(k=>m[k]=sum(k));
+  ['ctr','rev','ocf','tlx','ctic','icd','watr','truck','kui','antsFee','ins','cost','trPaid','trTot'].forEach(k=>m[k]=sum(k));
   m.profit=m.rev-m.cost; m.billed=grp.some(r=>r.billed); m.merged=true;
   m.mergedInvs=grp.map(r=>r.inv); m.inv=grp.map(r=>r.inv).join(' + '); m.trLines=grp.flatMap(r=>r.trLines||[]);
   return m;
@@ -12378,6 +12400,7 @@ function _skhProfitCardHtml(r){
           ${ei('ท่าเรือ CTIC',r.ctic,'#0e7490')}${ei('ICD',r.icd,'#c2410c')}
           ${ei('คุณวัส',r.watr,'#b45309')}${ei('รถบรรทุก',r.truck,'#7c3aed',trBadge)}
           ${ei('คุณกุ้ (200/ตู้)',r.kui,'#be185d')}${ei('ANTS FEE (1000/ตู้)',r.antsFee,'#475569')}
+          ${ei('ค่าประกันภัย',r.ins,'#0891b2')}
         </div>
         <div style="display:flex;justify-content:space-between;border-top:1px dashed #fcd34d;margin-top:5px;padding-top:5px;font-weight:800;color:#92400e;"><span>รวมค่าใช้จ่าย</span><span>${fm(r.cost)} ฿</span></div>
       </div>
@@ -12406,12 +12429,13 @@ function renderSkhProfit(){
     const ctr=Number(d.container_count||d.total_expected||d.total_actual||(d.details?d.details.length:0))||0;
     const ocf=_expSum(d.inv,'OCF'),tlx=_expSum(d.inv,'TLX'),ctic=_expSum(d.inv,'CTIC'),watr=_expSum(d.inv,'WATR');
     const icd=(_icdRate(d.inv)||0)*Math.max(0,ctr-_shlCtr(d.inv)), truck=truckByInv[k]||0, kui=200*ctr, antsFee=1000*ctr;   /* หักตู้รถโรงงาน SHL ไม่นับ ICD */
-    const cost=ocf+tlx+ctic+icd+watr+truck+kui+antsFee;
+    const ins=Number((window._SKH_INS&&window._SKH_INS.get(k))||0);   /* ค่าประกันภัย กรอกมือ (skh_profit_ins) */
+    const cost=ocf+tlx+ctic+icd+watr+truck+kui+antsFee+ins;
     if(rev<=0 && cost<=0) return;   /* ไม่มีทั้งรายรับและค่าใช้จ่าย → ข้าม · ยังไม่วางบิลแต่มีค่าใช้จ่าย = โชว์ติดลบ (RCN 4 พ.ย.) */
     const _tr=(TR_DATA||[]).find(t=>normInv(t.inv)===k);
     const trPaid=_tr?(_tr.paidCount||0):0, trTot=_tr?(_tr.total||(_tr.details?_tr.details.length:0)):0;
     const trLines=((_tr&&_tr.details)?_tr.details:[]).filter(x=>x.trMatch&&!x.trMatch._prePaid&&!x.trMatch._factoryTruck&&(Number(x.trMatch.price)||0)>0).map(x=>({ctr:x.เบอร์ตู้||x.container_no||'',plate:x.ทะเบียนรถ||x.truck_plate||'',bill:x.trMatch.billNo||x.trMatch.bill_no||'',price:Number(x.trMatch.price)||0}));
-    rows.push({inv:d.inv,prefix:d.prefix,month:d.month,ctr,rev,billed,ocf,tlx,ctic,icd,watr,truck,kui,antsFee,cost,profit:rev-cost,trPaid,trTot,trLines});
+    rows.push({inv:d.inv,prefix:d.prefix,month:d.month,ctr,rev,billed,ocf,tlx,ctic,icd,watr,truck,kui,antsFee,ins,cost,profit:rev-cost,trPaid,trTot,trLines});
   });
   const yrOf=m=>{try{return (typeof mYear==='function')?mYear(m):Number(String(m).split('_')[0]);}catch(e){return null;}};
   const allYears=[...new Set(rows.map(r=>yrOf(r.month)).filter(y=>y))].sort((a,b)=>b-a);
@@ -12481,11 +12505,11 @@ async function _skhProfitExcel(){
   await _lazyScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
   const r2=n=>Math.round(n||0);
   const ml=m=>{try{return (typeof mLabel==='function')?mLabel(m):String(m);}catch(e){return String(m);}};
-  const aoa=[['โรงงาน','อินวอยซ์','เดือน','ตู้','รายรับ','OCF','TLX','CTIC','ICD','คุณวัส','รถบรรทุก','คุณกุ้','ANTS FEE','ค่าใช้จ่ายรวม','กำไร','กำไร/ตู้']];
-  const T={rev:0,ocf:0,tlx:0,ctic:0,icd:0,watr:0,truck:0,kui:0,antsFee:0,cost:0,profit:0,ctr:0};
+  const aoa=[['โรงงาน','อินวอยซ์','เดือน','ตู้','รายรับ','OCF','TLX','CTIC','ICD','คุณวัส','รถบรรทุก','คุณกุ้','ANTS FEE','ค่าประกัน','ค่าใช้จ่ายรวม','กำไร','กำไร/ตู้']];
+  const T={rev:0,ocf:0,tlx:0,ctic:0,icd:0,watr:0,truck:0,kui:0,antsFee:0,ins:0,cost:0,profit:0,ctr:0};
   _SKHPROFIT_ROWS.forEach(r=>{ for(const kk in T)T[kk]+=r[kk]||0;
-    aoa.push([r.prefix||'',r.inv,ml(r.month),r.ctr,r2(r.rev),r2(r.ocf),r2(r.tlx),r2(r.ctic),r2(r.icd),r2(r.watr),r2(r.truck),r2(r.kui),r2(r.antsFee),r2(r.cost),r2(r.profit),r.ctr?r2(r.profit/r.ctr):0]); });
-  aoa.push(['รวม','','',T.ctr,r2(T.rev),r2(T.ocf),r2(T.tlx),r2(T.ctic),r2(T.icd),r2(T.watr),r2(T.truck),r2(T.kui),r2(T.antsFee),r2(T.cost),r2(T.profit),T.ctr?r2(T.profit/T.ctr):0]);
+    aoa.push([r.prefix||'',r.inv,ml(r.month),r.ctr,r2(r.rev),r2(r.ocf),r2(r.tlx),r2(r.ctic),r2(r.icd),r2(r.watr),r2(r.truck),r2(r.kui),r2(r.antsFee),r2(r.ins),r2(r.cost),r2(r.profit),r.ctr?r2(r.profit/r.ctr):0]); });
+  aoa.push(['รวม','','',T.ctr,r2(T.rev),r2(T.ocf),r2(T.tlx),r2(T.ctic),r2(T.icd),r2(T.watr),r2(T.truck),r2(T.kui),r2(T.antsFee),r2(T.ins),r2(T.cost),r2(T.profit),T.ctr?r2(T.profit/T.ctr):0]);
   const XLSX=window.XLSX; const ws=XLSX.utils.aoa_to_sheet(aoa); const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'กำไรสงขลา'); XLSX.writeFile(wb,'กำไรสงขลา.xlsx');
 }
@@ -12560,7 +12584,7 @@ function printSkhProfitPdf(){
       <div class="two">
         <div class="box rev"><div class="bt">💚 รายรับ (วางบิล)</div><div class="bv" style="color:${r.rev>0?'#15803d':'#cbd5e1'};">${fm(r.rev)} ฿</div>${r.billed?'':'<div class="note">ยังไม่ออกใบวางบิล</div>'}</div>
         <div class="box exp"><div class="bt">🧾 ค่าใช้จ่าย</div>
-          <table class="et"><tbody>${er('OCF',r.ocf,'#15803d')}${er('TLX',r.tlx,'#1d4ed8')}${er('ท่าเรือ CTIC',r.ctic,'#0e7490')}${er('ICD',r.icd,'#c2410c')}${er('คุณวัส',r.watr,'#b45309')}${er('รถบรรทุก',r.truck,'#7c3aed')}${er('คุณกุ้ (200/ตู้)',r.kui,'#be185d')}${er('ANTS FEE (1000/ตู้)',r.antsFee,'#475569')}</tbody>
+          <table class="et"><tbody>${er('OCF',r.ocf,'#15803d')}${er('TLX',r.tlx,'#1d4ed8')}${er('ท่าเรือ CTIC',r.ctic,'#0e7490')}${er('ICD',r.icd,'#c2410c')}${er('คุณวัส',r.watr,'#b45309')}${er('รถบรรทุก',r.truck,'#7c3aed')}${er('คุณกุ้ (200/ตู้)',r.kui,'#be185d')}${er('ANTS FEE (1000/ตู้)',r.antsFee,'#475569')}${er('ค่าประกันภัย',r.ins,'#0891b2')}</tbody>
           <tfoot><tr><td class="l">รวมค่าใช้จ่าย</td><td class="r">${fm(r.cost)} ฿</td></tr></tfoot></table>
         </div>
       </div>
