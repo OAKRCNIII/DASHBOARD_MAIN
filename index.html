@@ -8028,7 +8028,7 @@ function _bswRender(startInv, group, keep){
   if(c2.vat==='excl'&&trDetailsAll.length){ const fm=new Map(); trDetailsAll.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const f=m.factory||'ไม่ระบุ'; fm.set(f,(fm.get(f)||0)+1); } }); subFac=[...fm.entries()].map(([factory,count])=>({factory,count,rate:(keep.rates&&keep.rates[factory]!=null)?keep.rates[factory]:_dsr(factory)}));
     const _ord=f=>{ for(let i=0;i<SELL_RATE.length;i++){ if(String(f||'').includes(SELL_RATE[i][0]))return i; } return 99; };   /* เรียง นาวา→นาเมือง→กนก ตาม SELL_RATE */
     subFac.sort((a,b)=>_ord(a.factory)-_ord(b.factory)); }
-  window._bsw={inv:inv, group:group, dispByGk:Object.fromEntries(group.map(gk=>[gk,disp(gk)])), invDisplay:invDisplay, nSet:nSet, ctr:N0||10, insByInv:(keep.insByInv||{}), insurance:group.reduce((a,gk)=>a+(Number((keep.insByInv||{})[gk])||0),0), pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, telexSep:(c2.telexSep||false), subFac:subFac, transport:trCost, trRates:trRates, ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd};
+  window._bsw={inv:inv, group:group, dispByGk:Object.fromEntries(group.map(gk=>[gk,disp(gk)])), invDisplay:invDisplay, nSet:nSet, ctr:N0||10, insByInv:(keep.insByInv||{}), insurance:group.reduce((a,gk)=>a+(Number((keep.insByInv||{})[gk])||0),0), pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, telexSep:(c2.telexSep||false), subFac:subFac, transport:trCost, trRates:trRates, transportPaid:trCost, trPaidCnt:trDetailsAll.length, trRatesPaid:trRates, trEstRate:lookupPriceUpdate('-',getPfx(inv),'',inv), ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd};
   const addCands=_bswInvCands(group, inv);   /* อินวอยซ์ที่เลือกเพิ่มได้ใน dropdown */
   let bg=document.getElementById('bswBillBg');
   if(!bg){ bg=document.createElement('div'); bg.id='bswBillBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;'; document.body.appendChild(bg); }
@@ -8084,6 +8084,11 @@ async function _bswSaveIns(){   /* บันทึกค่าประกัน
 function _renderBswOut(){
   const s=window._bsw; if(!s)return; const out=document.getElementById('bswOut'); if(!out)return;
   const fmt=n=>Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  /* ค่าขนส่งตู้ที่เข้าโรงงานแล้วแต่ขนส่งยังไม่วางบิล → เติมประมาณจากเรต price_update ตามโรงงาน (RCN 19 พ.ย.69) */
+  { const _pc=s.trPaidCnt||0, _ec=Math.max(0,(s.ctr||0)-_pc), _er=s.trEstRate||0;
+    s.transport=(s.transportPaid||0)+_ec*_er;
+    s.trRates=(s.trRatesPaid||[]).slice();
+    if(_ec>0&&_er>0) s.trRates.push({rate:_er,qty:_ec,est:true}); }
   const telex=(s.tlx>0?s.tlx:1500*(s.nSet||1)), rows=[];   /* B/L = 1,500 × จำนวนชุด (รวม 010+010A = 2 ชุด) */
   const vat=(name,gross)=>{ const base=gross/1.07; rows.push({name,base,vat:gross-base,w3:base>=1000?base*0.03:0,w1:0}); };   /* หัก ณ ที่จ่ายเฉพาะยอด ≥ 1,000 */
   const nov=(name,base,w)=>{ rows.push({name,base,vat:0,w3:0,w1:(w===1&&base>=1000)?base*0.01:0}); };
@@ -8149,7 +8154,7 @@ function _renderBswOut(){
       <tr><td style="${td}">ค่าเอกสาร CERTIFICATE OF ORIGIN ออกโดย</td><td colspan="3" style="border-bottom:1px solid #999;"></td></tr>
       <tr><td style="${td}">ค่าส่งเอกสารไปต่างประเทศโดย DHL NO.</td><td colspan="3"></td></tr>
       <tr><td style="${td}">ค่าประกันภัย</td><td style="${td}">${(()=>{const ps=(s.group||[]).map(gk=>Number((s.insByInv||{})[gk]||0)).filter(v=>v>0);return ps.length>1?ps.map(v=>v.toLocaleString('th-TH')).join(' + '):'X 1';})()}</td><td style="${tr}">${fmt(cINS)}</td><td></td></tr>
-      <tr><td style="${td}">ค่าขนส่ง</td><td style="${td}">${(s.trRates&&s.trRates.length)?s.trRates.map(r=>fmt(r.rate)+' X '+r.qty).join('<br>'):''}</td><td style="${tr}">${fmt(cTRANS)}</td><td></td></tr>
+      <tr><td style="${td}">ค่าขนส่ง</td><td style="${td}">${(s.trRates&&s.trRates.length)?s.trRates.map(r=>fmt(r.rate)+' X '+r.qty+(r.est?' <span style="font-size:9px;color:#b45309;">(ประมาณ)</span>':'')).join('<br>'):''}</td><td style="${tr}">${fmt(cTRANS)}</td><td></td></tr>
       <tr><td style="${td}">อื่นๆ ค่าทำการล่วงเวลา (กรมศุลกากร)</td><td></td><td style="${tr}">${s.other?fmt(s.other):dash}</td><td></td></tr>
      </tbody></table>
     <table style="width:56%;margin-left:44%;border-collapse:collapse;border-top:2px solid #000;">
