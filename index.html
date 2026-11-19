@@ -8028,7 +8028,7 @@ function _bswRender(startInv, group, keep){
   if(c2.vat==='excl'&&trDetailsAll.length){ const fm=new Map(); trDetailsAll.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const f=m.factory||'ไม่ระบุ'; fm.set(f,(fm.get(f)||0)+1); } }); subFac=[...fm.entries()].map(([factory,count])=>({factory,count,rate:(keep.rates&&keep.rates[factory]!=null)?keep.rates[factory]:_dsr(factory)}));
     const _ord=f=>{ for(let i=0;i<SELL_RATE.length;i++){ if(String(f||'').includes(SELL_RATE[i][0]))return i; } return 99; };   /* เรียง นาวา→นาเมือง→กนก ตาม SELL_RATE */
     subFac.sort((a,b)=>_ord(a.factory)-_ord(b.factory)); }
-  window._bsw={inv:inv, group:group, dispByGk:Object.fromEntries(group.map(gk=>[gk,disp(gk)])), invDisplay:invDisplay, nSet:nSet, ctr:N0||10, insByInv:(keep.insByInv||{}), insurance:group.reduce((a,gk)=>a+(Number((keep.insByInv||{})[gk])||0),0), pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, telexSep:(c2.telexSep||false), subFac:subFac, transport:trCost, trRates:trRates, transportPaid:trCost, trPaidCnt:trDetailsAll.length, trRatesPaid:trRates, trEstRate:lookupPriceUpdate('-',getPfx(inv),'',inv), ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd};
+  window._bsw={inv:inv, group:group, dispByGk:Object.fromEntries(group.map(gk=>[gk,disp(gk)])), invDisplay:invDisplay, nSet:nSet, ctr:N0||10, insByInv:(keep.insByInv||{}), insurance:group.reduce((a,gk)=>a+(Number((keep.insByInv||{})[gk])||0),0), pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, telexSep:(c2.telexSep||false), subFac:subFac, transport:trCost, trRates:trRates, transportPaid:trCost, trPaidCnt:trRates.reduce((a,r)=>a+(Number(r.qty)||0),0), trRatesPaid:trRates, trEstRate:lookupPriceUpdate('-',getPfx(inv),'',inv), ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd};
   const addCands=_bswInvCands(group, inv);   /* อินวอยซ์ที่เลือกเพิ่มได้ใน dropdown */
   let bg=document.getElementById('bswBillBg');
   if(!bg){ bg=document.createElement('div'); bg.id='bswBillBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;'; document.body.appendChild(bg); }
@@ -8089,7 +8089,7 @@ function _renderBswOut(){
     s.transport=(s.transportPaid||0)+_ec*_er;
     s.trRates=(s.trRatesPaid||[]).slice();
     if(_ec>0&&_er>0) s.trRates.push({rate:_er,qty:_ec,est:true}); }
-  const telex=(s.tlx>0?s.tlx:1500*(s.nSet||1)), rows=[];   /* B/L = 1,500 × จำนวนชุด (รวม 010+010A = 2 ชุด) */
+  const telex=(s.tlx>0?s.tlx:0), rows=[];   /* SURRENDER B/L = ยอด TLX bill จริงเท่านั้น (ไม่มี TLX = ไม่มี surrender ไม่เดา 1,500) RCN 19 พ.ย.69 */
   const vat=(name,gross)=>{ const base=gross/1.07; rows.push({name,base,vat:gross-base,w3:base>=1000?base*0.03:0,w1:0}); };   /* หัก ณ ที่จ่ายเฉพาะยอด ≥ 1,000 */
   const nov=(name,base,w)=>{ rows.push({name,base,vat:0,w3:0,w1:(w===1&&base>=1000)?base*0.01:0}); };
   nov('OCEAN FREIGHT & OTHER CHARGE', s.ocf, 1);
@@ -8138,7 +8138,7 @@ function _renderBswOut(){
       <tr><td style="${td}font-weight:700;">OCEAN FREIGHT</td><td></td><td></td><td></td></tr>
       <tr><td style="${td}">รวมทั้งหมด &nbsp; <span style="border-bottom:1px solid #000;padding:0 18px;">${fmt(oceanTot)}</span> THB</td><td></td><td></td><td></td></tr>
       <tr><td style="${td}">OCEAN FREIGHT &amp; OTHER CHARGE</td><td style="${td}">X ${N} ตู้</td><td style="${tr}">${fmt(cOCEAN)}</td><td></td></tr>
-      <tr><td style="${td}">SURRENDER B/L FEE &nbsp; 1,500.00 THB</td><td style="${td}">X ${s.nSet||1} ชุด</td><td style="${tr}">${fmt(cTELEX)}</td><td></td></tr>
+      ${telex>0?`<tr><td style="${td}">SURRENDER B/L FEE &nbsp; 1,500.00 THB</td><td style="${td}">X ${s.nSet||1} ชุด</td><td style="${tr}">${fmt(cTELEX)}</td><td></td></tr>`:''}
       <tr><td style="height:7px;"></td><td></td><td></td><td></td></tr></tbody>
      <tbody style="border-bottom:1.5px solid #000;">
       <tr><td style="${td}">ค่าพิธีการ</td><td></td><td></td><td style="${tr}">${fmt(pithSvc)}</td></tr>
