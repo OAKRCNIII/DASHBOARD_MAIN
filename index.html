@@ -8115,8 +8115,10 @@ function _renderBswOut(){
   const Rvat=pith*0.07, R3=pith>=1000?pith*0.03:0, Rgross=pith*1.07;
   const moveRate=s.col2Rate||1500, moveLabel=s.col2Label||'ADDITIONAL MOVE';   /* BSW=ADD MOVE 1,500 · INV=THC 4,500 */
   const addMove=moveRate*s.ctr, pithSvc=pith-addMove;
-  const grand=Lgross+Rgross;             /* ยอดรวม(รวม VAT) = วางบิล (ลงตัว) */
-  const whtTot=L3+L1+R3, netRecv=grand-whtTot, margin=billing-grand;
+  const _r2=x=>Math.round((Number(x)||0)*100)/100;   /* กัน diff 0.01: ยอดรวม/สุทธิ = ผลรวมช่องที่ปัด 2 ตำแหน่งแล้ว ให้บวกตามที่เห็นได้เป๊ะ (RCN 19 พ.ย.69) */
+  const grandF=Lgross+Rgross;            /* full precision ไว้เช็ค margin (ลงตัว) */
+  const grand=_r2(Lbase)+_r2(Lvat)+_r2(pith)+_r2(Rvat);   /* ยอดรวม(รวม VAT) = ผลรวมช่องที่ปัดแล้ว */
+  const whtTot=_r2(L3)+_r2(L1)+_r2(R3), netRecv=grand-whtTot, margin=billing-grandF;
   const _FACCO={BSW:'BANSONG PARAWOOD CO.,LTD.',INV:'THE ONE PARAWOOD CO.,LTD.',KNT:'KANOKTHONG INTERTRADE CO.,LTD',NMP:'NAMUANGPHET PARAWOOD CO.,LTD',OGM:'ONE GOLD MARKETING CO.,LTD'};
   const co=_FACCO[String(s.inv).slice(0,3).toUpperCase()]||'BANSONG PARAWOOD CO.,LTD.';
   const N=s.ctr, bOf=i=>(rows[i]?rows[i].base:0);
