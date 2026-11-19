@@ -7098,13 +7098,15 @@ function execPrintQuotation(invNo){
   const tableRows=allRows.map(r=>`<tr><td>${he2(r.inv)}</td><td>${he2(r.dest)}</td><td style="text-align:right;font-weight:700;">${fm(r.price)}</td></tr>`).join('');
   const table=`<table><thead><tr><th style="width:42%">เลขอินวอยซ์</th><th style="width:33%">ปลายทาง</th><th style="text-align:right;width:25%">ราคา/ตู้ (฿)</th></tr></thead><tbody>${tableRows}</tbody></table>`;
   let body='';
+  const _isSkh=(typeof portOf==='function' && portOf(invNo)==='SONGKHLA');   /* ใบท่าสงขลา → เปลี่ยนท่าเรือต้นทางเป็นสงขลา ประเทศไทย (RCN 19 พ.ย.69) */
   if(isSHL){
-    const penang='ท่าเรือปีนัง ประเทศมาเลเซีย';
-    body=`<div class="body-text">บริษัทฯมีความยินดีที่จะเสนอราคาค่าบริการสำหรับสินค้าขาออก ขนาดตู้ 40 ฟุต ที่${penang} ไปยังปลายทาง ประเทศ${destCountry} ดังนี้</div>
+    const originPort=_isSkh?'ท่าเรือสงขลา ประเทศไทย':'ท่าเรือปีนัง ประเทศมาเลเซีย';
+    body=`<div class="body-text">บริษัทฯมีความยินดีที่จะเสนอราคาค่าบริการสำหรับสินค้าขาออก ขนาดตู้ 40 ฟุต ที่${originPort} ไปยังปลายทาง ประเทศ${destCountry} ดังนี้</div>
     ${table}
     <div class="remark">หมายเหตุ : ราคารวมค่ารถหัวลากแล้ว<div style="padding-left:4.8em;">${haulageNote?haulageNote+'<br>':''}(ไม่รวมค่าประกันภัย)</div></div>`;
   }else{
-    body=`<div class="body-text">บริษัทฯมีความยินดีที่จะเสนอราคาค่าบริการสำหรับสินค้าขาออก ขนาดตู้ 40 ฟุต ที่ Penang Port ไปยังปลายทาง ประเทศ${destCountry} ดังนี้</div>
+    const originPort=_isSkh?'ท่าเรือสงขลา ประเทศไทย':' Penang Port';
+    body=`<div class="body-text">บริษัทฯมีความยินดีที่จะเสนอราคาค่าบริการสำหรับสินค้าขาออก ขนาดตู้ 40 ฟุต ที่${originPort} ไปยังปลายทาง ประเทศ${destCountry} ดังนี้</div>
     ${table}
     <div class="remark">หมายเหตุ : ราคารวมภาษีมูลค่าเพิ่มแล้ว / ไม่รวมค่าประกันภัย</div>`;
   }
