@@ -3680,6 +3680,8 @@ async function _excelIcdRpt(){
 }
 
 /* ══ ICD ต่อขนส่ง — ยอดค่ายกตู้ที่ขนส่งจ่ายแทน (จับ carrier จากทะเบียน) รอ ANTS คืน ══ */
+/* เบอร์ตู้ → เหตุผลเรื่องซีลที่ต้องให้คนตรวจ (เติมตอนโหลดข้อมูล) */
+let SEAL_NOTE = {};
 const TRUCK_CARRIER = {
   '71-9538':'ธีรา','72-1620':'ธีรา','72-2237':'ธีรา','72-3148':'ธีรา','72-3149':'ธีรา',   /* 72-3148/3149 รถธีราเพิ่มท่าเรือสงขลา (คู่ 16) — 12 พ.ย.69 */
   '72-3997':'คมกฤษ','72-3550':'คมกฤษ','72-4091':'คมกฤษ',
@@ -5419,11 +5421,22 @@ async function loadData(forceRefresh=false){
       sbFetch('ogm_prices','order=id').catch(()=>[]),
       sbFetch('ship_paid_log','select=prefix,month,paid,paid_date').catch(()=>[]),
       sbFetch('bank_balance','order=bank').catch(()=>[]),
+      /* ซีลสงขลาที่บอทอ่านแล้วยังไม่มีอะไรยืนยัน → ขึ้น ⚠ ในตารางตู้ (RCN 19 พ.ย.69: เตือนหน้านี้ ไม่เตือนในใบแจ้งเบอร์ตู้) */
+      sbFetch('skh_containers','select=container_no,review_note&needs_review=is.true').catch(()=>[]),
     ]);
     try{sessionStorage.setItem(_DB_CACHE_KEY,JSON.stringify({ts:Date.now(),rows:_rows}));}catch(e){}
   }
   /* ── Fetch all tables in parallel ── */
-  const [invRows,ctrRows,trBillRows,billingAntsRows,paidAntsRows,vesselRows,stmtRows,bkgRows,vesselPlanRows,priceUpdateRows,ogmPriceRows,shipPaidRows,bankBalRows]=_rows;
+  const [invRows,ctrRows,trBillRows,billingAntsRows,paidAntsRows,vesselRows,stmtRows,bkgRows,vesselPlanRows,priceUpdateRows,ogmPriceRows,shipPaidRows,bankBalRows,skhReviewRows]=_rows;
+  /* map เบอร์ตู้ → เหตุผลเรื่องซีลที่ต้องให้คนดู (เอาเฉพาะบรรทัดที่พูดถึงซีล ไม่เอาทะเบียน/น้ำหนัก)
+     ⚠️ _rows อาจมาจาก sessionStorage รุ่นก่อนที่ยังไม่มีช่องนี้ → ต้อง ||[] กันพัง */
+  SEAL_NOTE={};
+  (skhReviewRows||[]).forEach(r=>{
+    const note=String(r.review_note||'');
+    /* เอาทั้งโน้ตถ้ามีคำว่า "ซีล" อยู่ที่ไหนสักบรรทัด — บรรทัดโหวต ("- ลายมือในฟอร์ม: …")
+       ไม่มีคำว่าซีล ถ้ากรองรายบรรทัดจะได้ tooltip ขาด ๆ อ่านไม่รู้เรื่อง */
+    if(/ซีล/.test(note)&&r.container_no)SEAL_NOTE[String(r.container_no).toUpperCase()]=note.replace(/\s*\n\s*/g,' · ').trim();
+  });
   /* build SHIP_PAID_CACHE จาก Supabase rows */
   SHIP_PAID_CACHE={};
   (shipPaidRows||[]).forEach(r=>{
@@ -6933,7 +6946,9 @@ function showInvDetail(id,panelId){
       const _lcbDel=_lcbCan
         ? `<button onclick="delLcbCtr('${r._uid}','${h(r.เบอร์ตู้)}')" title="ลบตู้ใบนี้ออกจากระบบ" style="margin-left:3px;border:none;background:none;color:#dc2626;font-size:12px;font-weight:900;cursor:pointer;padding:0 3px;font-family:inherit;">✕</button>`
         : '';
-      const _sealTd=_hasSeal?`<td style="font-family:monospace">${h(r._seal||'')}</td>`:'';
+      /* ⚠ ซีลที่ยังไม่มีอะไรยืนยัน — ชี้เมาส์ดูเหตุผล (เตือนหน้านี้เท่านั้น ใบแจ้งเบอร์ตู้ไม่ขึ้น) */
+      const _sealWarn=SEAL_NOTE[String(r.เบอร์ตู้||'').toUpperCase()];
+      const _sealTd=_hasSeal?`<td style="font-family:monospace">${_sealWarn?`<span title="${h(_sealWarn)}" style="color:#b91c1c;font-weight:800;cursor:help;">⚠ </span>`:''}${h(r._seal||'')}</td>`:'';
       const _cticTd=_hasSkh?`<td style="font-family:monospace;color:${r._ctic?'#0f172a':'#cbd5e1'};">${r._ctic?h(r._ctic):'—'}</td>`:'';
       const _facCode=SKH_FAC_CODE[(d.prefix||'').toUpperCase()]||'';
       const _facCodeTd=_hasSkh?`<td style="font-family:monospace;color:${_facCode?'#0f172a':'#cbd5e1'};">${_facCode?h(_facCode):'—'}</td>`:'';   /* รหัสโรงงานตาม prefix (BSW=10262) */
