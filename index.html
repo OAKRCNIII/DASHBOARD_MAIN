@@ -7964,7 +7964,7 @@ function _bswKeep(){   /* snapshot ค่ากรอกมือก่อน re
   const s=window._bsw||{}; const gv=id=>{const e=document.getElementById(id);return e?(parseFloat(String(e.value||'').replace(/,/g,''))||0):0;};
   const rates={}; (s.subFac||[]).forEach((f,i)=>{ const e=document.getElementById('bswSR'+i); if(e&&e.value!=='')rates[f.factory]=parseFloat(String(e.value).replace(/,/g,''))||0; });
   const insByInv={}; (s.group||[]).forEach((gk,i)=>{ const e=document.getElementById('bswIns'+i); if(e&&e.value!=='')insByInv[gk]=parseFloat(String(e.value).replace(/,/g,''))||0; });   /* ประกันแยกต่อใบ (เกณฑ์ <1,000 ไม่หัก คิดรายใบ) */
-  return {insByInv, other:gv('bswOther'), pithAuto:s.pithAuto, pithManual:s.pithManual, rates, rate:document.getElementById('bswRate')?gv('bswRate'):null};
+  return {insByInv, other:gv('bswOther'), decl:(document.getElementById('bswDecl')?parseInt(document.getElementById('bswDecl').value)||null:null), pithAuto:s.pithAuto, pithManual:s.pithManual, rates, rate:document.getElementById('bswRate')?gv('bswRate'):null};
 }
 function _bswInvCands(group, inv){   /* อินวอยซ์ที่เลือกเพิ่มได้ (bills∪TR∪lifts ที่ยังไม่อยู่ในกลุ่ม) — prefix เดียวกันขึ้นก่อน */
   const _TR=(typeof TR_DATA!=='undefined'&&TR_DATA)?TR_DATA:[];
@@ -8001,6 +8001,7 @@ function _bswRender(startInv, group, keep){
   const nSet=group.length;   /* จำนวนใบในกลุ่ม = จำนวนชุด B/L (telex) */
   const lines=(_skhAcctCache.bills||[]).filter(b=>group.includes(normInv(b.invoice_no)));
   const _watrOt=lines.filter(b=>b.type==='WATR').reduce((s,b)=>{ const ls=Array.isArray(b.lines)?b.lines:[]; return s+ls.filter(x=>/ล่วงเวลา/.test(String(x.description||''))).reduce((a,x)=>a+(Number(x.amount)||0),0); },0);   /* ค่าล่วงเวลาจาก WATR (คุณวัส) → เติมช่อง "อื่นๆ (ล่วงเวลา)" อัตโนมัติ ไม่ต้องกรอกเอง (RCN 18 พ.ย.69) */
+  const _watrDecl=lines.filter(b=>b.type==='WATR').reduce((n,b)=>{ const vs=String(b.vendor_inv_no||'').split(',').map(s=>s.trim()).filter(Boolean); return n+Math.max(1,vs.length); },0);   /* จำนวนใบขน = นับบิล WATR ที่คุณวัสวางบิล (รวมเลขใบขนที่ต่อด้วย , ) → auto ช่อง "ใบขน (หน่วย)" (RCN 19 พ.ย.69) */
   const gOf=T=>lines.filter(l=>l.type===T).reduce((s,b)=>s+(Number(b.grand_total)||0)+(Number(b.wht_amount)||0),0);   /* รวม type ข้ามกลุ่ม (ยอดก่อนหัก) */
   const icd=(_skhAcctCache.lifts||[]).filter(l=>group.includes(normInv(l.invoice_no))).reduce((s,l)=>s+(Number(l.amount_total)||0),0);
   let trCost=0; const trDetailsAll=[];
@@ -8041,7 +8042,7 @@ function _bswRender(startInv, group, keep){
     <div style="padding:14px 18px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid #f1f5f9;background:#f8fafc;">
       ${rateInputsHtml}
       <label style="font-size:11px;font-weight:700;color:#475569;">จำนวนตู้ (รวม)<br><input id="bswCtr" value="${N0||10}" oninput="_bswUpd()" style="${inA}width:70px;"></label>
-      <label style="font-size:11px;font-weight:700;color:#475569;">ใบขน (หน่วย)<br><input id="bswDecl" value="${nSet}" oninput="_bswUpd()" style="${inA}width:70px;"></label>
+      <label style="font-size:11px;font-weight:700;color:#475569;">ใบขน (หน่วย)${(_watrDecl>nSet&&keep.decl==null)?' <span style="font-size:9px;color:#0f766e;">(WATR auto)</span>':''}<br><input id="bswDecl" value="${keep.decl!=null?keep.decl:(_watrDecl||nSet)}" oninput="_bswUpd()" style="${inA}width:70px;"></label>
       <div style="font-size:11px;font-weight:700;color:#475569;">ค่าขนส่ง <span style="font-size:9px;color:#0f766e;">(auto)</span><br><div style="${inA}background:#f0fdf4;${trCost?'color:#0f766e;font-weight:800;':'color:#dc2626;'}display:flex;align-items:center;">${trCost?trCost.toLocaleString('th-TH'):'— ไม่พบในระบบ'}</div></div>
       ${(group.length>1
         ? `<div style="font-size:11px;font-weight:700;color:#475569;">ค่าประกันภัย <span style="font-size:9px;color:#b45309;">(ต่อใบ · &lt;1,000 ไม่หัก)</span> <button onclick="_bswSaveIns()" title="บันทึก → ครั้งหน้าขึ้นเอง + โชว์ในหน้ากำไร" style="font-size:9px;padding:0 6px;border:1px solid #0f766e;background:#ecfeff;color:#0f766e;border-radius:5px;cursor:pointer;font-weight:700;">💾 ADD DATA</button><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">`+group.map((gk,i)=>`<label style="font-size:10.5px;color:#334155;">${h(disp(gk))}<br><input id="bswIns${i}" value="${(keep.insByInv&&keep.insByInv[gk]!=null)?keep.insByInv[gk]:''}" placeholder="กรอก" oninput="_bswUpd()" style="${inA}width:102px;"></label>`).join('')+`</div></div>`
