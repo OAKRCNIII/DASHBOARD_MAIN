@@ -162,16 +162,26 @@ function render(inv, list, kind, locked){
     : [['ลำดับ','c-no'],['ทะเบียนรถ','c-truck'],['เบอร์ตู้','c-ctr'],
        ['วันที่เข้าโรงงาน','c-date'],['โรงงาน','c-fac'],['น้ำหนัก (กก.)','c-wt']];
 
+  /* ⚠️ ซีลที่ยังไม่มีอะไรยืนยัน (Edge ส่ง seal_unverified มา เมื่อบอทอ่านตัวซีลไม่ได้/อ่านขัดกัน/ผิดฟอร์แมต)
+     — ต้องเห็นตั้งแต่บนใบ ไม่งั้นคนพิมพ์ใบไม่มีทางรู้ว่าเลขไหนเชื่อไม่ได้ (RCN 19 พ.ย.69)
+     ใช้ตัวหนังสือ ⚠ ไม่ใช่พื้นสี เพื่อให้ติดตอนพิมพ์ขาวดำด้วย */
+  const sealCell = c => {
+    const s = esc(c.seal_no ?? '');
+    if (!c.seal_unverified) return s;
+    const t = esc(String(c.seal_note || 'ยังไม่มีอะไรยืนยันเลขซีลนี้ — เปิดรูปตรวจก่อน'));
+    return `<span title="${t}" style="color:#b91c1c;font-weight:800;-webkit-print-color-adjust:exact;print-color-adjust:exact;">⚠ ${s}</span>`;
+  };
+
   const cellsOf = c => IS_RAIL
-    ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
+    ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), sealCell(c),
        esc(thaiDate(c.factory_date))]   /* รถไฟ: วันที่เข้าโหลด = factory_date (ต่อแถวจากตาราง) */
     : IS_SKH   /* สงขลา: ซีล + วันที่ + โรงงาน + น้ำหนัก */
-    ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
+    ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), sealCell(c),
        esc(thaiDate(c.factory_date)), esc(c.factory ?? ''),
        (c.tare_kg!=null&&c.tare_kg!=='') ? Number(c.tare_kg).toLocaleString() : '',
        (c.tare_kg!=null&&c.tare_kg!=='') ? (Number(c.tare_kg)+VGM_NET_SKH).toLocaleString() : '']
     : (KIND === 'LCB')
-    ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), esc(c.seal_no ?? ''),
+    ? [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''), sealCell(c),
        esc(thaiDate(c.factory_date)), c.weight ? Number(c.weight).toLocaleString() : '']
     : [esc(c.truck_plate ?? ''), esc(c.container_no ?? ''),
        esc(thaiDate(c.factory_date)), esc(c.factory ?? ''),
