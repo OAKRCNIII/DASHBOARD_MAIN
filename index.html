@@ -7785,9 +7785,10 @@ async function renderSkhAccount(){
       if(!lines.length) return {k:'none',t:'⚪ ยังไม่มีบิล',c:'#64748b',bg:'#f1f5f9'};
       const vis=lines.filter(b=>{const n=nByKey.get(normInv(inv)+'|'+b.type);return !(n&&n.settled);});   /* ปิดแล้ว (หมายเหตุ settled) = ไม่คิดสถานะ */
       if(!vis.length) return {k:'full',t:'✅ ปิดแล้ว (หมายเหตุ)',c:'#166534',bg:'#dcfce7'};
-      const byT={}; for(const b of vis){ const o=byT[b.type]||(byT[b.type]={g:0,mis:false,b});o.g+=Number(b.grand_total)||0; if(/⚠️|ไม่ตรง/.test(b.status||''))o.mis=true; }   /* รวมต่อ type ก่อน (บิลแยกหลายใบ เช่น WATR 2 บิล) */
+      const byT={}; for(const b of vis){ const o=byT[b.type]||(byT[b.type]={g:0,b});o.g+=Number(b.grand_total)||0; }   /* รวม grand_total ต่อ type (บิลแยกหลายใบ เช่น WATR main+（A)) */
       let anyWait=false,anyMis=false;
-      for(const T in byT){ const o=byT[T]; if(o.mis){anyMis=true;continue;} const sp=paidOf(inv,o.b); if(sp==null)anyWait=true; else if(Math.abs(sp-o.g)>0.01)anyMis=true; }
+      /* เทียบยอดรวมสด (paidOf = สลิปจริง) กับ grand_total รวม — ไม่ใช้สตริงสถานะรายบิลที่ค้าง (เช่น BSW-T-34 บิล 2,500 slip_paid=2,750 เพราะ (A) ไม่ได้แยกสลิป แต่รวมจริง 2,750=2,750 ตรง) RCN 19 พ.ย.69 */
+      for(const T in byT){ const o=byT[T]; const sp=paidOf(inv,o.b); if(sp==null)anyWait=true; else if(Math.abs(sp-o.g)>0.01)anyMis=true; }
       const REQ=['OCF','CTIC','WATR'];   /* บิลที่ต้องมีทุกใบสงขลา (RCN 17 พ.ย.69) — ขาด = รอบิล ไม่นับจ่ายครบ · TLX ไม่บังคับ (มีเฉพาะที่ surrender) */
       const _have=new Set(lines.map(b=>b.type));
       const _miss=REQ.filter(T=>!_have.has(T) && !((nByKey.get(normInv(inv)+'|'+T)||{}).settled));   /* required ที่ยังไม่มีบิล + ไม่ได้ปิด (settled) */
