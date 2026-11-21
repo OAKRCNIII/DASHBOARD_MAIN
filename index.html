@@ -3838,7 +3838,7 @@ function _renderIcdCar(){
   const _openList=carriers.filter(c=>_icdCarOpen.has(c));
   if(_openList.length){
     _openList.forEach(cName=>{ const o=g.get(cName);
-      det+='<div style="font-size:12px;font-weight:800;color:#1e40af;margin:14px 0 6px;">รายตู้ — '+h(cName)+(_icdCarMonth?' · '+_icdMoName(_icdCarMonth):' · ทั้งหมด')+' ('+o.rows.length+' ใบ)</div><table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr style="background:#e8edf5;"><th style="padding:6px;text-align:left;">วันที่</th><th style="padding:6px;text-align:left;">เบอร์ตู้</th><th style="padding:6px;text-align:left;">ทะเบียน</th><th style="padding:6px;text-align:left;">อินวอยซ์</th><th style="padding:6px;text-align:right;">ยอด (฿)</th><th style="padding:6px;text-align:center;">สถานะ</th><th style="padding:6px;text-align:left;">เลขบิลที่จ่าย</th></tr></thead><tbody>';
+      det+='<div style="font-size:12px;font-weight:800;color:#1e40af;margin:14px 0 6px;">รายตู้ — '+h(cName)+(_icdCarMonth?' · '+_icdMoName(_icdCarMonth):' · ทั้งหมด')+' ('+o.rows.length+' ใบ)</div><table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr style="background:#e8edf5;"><th style="padding:6px;text-align:center;"><input type="checkbox" onclick="_icdChkAll(this)" title="เลือกทั้งหมดที่รอวางบิล"></th><th style="padding:6px;text-align:left;">วันที่</th><th style="padding:6px;text-align:left;">เบอร์ตู้</th><th style="padding:6px;text-align:left;">ทะเบียน</th><th style="padding:6px;text-align:left;">อินวอยซ์</th><th style="padding:6px;text-align:right;">ยอด (฿)</th><th style="padding:6px;text-align:center;">สถานะ</th><th style="padding:6px;text-align:left;">เลขบิลที่จ่าย</th></tr></thead><tbody>';
       o.rows.forEach((r,i)=>{ const _fac=_carrierOf(r.truck_plate)==='SHL';   /* รถโรงงาน SHL — จ่ายแล้วอัตโนมัติ ไม่ต้องมีใบเสร็จ/คืน */
         const st=_fac?_icdStatus(r):(r._pending?{t:'⏳ ยังไม่มีใบเสร็จ',c:'#b45309',bg:'#fef3c7'}:_icdStatus(r));
         const _ec=s=>String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -3848,13 +3848,37 @@ function _renderIcdCar(){
           : _hasDoc
           ? `<td style="padding:5px 6px;"><a onclick="openSettleDocs('${_ec(_sbno)}','${_ec(r.settle_bill_path)}','${_ec(r.settle_slip_path)}','${_ec(r.settle_slip_ref)}')" style="font-family:monospace;font-size:10.5px;font-weight:700;color:#1d4ed8;cursor:pointer;text-decoration:underline;" title="ดูใบวางบิล + สลิปโอน">${h(_sbno)} 🖼</a></td>`
           : `<td style="padding:5px 6px;font-family:monospace;font-size:10.5px;color:#166534;">${h(_sbno||'—')}</td>`;
-        det+=`<tr style="background:${r._pending?'#fffbeb':(i%2?'#f8fafc':'#fff')};border-bottom:1px solid #f1f5f9;"><td style="padding:5px 6px;">${h(_icdDayText(_icdDayKey(r.receipt_date)))}</td><td style="padding:5px 6px;font-family:monospace;">${h(r.container_no||'')}</td><td style="padding:5px 6px;">${h(r.truck_plate||'')}</td><td style="padding:5px 6px;">${h(r.invoice_no||'—')}</td><td style="padding:5px 6px;text-align:right;${r._pending?'color:#b45309;':''}">${r._pending?'~':''}${fmt(r.amount_total)}</td><td style="padding:5px 6px;text-align:center;"><span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:8px;background:${st.bg};color:${st.c};">${st.t}</span></td>${_billCell}</tr>`; });
+        const _canSettle=!_fac && !r._pending && r.receipt_no && st.t!=='จ่ายคืนแล้ว';
+        det+=`<tr style="background:${r._pending?'#fffbeb':(i%2?'#f8fafc':'#fff')};border-bottom:1px solid #f1f5f9;"><td style="padding:5px 6px;text-align:center;">${_canSettle?`<input type="checkbox" class="_icdChk" data-rno="${_ec(r.receipt_no)}" data-amt="${Number(r.amount_total)||0}">`:''}</td><td style="padding:5px 6px;">${h(_icdDayText(_icdDayKey(r.receipt_date)))}</td><td style="padding:5px 6px;font-family:monospace;">${h(r.container_no||'')}</td><td style="padding:5px 6px;">${h(r.truck_plate||'')}</td><td style="padding:5px 6px;">${h(r.invoice_no||'—')}</td><td style="padding:5px 6px;text-align:right;${r._pending?'color:#b45309;':''}">${r._pending?'~':''}${fmt(r.amount_total)}</td><td style="padding:5px 6px;text-align:center;"><span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:8px;background:${st.bg};color:${st.c};">${st.t}</span></td>${_billCell}</tr>`; });
       det+='</tbody></table>';
     });
   } else {
     det='<div style="text-align:center;color:#94a3b8;font-size:12px;padding:10px;">👆 กดที่ชื่อขนส่งเพื่อดูรายตู้ (กดได้หลายเจ้าพร้อมกัน)</div>';
   }
-  body.innerHTML=sum+facTable+det;
+  const settleBtn=_openList.length?`<div style="margin:10px 0;"><button onclick="_icdManualSettle()" style="padding:8px 16px;border:none;border-radius:8px;background:#0e7490;color:#fff;font-size:12px;font-weight:800;cursor:pointer;">🧾 ปิดบิลที่เลือก (กดมือ)</button> <span style="font-size:10.5px;color:#94a3b8;">ติ๊ก ✓ ตู้ที่อยู่ในใบวางบิล แล้วกดปุ่มนี้ → ใส่เลขบิล → จ่ายคืนแล้ว</span></div>`:'';
+  body.innerHTML=sum+facTable+settleBtn+det;
+}
+/* ปิดบิลค่ายกตู้แบบกดมือในแดชบอร์ด (ไม่พึ่งบอท/OCR) — เลือกตู้ → ใส่เลขบิล → จ่ายคืนแล้ว (RCN 20 พ.ย.69) */
+function _icdChkAll(cb){ document.querySelectorAll('._icdChk').forEach(c=>{ c.checked=cb.checked; }); }
+async function _icdManualSettle(){
+  if(LOGGED_USER!=='OAK_THIRA'&&LOGGED_USER!=='PLA_ANTS'){ alert('🔒 เฉพาะแอดมิน (OAK/PLA) ครับ'); return; }
+  const chks=[...document.querySelectorAll('._icdChk:checked')];
+  if(!chks.length){ alert('ติ๊ก ✓ เลือกตู้ที่อยู่ในใบวางบิลก่อนครับ'); return; }
+  const rnos=chks.map(c=>c.getAttribute('data-rno'));
+  const tot=chks.reduce((s,c)=>s+(Number(c.getAttribute('data-amt'))||0),0);
+  const billNo=prompt(`🧾 ปิดบิลค่ายกตู้ (กดมือ)\nเลือก ${rnos.length} ตู้ · รวม ${tot.toLocaleString('th-TH')} บาท\n\nใส่เลขที่วางบิล (เช่น 2569-NN-02):`,'');
+  if(billNo===null)return;
+  const bn=String(billNo).trim(); if(!bn){ alert('ต้องใส่เลขวางบิลครับ'); return; }
+  if(!confirm(`ยืนยันปิดบิล "${bn}"\n${rnos.length} ตู้ · รวม ${tot.toLocaleString('th-TH')} บาท → จ่ายคืนแล้ว?`))return;
+  const today=new Date().toISOString().slice(0,10), H={'apikey':SB_KEY,'Authorization':'Bearer '+SB_TOKEN,'Content-Type':'application/json','Prefer':'return=minimal'};
+  try{
+    for(const rno of rnos){
+      const r=await fetch(`${SB_URL}/rest/v1/skh_lift_fees?receipt_no=eq.${encodeURIComponent(rno)}`,{method:'PATCH',headers:H,body:JSON.stringify({settle_bill_no:bn,billed_date:today,reimbursed_date:today,updated_at:new Date().toISOString()})});
+      if(!r.ok)throw new Error('HTTP '+r.status+' '+(await r.text()).slice(0,120));
+    }
+    alert(`✅ ปิดบิล ${bn} แล้ว ${rnos.length} ตู้ · รวม ${tot.toLocaleString('th-TH')} บาท`);
+    openIcdCarrier();
+  }catch(e){ alert('ปิดบิลไม่สำเร็จ: '+(e.message||e)); }
 }
 function _printIcdCar(){ const body=document.getElementById('icdCarBody'); if(!body)return; const w=window.open('','_blank'); if(!w)return; const per=_icdCarMonth?_icdMoName(_icdCarMonth):'ทั้งหมด (สะสม)'; w.document.write(`<!DOCTYPE html><meta charset="utf-8"><title>ICD ต่อขนส่ง</title><style>table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px;}th,td{border:1px solid #cbd5e1;padding:5px 7px;}@page{margin:12mm;}</style><body style="font-family:Tahoma,sans-serif;color:#0f172a;"><h2 style="text-align:center;margin:0 0 4px;">ICD ต่อขนส่ง — ท่าเรือสงขลา</h2><div style="text-align:center;color:#64748b;margin-bottom:14px;">${per}</div>${body.innerHTML}</body>`); w.document.close(); w.focus(); setTimeout(()=>w.print(),300); }
 
