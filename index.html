@@ -8047,15 +8047,20 @@ function _bswRender(startInv, group, keep){
   const _watrOt=lines.filter(b=>b.type==='WATR').reduce((s,b)=>{ const ls=Array.isArray(b.lines)?b.lines:[]; return s+ls.filter(x=>/ล่วงเวลา/.test(String(x.description||''))).reduce((a,x)=>a+(Number(x.amount)||0),0); },0);   /* ค่าล่วงเวลาจาก WATR (คุณวัส) → เติมช่อง "อื่นๆ (ล่วงเวลา)" อัตโนมัติ ไม่ต้องกรอกเอง (RCN 18 พ.ย.69) */
   const _watrDecl=lines.filter(b=>b.type==='WATR').reduce((n,b)=>{ const vs=String(b.vendor_inv_no||'').split(',').map(s=>s.trim()).filter(Boolean); return n+Math.max(1,vs.length); },0);   /* จำนวนใบขน = นับบิล WATR ที่คุณวัสวางบิล (รวมเลขใบขนที่ต่อด้วย , ) → auto ช่อง "ใบขน (หน่วย)" (RCN 19 พ.ย.69) */
   const gOf=T=>lines.filter(l=>l.type===T).reduce((s,b)=>s+(Number(b.grand_total)||0)+(Number(b.wht_amount)||0),0);   /* รวม type ข้ามกลุ่ม (ยอดก่อนหัก) */
-  const icd=(_skhAcctCache.lifts||[]).filter(l=>group.includes(normInv(l.invoice_no))).reduce((s,l)=>s+(Number(l.amount_total)||0),0);
+  const _liftsG=(_skhAcctCache.lifts||[]).filter(l=>group.includes(normInv(l.invoice_no)));
+  const icdAll=_liftsG.reduce((s,l)=>s+(Number(l.amount_total)||0),0);   /* ทุกใบเสร็จ ICD (รวมตู้รถโรงงาน) → ใช้นับจำนวนตู้รวม */
   let trCost=0; const trDetailsAll=[];
   _TR.forEach(t=>{ if(group.includes(normInv(t.inv))){ trCost+=Number(t.totalPaid)||0; if(Array.isArray(t.details))trDetailsAll.push(...t.details); } });
   const _rm=new Map();   /* แยกเรตค่าขนส่ง (ตู้ราคาต่างกัน) → [{rate,qty}] */
   trDetailsAll.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const p=Number(m.price)||0; if(p>0)_rm.set(p,(_rm.get(p)||0)+1); } });
   const trRates=[..._rm.entries()].sort((a,b)=>b[0]-a[0]).map(([rate,qty])=>({rate,qty}));
-  const N0=trDetailsAll.length||(icd?Math.round(icd/1070):0);   /* จำนวนตู้รวมกลุ่ม */
+  const N0=trDetailsAll.length||(icdAll?Math.round(icdAll/1070):0);   /* จำนวนตู้รวมกลุ่ม (รวมรถโรงงาน) */
   const _C2={BSW:{label:'ADDITIONAL MOVE',rate:1500,dr:29000,vat:'incl'}, INV:{label:'THC',rate:4500,dr:31000,vat:'incl'}, KNT:{label:'THC',rate:4500,dr:0,vat:'excl'}, NMP:{label:'THC',rate:4500,dr:0,vat:'excl'}, OGM:{label:'THC',rate:4500,dr:0,vat:'excl'}, WKP:{label:'ADDITIONAL MOVE',rate:1500,dr:0,vat:'excl',telexSep:true}, SHL:{label:'THC',rate:4500,dr:0,vat:'excl',telexSep:true,singleRate:true,noTransport:true}};   /* incl=รวม VAT (BSW/INV) · excl=แยก VAT (KNT/NMP/OGM) · WKP=excl + telex บวกแยก + col2 ADDITIONAL MOVE 1500 เหมือน BSW (RCN 14 พ.ย.69) · SHL=เหมือน WKP แต่เรตเดียว(โรงงานเดียว) + ไม่มีค่าขนส่ง (รถโรงงาน วางบิลแยก) RCN 23 พ.ย.69 */
   const c2=_C2[String(inv).slice(0,3).toUpperCase()]||{label:'THC',rate:4500,dr:0,vat:'excl'};
+  /* SHL: ตัดตู้รถโรงงาน (72-2330/72-2903 — โรงงานจ่าย ICD เอง) ออกจาก LO/LO (ICD) ที่เรียกเก็บคืน · เหลือเฉพาะตู้ที่ ANTS สำรองจ่าย (RCN 23 พ.ย.69) */
+  const _liftsBill=c2.noTransport?_liftsG.filter(l=>(typeof _carrierOf==='function'?_carrierOf(l.truck_plate):'')!=='SHL'):_liftsG;
+  const icd=_liftsBill.reduce((s,l)=>s+(Number(l.amount_total)||0),0);
+  const icdCnt=_liftsBill.length;
   /* แยก VAT: จำนวนตู้ต่อโรงงานย่อย auto จาก transport.factory · เรตขาย กรอกมือ (default keyword) */
   const SELL_RATE=[['นาวา',31200],['นาเมือง',30600],['กนก',27800],['นาเดิม',30500],['นาสาร',29000]];   /* default เรตขาย (จาก OGM (A).xlsx) — ราคาจริงดิ้นรายใบ กรอกทับได้ · WKP นาเดิม/นาสาร 14 พ.ย.69 */
   const _sr=f=>{ for(const[kw,r]of SELL_RATE){ if(String(f||'').includes(kw))return r; } return 0; };
@@ -8067,7 +8072,7 @@ function _bswRender(startInv, group, keep){
   if(c2.vat==='excl'&&trDetailsAll.length){ const fm=new Map(); trDetailsAll.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const f=m.factory||'ไม่ระบุ'; fm.set(f,(fm.get(f)||0)+1); } }); subFac=[...fm.entries()].map(([factory,count])=>({factory,count,rate:(keep.rates&&keep.rates[factory]!=null)?keep.rates[factory]:_dsr(factory)}));
     const _ord=f=>{ for(let i=0;i<SELL_RATE.length;i++){ if(String(f||'').includes(SELL_RATE[i][0]))return i; } return 99; };   /* เรียง นาวา→นาเมือง→กนก ตาม SELL_RATE */
     subFac.sort((a,b)=>_ord(a.factory)-_ord(b.factory)); }
-  window._bsw={inv:inv, group:group, dispByGk:Object.fromEntries(group.map(gk=>[gk,disp(gk)])), invDisplay:invDisplay, nSet:nSet, ctr:N0||10, insByInv:(keep.insByInv||{}), insurance:group.reduce((a,gk)=>a+(Number((keep.insByInv||{})[gk])||0),0), pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, telexSep:(c2.telexSep||false), subFac:subFac, singleRate:!!c2.singleRate, noTransport:!!c2.noTransport, transport:(c2.noTransport?0:trCost), trRates:(c2.noTransport?[]:trRates), transportPaid:(c2.noTransport?0:trCost), trPaidCnt:(c2.noTransport?0:trRates.reduce((a,r)=>a+(Number(r.qty)||0),0)), trRatesPaid:(c2.noTransport?[]:trRates), trEstRate:(c2.noTransport?0:lookupPriceUpdate('-',getPfx(inv),'',inv)), ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd};
+  window._bsw={inv:inv, group:group, dispByGk:Object.fromEntries(group.map(gk=>[gk,disp(gk)])), invDisplay:invDisplay, nSet:nSet, ctr:N0||10, insByInv:(keep.insByInv||{}), insurance:group.reduce((a,gk)=>a+(Number((keep.insByInv||{})[gk])||0),0), pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, telexSep:(c2.telexSep||false), subFac:subFac, singleRate:!!c2.singleRate, noTransport:!!c2.noTransport, transport:(c2.noTransport?0:trCost), trRates:(c2.noTransport?[]:trRates), transportPaid:(c2.noTransport?0:trCost), trPaidCnt:(c2.noTransport?0:trRates.reduce((a,r)=>a+(Number(r.qty)||0),0)), trRatesPaid:(c2.noTransport?[]:trRates), trEstRate:(c2.noTransport?0:lookupPriceUpdate('-',getPfx(inv),'',inv)), ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd, icdCnt:icdCnt};
   const addCands=_bswInvCands(group, inv);   /* อินวอยซ์ที่เลือกเพิ่มได้ใน dropdown */
   let bg=document.getElementById('bswBillBg');
   if(!bg){ bg=document.createElement('div'); bg.id='bswBillBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;'; document.body.appendChild(bg); }
@@ -8185,7 +8190,7 @@ function _renderBswOut(){
       <tr><td style="${td}">ค่าพิธีการ</td><td></td><td></td><td style="${tr}">${fmt(pithSvc)}</td></tr>
       <tr><td style="${td}">LOCAL CHARGE (SONGKHLA PORT)</td><td></td><td style="${tr}">${fmt(cLOCAL)}</td><td></td></tr>
       <tr><td style="${td}">${h(moveLabel)}</td><td style="${td}">${fmt(moveRate)} X ${N}</td><td></td><td style="${tr}">${fmt(addMove)}</td></tr>
-      <tr><td style="${td}">LO/LO (Inter Container Depot)</td><td style="${td}">X ${N} ตู้</td><td style="${tr}">${fmt(cLOLO)}</td><td></td></tr>
+      <tr><td style="${td}">LO/LO (Inter Container Depot)</td><td style="${td}">X ${s.noTransport?(s.icdCnt||0):N} ตู้${(s.noTransport&&(s.icdCnt||0)<N)?` <span style="font-size:9px;color:#555;">(รถโรงงาน ${N-(s.icdCnt||0)} ตู้ จ่ายเอง)</span>`:''}</td><td style="${tr}">${fmt(cLOLO)}</td><td></td></tr>
       <tr><td style="height:7px;"></td><td></td><td></td><td></td></tr></tbody>
      <tbody>
       <tr><td style="${td}">ค่าใช้จ่ายต่างๆที่ด่านศุลกากร</td><td style="${td}">200 X ${s.decl||1}</td><td style="${tr}">${fmt(200*(s.decl||1))}</td><td></td></tr>
