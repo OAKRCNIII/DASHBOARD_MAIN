@@ -4225,8 +4225,8 @@ async function _whtExcel(f){
   _lcbDown(blob, `หัก ณ ที่จ่าย ${safe(inv)} ${safe(f.container_no||'')}.xlsx`);
 }
 function whtCertExcel(ix){ const f=_skhLiftFees[ix]; if(!f){alert('ไม่พบใบเสร็จ');return;} _whtExcel(f).catch(e=>alert('สร้าง Excel ไม่ได้: '+(e.message||e))); }
-/* ใบปะหน้าค่ายกตู้ ICD (รายอินวอยซ์) — ฟอร์แมตบริษัท ICD ท่าสงขลา */
-function printSkhLiftReport(){
+/* ใบปะหน้าค่ายกตู้ ICD (รายอินวอยซ์) — ฟอร์แมตบริษัท ICD ท่าสงขลา · allowNew=true → เพิ่มกล่อง "กระทำการแทนโดย ANTS" (RCN 23 พ.ย.69) */
+function printSkhLiftReport(allowNew){
   if(!_skhLiftFees||!_skhLiftFees.length){ alert('ยังไม่มีใบเสร็จค่ายกตู้'); return; }
   const inv=_skhLiftInv||'';
   const WD=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัส','ศุกร์','เสาร์'];
@@ -4266,7 +4266,7 @@ function printSkhLiftReport(){
     <div class="titlebox"><div class="t1">ค่ายกตู้ บริษัท อินเตอร์ คอนเทนเนอร์ เดโป จำกัด</div></div>
     <div class="sub">ท่าเรือสงขลา</div>
     <div class="inv">${h(inv)}</div>
-    <div class="whtblk">${_whtBox('ผู้มีหน้าที่หักภาษี ณ ที่จ่าย',_payer)}${_whtBox('ผู้ถูกหักภาษี ณ ที่จ่าย',_payee)}</div>
+    <div class="whtblk">${_whtBox('ผู้มีหน้าที่หักภาษี ณ ที่จ่าย',_payer)}${allowNew===true?_whtBox('กระทำการแทนโดย',ANTS_WHT):''}${_whtBox('ผู้ถูกหักภาษี ณ ที่จ่าย',_payee)}</div>
     <table>
       <thead><tr><th style="width:8%">ลำดับ</th><th style="width:15%">ทะเบียนรถ</th><th style="width:22%">เบอร์ตู้</th><th style="width:22%">ใบเสร็จเลขที่</th><th style="width:19%">วันที่ใบเสร็จ</th><th style="width:14%">ค่าบริการ (ก่อน VAT)</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -4285,15 +4285,15 @@ function _skhLiftReportPick(){
       <div style="font-size:15px;font-weight:800;color:#0f172a;margin-bottom:4px;">🖨️ ใบปะหน้าค่ายกตู้ ICD</div>
       <div style="font-size:12px;color:#64748b;margin-bottom:16px;">เลือกรูปแบบไฟล์</div>
       <div style="display:flex;gap:12px;justify-content:center;">
-        <button onclick="document.getElementById('liftFmtBg').style.display='none';printSkhLiftReport();" style="padding:12px 22px;border:1.5px solid #b91c1c;border-radius:10px;background:#fef2f2;color:#b91c1c;font-size:13px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="font-size:22px;">📄</span>PDF</button>
-        <button onclick="document.getElementById('liftFmtBg').style.display='none';exportSkhLiftExcel();" style="padding:12px 22px;border:1.5px solid #15803d;border-radius:10px;background:#f0fdf4;color:#15803d;font-size:13px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="font-size:22px;">📊</span>Excel</button>
+        <button onclick="document.getElementById('liftFmtBg').style.display='none';_whtModePick(an=>printSkhLiftReport(an));" style="padding:12px 22px;border:1.5px solid #b91c1c;border-radius:10px;background:#fef2f2;color:#b91c1c;font-size:13px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="font-size:22px;">📄</span>PDF</button>
+        <button onclick="document.getElementById('liftFmtBg').style.display='none';_whtModePick(an=>exportSkhLiftExcel(an));" style="padding:12px 22px;border:1.5px solid #15803d;border-radius:10px;background:#f0fdf4;color:#15803d;font-size:13px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="font-size:22px;">📊</span>Excel</button>
       </div></div>`;
     document.body.appendChild(bg);
   }
   bg.style.display='flex';
 }
 /* ใบปะหน้าค่ายกตู้ ICD เป็น Excel — จัดหน้าสวยเหมือน PDF (xlsx-js-style: border/bold/merge/fill) */
-async function exportSkhLiftExcel(){
+async function exportSkhLiftExcel(allowNew){
   if(!_skhLiftFees||!_skhLiftFees.length){ alert('ยังไม่มีใบเสร็จค่ายกตู้'); return; }
   await _lazyScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
   const inv=_skhLiftInv||'';
@@ -4338,6 +4338,7 @@ async function exportSkhLiftExcel(){
     rr=row([{v:'ที่อยู่  '+(o.addr||'-'),s:sVal},{v:'',s:sVal},{v:'',s:sVal},{v:'',s:sTax},{v:'',s:sTax},{v:'',s:sTax}]); mg(rr,0,rr,2); mg(rr,3,rr,5);
   };
   party('ผู้มีหน้าที่หักภาษี ณ ที่จ่าย',payer);
+  if(allowNew===true) party('กระทำการแทนโดย',ANTS_WHT);   /* RCN 23 พ.ย.69 — มีกระทำการแทน (ANTS) */
   party('ผู้ถูกหักภาษี ณ ที่จ่าย',payee);
   // spacer
   row([{v:''},{},{},{},{},{}]);
