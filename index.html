@@ -8061,6 +8061,8 @@ function _bswRender(startInv, group, keep){
   const _liftsBill=c2.noTransport?_liftsG.filter(l=>(typeof _carrierOf==='function'?_carrierOf(l.truck_plate):'')!=='SHL'):_liftsG;
   const icd=_liftsBill.reduce((s,l)=>s+(Number(l.amount_total)||0),0);
   const icdCnt=_liftsBill.length;
+  const _facLoloCnt=c2.noTransport?(_liftsG.length-_liftsBill.length):0;   /* จำนวนตู้รถโรงงานที่จ่าย LO/LO เอง */
+  const _loloCredit=c2.noTransport?(icdAll-icd):0;   /* ค่า LO/LO ที่รถโรงงานจ่ายเอง → หักคืนจากบิล (เรตขายรวม LO/LO ไว้แล้ว · RCN 23 พ.ย.69) */
   /* แยก VAT: จำนวนตู้ต่อโรงงานย่อย auto จาก transport.factory · เรตขาย กรอกมือ (default keyword) */
   const SELL_RATE=[['นาวา',31200],['นาเมือง',30600],['กนก',27800],['นาเดิม',30500],['นาสาร',29000]];   /* default เรตขาย (จาก OGM (A).xlsx) — ราคาจริงดิ้นรายใบ กรอกทับได้ · WKP นาเดิม/นาสาร 14 พ.ย.69 */
   const _sr=f=>{ for(const[kw,r]of SELL_RATE){ if(String(f||'').includes(kw))return r; } return 0; };
@@ -8072,7 +8074,7 @@ function _bswRender(startInv, group, keep){
   if(c2.vat==='excl'&&trDetailsAll.length){ const fm=new Map(); trDetailsAll.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const f=m.factory||'ไม่ระบุ'; fm.set(f,(fm.get(f)||0)+1); } }); subFac=[...fm.entries()].map(([factory,count])=>({factory,count,rate:(keep.rates&&keep.rates[factory]!=null)?keep.rates[factory]:_dsr(factory)}));
     const _ord=f=>{ for(let i=0;i<SELL_RATE.length;i++){ if(String(f||'').includes(SELL_RATE[i][0]))return i; } return 99; };   /* เรียง นาวา→นาเมือง→กนก ตาม SELL_RATE */
     subFac.sort((a,b)=>_ord(a.factory)-_ord(b.factory)); }
-  window._bsw={inv:inv, group:group, dispByGk:Object.fromEntries(group.map(gk=>[gk,disp(gk)])), invDisplay:invDisplay, nSet:nSet, ctr:N0||10, insByInv:(keep.insByInv||{}), insurance:group.reduce((a,gk)=>a+(Number((keep.insByInv||{})[gk])||0),0), pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, telexSep:(c2.telexSep||false), subFac:subFac, singleRate:!!c2.singleRate, noTransport:!!c2.noTransport, transport:(c2.noTransport?0:trCost), trRates:(c2.noTransport?[]:trRates), transportPaid:(c2.noTransport?0:trCost), trPaidCnt:(c2.noTransport?0:trRates.reduce((a,r)=>a+(Number(r.qty)||0),0)), trRatesPaid:(c2.noTransport?[]:trRates), trEstRate:(c2.noTransport?0:lookupPriceUpdate('-',getPfx(inv),'',inv)), ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd, icdCnt:icdCnt};
+  window._bsw={inv:inv, group:group, dispByGk:Object.fromEntries(group.map(gk=>[gk,disp(gk)])), invDisplay:invDisplay, nSet:nSet, ctr:N0||10, insByInv:(keep.insByInv||{}), insurance:group.reduce((a,gk)=>a+(Number((keep.insByInv||{})[gk])||0),0), pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, telexSep:(c2.telexSep||false), subFac:subFac, singleRate:!!c2.singleRate, noTransport:!!c2.noTransport, transport:(c2.noTransport?0:trCost), trRates:(c2.noTransport?[]:trRates), transportPaid:(c2.noTransport?0:trCost), trPaidCnt:(c2.noTransport?0:trRates.reduce((a,r)=>a+(Number(r.qty)||0),0)), trRatesPaid:(c2.noTransport?[]:trRates), trEstRate:(c2.noTransport?0:lookupPriceUpdate('-',getPfx(inv),'',inv)), ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd, icdCnt:icdCnt, loloCredit:_loloCredit, facLoloCnt:_facLoloCnt};
   const addCands=_bswInvCands(group, inv);   /* อินวอยซ์ที่เลือกเพิ่มได้ใน dropdown */
   let bg=document.getElementById('bswBillBg');
   if(!bg){ bg=document.createElement('div'); bg.id='bswBillBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;'; document.body.appendChild(bg); }
@@ -8161,7 +8163,8 @@ function _renderBswOut(){
   const addMove=moveRate*s.ctr, pithSvc=pith-addMove;
   const _r2=x=>Math.round((Number(x)||0)*100)/100;   /* กัน diff 0.01: ยอดรวม/สุทธิ = ผลรวมช่องที่ปัด 2 ตำแหน่งแล้ว ให้บวกตามที่เห็นได้เป๊ะ (RCN 19 พ.ย.69) */
   const grandF=Lgross+Rgross;            /* full precision ไว้เช็ค margin (ลงตัว) */
-  const grand=_r2(Lbase)+_r2(Lvat)+_r2(pith)+_r2(Rvat);   /* ยอดรวม(รวม VAT) = ผลรวมช่องที่ปัดแล้ว */
+  const _loloCr=_r2(s.loloCredit||0);   /* หักค่า LO/LO ที่รถโรงงานจ่ายเอง (เรตขายรวม LO/LO แล้ว · SHL) */
+  const grand=_r2(Lbase)+_r2(Lvat)+_r2(pith)+_r2(Rvat)-_loloCr;   /* ยอดรวม(รวม VAT) = ผลรวมช่องที่ปัดแล้ว − LO/LO รถโรงงาน */
   const whtTot=_r2(L3)+_r2(L1)+_r2(R3), netRecv=grand-whtTot, margin=billing-grandF;
   const _FACCO={BSW:'BANSONG PARAWOOD CO.,LTD.',INV:'THE ONE PARAWOOD CO.,LTD.',KNT:'KANOKTHONG INTERTRADE CO.,LTD',NMP:'NAMUANGPHET PARAWOOD CO.,LTD',OGM:'ONE GOLD MARKETING CO.,LTD',SHL:'S.H.L. PARAWOOD CO.,LTD.',WKP:'WORAKIAT PANICH CO.,LTD.'};
   const co=_FACCO[String(s.inv).slice(0,3).toUpperCase()]||'BANSONG PARAWOOD CO.,LTD.';
@@ -8170,7 +8173,7 @@ function _renderBswOut(){
   const ok=(s.vatMode==='excl')?(Math.abs((Lbase+pith)-(billing+s.insurance))<0.01):(Math.abs(margin)<0.01), dash='<span style="color:#000;">-</span>';
   const td='padding:2px 8px;', tr='text-align:right;padding:2px 8px;', bd='border:1px solid #000;';
   const status=`<div class="noprint" style="margin-bottom:10px;display:flex;gap:16px;flex-wrap:wrap;font-size:12px;align-items:center;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:7px 12px;">
-    ${s.vatMode==='excl'?`<span>วางบิล (แยก VAT) <b>${fmt(billing)}</b></span><span style="color:#64748b;">+ประกัน = ${fmt(billing+s.insurance)}</span><span>ฐาน+ค่าพิธีการ <b style="color:${ok?'#166534':'#dc2626'};">${fmt(Lbase+pith)}${ok?' ✓ ลงตัว':''}</b></span><span style="color:#64748b;">รวม VAT ${fmt(grand)}</span>`:`<span>ยอดวางบิล <b>${fmt(billing)}</b></span><span>ยอดรวมในใบ <b style="color:${ok?'#166534':'#dc2626'};">${fmt(grand)}${ok?' ✓ ลงตัว':''}</b></span>`}<span style="color:#b45309;">หักรวม −${fmt(whtTot)}</span><span>รับจริง <b style="color:#0f766e;">${fmt(netRecv)}</b></span>${pithSvc<0?'<span style="color:#dc2626;font-weight:700;">⚠️ ค่าพิธีการติดลบ</span>':''}</div>`;
+    ${s.vatMode==='excl'?`<span>วางบิล (แยก VAT) <b>${fmt(billing)}</b></span><span style="color:#64748b;">+ประกัน = ${fmt(billing+s.insurance)}</span><span>ฐาน+ค่าพิธีการ <b style="color:${ok?'#166534':'#dc2626'};">${fmt(Lbase+pith)}${ok?' ✓ ลงตัว':''}</b></span><span style="color:#64748b;">รวม VAT ${fmt(grand)}</span>`:`<span>ยอดวางบิล <b>${fmt(billing)}</b></span><span>ยอดรวมในใบ <b style="color:${ok?'#166534':'#dc2626'};">${fmt(grand)}${ok?' ✓ ลงตัว':''}</b></span>`}${_loloCr>0?`<span style="color:#b45309;">หัก LO/LO รถโรงงาน ${s.facLoloCnt} ตู้ −${fmt(_loloCr)}</span>`:''}<span style="color:#b45309;">หักรวม −${fmt(whtTot)}</span><span>รับจริง <b style="color:#0f766e;">${fmt(netRecv)}</b></span>${pithSvc<0?'<span style="color:#dc2626;font-weight:700;">⚠️ ค่าพิธีการติดลบ</span>':''}</div>`;
   const form=`<div id="bswFormDoc" style="font-family:'Angsana New','TH Sarabun New',Tahoma,serif;color:#000;background:#fff;border:2px solid #000;max-width:720px;margin:0 auto;line-height:1.3;font-size:13.5px;">
     <div class="bswttl" style="text-align:center;font-weight:700;font-size:15px;border-bottom:1.5px solid #000;padding:5px;">Draft บิลเงินทดลองจ่าย &nbsp;&nbsp; INV. NO. ${h(s.invDisplay||s.inv)}</div>
     <table style="width:100%;border-collapse:collapse;"><tbody>
@@ -8208,6 +8211,7 @@ function _renderBswOut(){
       <tr><td style="${td}${bd}">VAT</td><td style="${tr}${bd}">${fmt(Lvat)}</td><td style="${tr}${bd}">${fmt(Rvat)}</td></tr>
       <tr><td style="${td}${bd}">3%</td><td style="${tr}${bd}">${fmt(L3)}</td><td style="${tr}${bd}">${fmt(R3)}</td></tr>
       <tr><td style="${td}${bd}">1%</td><td style="${tr}${bd}">${fmt(L1)}</td><td style="${tr}${bd}">-</td></tr>
+      ${_loloCr>0?`<tr><td style="${td}${bd}">หัก LO/LO (รถโรงงาน ${s.facLoloCnt} ตู้)</td><td style="${bd}"></td><td style="${tr}${bd}">-${fmt(_loloCr)}</td></tr>`:''}
       <tr><td style="${td}${bd}font-weight:700;">รวมสุทธิ</td><td style="${bd}"></td><td style="${tr}${bd}font-weight:700;">${fmt(netRecv)}</td></tr>
     </table></div>`;
   out.innerHTML=status+form;
