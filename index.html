@@ -7899,7 +7899,7 @@ async function renderSkhAccount(){
       const _html=`<div id="${cid(inv.invoice_no)}" style="border:1px solid #e2e8f0;border-left:5px solid ${_stripe};border-radius:10px;margin-bottom:10px;overflow:hidden;transition:box-shadow .2s;">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #eef2f7;">
           <span style="font-weight:800;font-size:13px;color:#0f2a52;">📄 ${h(inv.invoice_no)}</span>
-          <span style="display:flex;gap:6px;align-items:center;">${/^(BSW|INV|KNT|NMP|OGM|WKP)/i.test(inv.invoice_no)?`<button onclick="openBswBill('${_q(inv.invoice_no)}')" title="ออก Draft ใบวางบิลเงินทดลองจ่าย" style="font-size:10px;padding:2px 9px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:6px;cursor:pointer;font-weight:700;">🧾 ใบวางบิล</button>`:''}<span style="font-weight:700;padding:2px 10px;border-radius:8px;font-size:11px;background:${st.bg};color:${st.c};">${st.t}</span></span></div>
+          <span style="display:flex;gap:6px;align-items:center;">${/^(BSW|INV|KNT|NMP|OGM|WKP|SHL)/i.test(inv.invoice_no)?`<button onclick="openBswBill('${_q(inv.invoice_no)}')" title="ออก Draft ใบวางบิลเงินทดลองจ่าย" style="font-size:10px;padding:2px 9px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:6px;cursor:pointer;font-weight:700;">🧾 ใบวางบิล</button>`:''}<span style="font-weight:700;padding:2px 10px;border-radius:8px;font-size:11px;background:${st.bg};color:${st.c};">${st.t}</span></span></div>
         <table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#eef2f7;color:#64748b;font-size:9.5px;"><th style="padding:3px 10px;text-align:left;">ประเภท</th><th style="padding:3px 10px;text-align:right;">ยอดก่อนหัก</th><th style="padding:3px 10px;text-align:right;">หัก</th><th style="padding:3px 10px;text-align:right;">สุทธิ</th><th style="padding:3px 10px;text-align:right;">สลิป</th><th style="padding:3px 10px;text-align:center;">สถานะ</th><th style="padding:3px 10px;text-align:center;">หัก ณ ที่จ่าย</th></tr></thead><tbody>${rows}${icdRow}</tbody></table>
       </div>`;
       return {k:st.k, etd:_etdNum(inv.invoice_no), inv:inv.invoice_no, html:_html};
@@ -8054,7 +8054,7 @@ function _bswRender(startInv, group, keep){
   trDetailsAll.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const p=Number(m.price)||0; if(p>0)_rm.set(p,(_rm.get(p)||0)+1); } });
   const trRates=[..._rm.entries()].sort((a,b)=>b[0]-a[0]).map(([rate,qty])=>({rate,qty}));
   const N0=trDetailsAll.length||(icd?Math.round(icd/1070):0);   /* จำนวนตู้รวมกลุ่ม */
-  const _C2={BSW:{label:'ADDITIONAL MOVE',rate:1500,dr:29000,vat:'incl'}, INV:{label:'THC',rate:4500,dr:31000,vat:'incl'}, KNT:{label:'THC',rate:4500,dr:0,vat:'excl'}, NMP:{label:'THC',rate:4500,dr:0,vat:'excl'}, OGM:{label:'THC',rate:4500,dr:0,vat:'excl'}, WKP:{label:'ADDITIONAL MOVE',rate:1500,dr:0,vat:'excl',telexSep:true}};   /* incl=รวม VAT (BSW/INV) · excl=แยก VAT (KNT/NMP/OGM) · WKP=excl + telex บวกแยก + col2 ADDITIONAL MOVE 1500 เหมือน BSW (RCN 14 พ.ย.69) */
+  const _C2={BSW:{label:'ADDITIONAL MOVE',rate:1500,dr:29000,vat:'incl'}, INV:{label:'THC',rate:4500,dr:31000,vat:'incl'}, KNT:{label:'THC',rate:4500,dr:0,vat:'excl'}, NMP:{label:'THC',rate:4500,dr:0,vat:'excl'}, OGM:{label:'THC',rate:4500,dr:0,vat:'excl'}, WKP:{label:'ADDITIONAL MOVE',rate:1500,dr:0,vat:'excl',telexSep:true}, SHL:{label:'ADDITIONAL MOVE',rate:1500,dr:0,vat:'excl',telexSep:true,singleRate:true,noTransport:true}};   /* incl=รวม VAT (BSW/INV) · excl=แยก VAT (KNT/NMP/OGM) · WKP=excl + telex บวกแยก + col2 ADDITIONAL MOVE 1500 เหมือน BSW (RCN 14 พ.ย.69) · SHL=เหมือน WKP แต่เรตเดียว(โรงงานเดียว) + ไม่มีค่าขนส่ง (รถโรงงาน วางบิลแยก) RCN 23 พ.ย.69 */
   const c2=_C2[String(inv).slice(0,3).toUpperCase()]||{label:'THC',rate:4500,dr:0,vat:'excl'};
   /* แยก VAT: จำนวนตู้ต่อโรงงานย่อย auto จาก transport.factory · เรตขาย กรอกมือ (default keyword) */
   const SELL_RATE=[['นาวา',31200],['นาเมือง',30600],['กนก',27800],['นาเดิม',30500],['นาสาร',29000]];   /* default เรตขาย (จาก OGM (A).xlsx) — ราคาจริงดิ้นรายใบ กรอกทับได้ · WKP นาเดิม/นาสาร 14 พ.ย.69 */
@@ -8067,14 +8067,14 @@ function _bswRender(startInv, group, keep){
   if(c2.vat==='excl'&&trDetailsAll.length){ const fm=new Map(); trDetailsAll.forEach(d=>{ const m=d&&d.trMatch; if(m&&!m._prePaid&&!m._factoryTruck){ const f=m.factory||'ไม่ระบุ'; fm.set(f,(fm.get(f)||0)+1); } }); subFac=[...fm.entries()].map(([factory,count])=>({factory,count,rate:(keep.rates&&keep.rates[factory]!=null)?keep.rates[factory]:_dsr(factory)}));
     const _ord=f=>{ for(let i=0;i<SELL_RATE.length;i++){ if(String(f||'').includes(SELL_RATE[i][0]))return i; } return 99; };   /* เรียง นาวา→นาเมือง→กนก ตาม SELL_RATE */
     subFac.sort((a,b)=>_ord(a.factory)-_ord(b.factory)); }
-  window._bsw={inv:inv, group:group, dispByGk:Object.fromEntries(group.map(gk=>[gk,disp(gk)])), invDisplay:invDisplay, nSet:nSet, ctr:N0||10, insByInv:(keep.insByInv||{}), insurance:group.reduce((a,gk)=>a+(Number((keep.insByInv||{})[gk])||0),0), pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, telexSep:(c2.telexSep||false), subFac:subFac, transport:trCost, trRates:trRates, transportPaid:trCost, trPaidCnt:trRates.reduce((a,r)=>a+(Number(r.qty)||0),0), trRatesPaid:trRates, trEstRate:lookupPriceUpdate('-',getPfx(inv),'',inv), ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd};
+  window._bsw={inv:inv, group:group, dispByGk:Object.fromEntries(group.map(gk=>[gk,disp(gk)])), invDisplay:invDisplay, nSet:nSet, ctr:N0||10, insByInv:(keep.insByInv||{}), insurance:group.reduce((a,gk)=>a+(Number((keep.insByInv||{})[gk])||0),0), pithAuto:(keep.pithAuto!==undefined?keep.pithAuto:true), pithManual:keep.pithManual||0, col2Label:c2.label, col2Rate:c2.rate, vatMode:c2.vat, telexSep:(c2.telexSep||false), subFac:subFac, singleRate:!!c2.singleRate, noTransport:!!c2.noTransport, transport:(c2.noTransport?0:trCost), trRates:(c2.noTransport?[]:trRates), transportPaid:(c2.noTransport?0:trCost), trPaidCnt:(c2.noTransport?0:trRates.reduce((a,r)=>a+(Number(r.qty)||0),0)), trRatesPaid:(c2.noTransport?[]:trRates), trEstRate:(c2.noTransport?0:lookupPriceUpdate('-',getPfx(inv),'',inv)), ocf:gOf('OCF'), ctic:gOf('CTIC'), tlx:gOf('TLX'), icd:icd};
   const addCands=_bswInvCands(group, inv);   /* อินวอยซ์ที่เลือกเพิ่มได้ใน dropdown */
   let bg=document.getElementById('bswBillBg');
   if(!bg){ bg=document.createElement('div'); bg.id='bswBillBg'; bg.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;'; document.body.appendChild(bg); }
   const inA='font-size:13px;padding:6px 9px;border:1.5px solid #cbd5e1;border-radius:7px;font-family:inherit;width:110px;box-sizing:border-box;';
-  const rateInputsHtml = c2.vat==='excl'
+  const rateInputsHtml = (c2.vat==='excl'&&!c2.singleRate)
     ? `<div style="font-size:11px;font-weight:700;color:#475569;width:100%;">เรตขายต่อโรงงานย่อย <span style="font-size:9px;color:#b45309;">(แยก VAT · ตู้ auto)</span><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">${subFac.length?subFac.map((f,i)=>`<label style="font-size:10.5px;color:#334155;">${h(f.factory)} ×${f.count}<br><input id="bswSR${i}" value="${f.rate||''}" placeholder="เรต" oninput="_bswUpd()" style="${inA}width:96px;"></label>`).join(''):'<span style="color:#dc2626;font-size:10px;">⚠️ ไม่พบตู้ขนส่งในระบบ</span>'}</div></div>`
-    : `<label style="font-size:11px;font-weight:700;color:#475569;">เรต/ตู้ (รวม VAT)<br><input id="bswRate" value="${(keep.rate!=null&&keep.rate>0)?keep.rate:(_inclSell||c2.dr)}" oninput="_bswUpd()" style="${inA}"></label>`;
+    : `<label style="font-size:11px;font-weight:700;color:#475569;">เรต/ตู้ ${c2.vat==='excl'?'<span style="font-size:9px;color:#b45309;">(แยก VAT)</span>':'(รวม VAT)'}<br><input id="bswRate" value="${(keep.rate!=null&&keep.rate>0)?keep.rate:(_inclSell||c2.dr)}" oninput="_bswUpd()" style="${inA}"></label>`;
   bg.innerHTML=`<div style="background:#fff;border-radius:16px;max-width:780px;width:100%;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
     <div style="padding:13px 18px;border-bottom:1px solid #e8edf5;display:flex;align-items:center;justify-content:space-between;background:#eff6ff;border-radius:16px 16px 0 0;">
       <span style="font-size:14px;font-weight:800;color:#1e40af;">🧾 Draft ใบวางบิลเงินทดลองจ่าย</span>
@@ -8103,7 +8103,7 @@ function _bswUpd(){
   const gv=id=>{const e=document.getElementById(id);return e?(parseFloat(String(e.value||'').replace(/,/g,''))||0):0;};
   s.ctr=parseInt(document.getElementById('bswCtr').value)||0; s.other=gv('bswOther'); s.decl=parseInt(document.getElementById('bswDecl').value)||1;   /* transport = auto (ไม่มีช่องกรอก) */
   s.insByInv={}; let _insTot=0; (s.group||[]).forEach((gk,i)=>{ const v=gv('bswIns'+i); s.insByInv[gk]=v; _insTot+=v; }); s.insurance=_insTot;   /* ประกันแยกต่อใบ → รวมเป็น total */
-  if(s.vatMode==='excl'&&Array.isArray(s.subFac)){ s.subFac.forEach((f,i)=>{ const e=document.getElementById('bswSR'+i); if(e)f.rate=parseFloat(String(e.value||'').replace(/,/g,''))||0; }); }
+  if(s.vatMode==='excl'&&!s.singleRate&&Array.isArray(s.subFac)){ s.subFac.forEach((f,i)=>{ const e=document.getElementById('bswSR'+i); if(e)f.rate=parseFloat(String(e.value||'').replace(/,/g,''))||0; }); }
   else { s.rate=gv('bswRate'); }
   if(!s.pithAuto) s.pithManual=gv('bswPith');
   _renderBswOut();
@@ -8143,7 +8143,7 @@ function _renderBswOut(){
   const Lbase=sm('base'),Lvat=sm('vat'),L3=sm('w3'),L1=sm('w1'); const Lgross=Lbase+Lvat, Lnet=Lgross-L3-L1;
   let billing, plug;
   if(s.vatMode==='excl'){
-    billing = (s.subFac||[]).reduce((a,f)=>a+(Number(f.rate)||0)*(Number(f.count)||0),0) + (s.telexSep?telex:0);   /* Σ(เรต×ตู้) แยก VAT · WKP บวก telex แยก (OGM/KNT ไม่บวก) */
+    billing = (s.singleRate ? (Number(s.rate)||0)*(Number(s.ctr)||0) : (s.subFac||[]).reduce((a,f)=>a+(Number(f.rate)||0)*(Number(f.count)||0),0)) + (s.telexSep?telex:0);   /* Σ(เรต×ตู้) แยก VAT · WKP บวก telex แยก (OGM/KNT ไม่บวก) · SHL=เรตเดียว×ตู้ (โรงงานเดียว) */
     plug = billing + s.insurance - Lbase;   /* X = วางบิล + ประกัน − Σbase (ไม่มี ×7%) */
   } else {
     billing = s.rate*s.ctr + telex + s.insurance;   /* รวม VAT: วางบิล = Σbase + ΣVAT + X + X×7% */
@@ -8158,7 +8158,7 @@ function _renderBswOut(){
   const grandF=Lgross+Rgross;            /* full precision ไว้เช็ค margin (ลงตัว) */
   const grand=_r2(Lbase)+_r2(Lvat)+_r2(pith)+_r2(Rvat);   /* ยอดรวม(รวม VAT) = ผลรวมช่องที่ปัดแล้ว */
   const whtTot=_r2(L3)+_r2(L1)+_r2(R3), netRecv=grand-whtTot, margin=billing-grandF;
-  const _FACCO={BSW:'BANSONG PARAWOOD CO.,LTD.',INV:'THE ONE PARAWOOD CO.,LTD.',KNT:'KANOKTHONG INTERTRADE CO.,LTD',NMP:'NAMUANGPHET PARAWOOD CO.,LTD',OGM:'ONE GOLD MARKETING CO.,LTD'};
+  const _FACCO={BSW:'BANSONG PARAWOOD CO.,LTD.',INV:'THE ONE PARAWOOD CO.,LTD.',KNT:'KANOKTHONG INTERTRADE CO.,LTD',NMP:'NAMUANGPHET PARAWOOD CO.,LTD',OGM:'ONE GOLD MARKETING CO.,LTD',SHL:'S.H.L. PARAWOOD CO.,LTD.',WKP:'WORAKIAT PANICH CO.,LTD.'};
   const co=_FACCO[String(s.inv).slice(0,3).toUpperCase()]||'BANSONG PARAWOOD CO.,LTD.';
   const N=s.ctr, bOf=i=>(rows[i]?rows[i].base:0);
   const cOCEAN=bOf(0),cTELEX=bOf(1),cLOCAL=bOf(2),cLOLO=bOf(3),cINS=bOf(5),cTRANS=bOf(6), oceanTot=cOCEAN+cTELEX;
@@ -8195,7 +8195,7 @@ function _renderBswOut(){
       <tr><td style="${td}">ค่าเอกสาร CERTIFICATE OF ORIGIN ออกโดย</td><td colspan="3" style="border-bottom:1px solid #999;"></td></tr>
       <tr><td style="${td}">ค่าส่งเอกสารไปต่างประเทศโดย DHL NO.</td><td colspan="3"></td></tr>
       <tr><td style="${td}">ค่าประกันภัย</td><td style="${td}">${(()=>{const ps=(s.group||[]).map(gk=>Number((s.insByInv||{})[gk]||0)).filter(v=>v>0);return ps.length>1?ps.map(v=>v.toLocaleString('th-TH')).join(' + '):'X 1';})()}</td><td style="${tr}">${fmt(cINS)}</td><td></td></tr>
-      <tr><td style="${td}">ค่าขนส่ง</td><td style="${td}">${(s.trRates&&s.trRates.length)?s.trRates.map(r=>fmt(r.rate)+' X '+r.qty+(r.est?' <span style="font-size:9px;color:#b45309;">(ยังไม่จ่ายขนส่งจริง)</span>':'')).join('<br>'):''}</td><td style="${tr}">${fmt(cTRANS)}</td><td></td></tr>
+      <tr><td style="${td}">ค่าขนส่ง</td><td style="${td}">${s.noTransport?'<span style="font-size:10px;color:#555;">(วางบิลแยก)</span>':((s.trRates&&s.trRates.length)?s.trRates.map(r=>fmt(r.rate)+' X '+r.qty+(r.est?' <span style="font-size:9px;color:#b45309;">(ยังไม่จ่ายขนส่งจริง)</span>':'')).join('<br>'):'')}</td><td style="${tr}">${s.noTransport?dash:fmt(cTRANS)}</td><td></td></tr>
       <tr><td style="${td}">อื่นๆ ค่าทำการล่วงเวลา (กรมศุลกากร)</td><td></td><td style="${tr}">${s.other?fmt(s.other):dash}</td><td></td></tr>
      </tbody></table>
     <table style="width:56%;margin-left:44%;border-collapse:collapse;border-top:2px solid #000;">
@@ -8208,7 +8208,7 @@ function _renderBswOut(){
   out.innerHTML=status+form;
   /* อัปเดตช่อง "ค่าขนส่ง (auto)" ด้านบน — รวม + แยกจ่ายจริง/ยังไม่จ่าย (RCN 19 พ.ย.69) */
   { const _ta=document.getElementById('bswTrAuto'); if(_ta){ const _pd=s.transportPaid||0, _un=(s.transport||0)-_pd;
-    _ta.innerHTML=(s.transport?s.transport.toLocaleString('th-TH'):'— ไม่พบในระบบ')+(_un>0?`<span style="font-size:8.5px;font-weight:600;color:#b45309;">จ่ายจริง ${_pd.toLocaleString('th-TH')} · ยังไม่จ่าย ${_un.toLocaleString('th-TH')}</span>`:''); } }
+    _ta.innerHTML=s.noTransport?'<span style="font-size:10px;color:#64748b;">— วางบิลแยก</span>':((s.transport?s.transport.toLocaleString('th-TH'):'— ไม่พบในระบบ')+(_un>0?`<span style="font-size:8.5px;font-weight:600;color:#b45309;">จ่ายจริง ${_pd.toLocaleString('th-TH')} · ยังไม่จ่าย ${_un.toLocaleString('th-TH')}</span>`:'')); } }
 }
 function _bswPrint(){ const doc=document.getElementById('bswFormDoc'); if(!doc)return; const s=window._bsw; const w=window.open('','_blank'); if(!w)return;
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>ใบวางบิล ${h(s.inv)}</title><style>@page{size:A4 portrait;margin:11mm;}html,body{margin:0;padding:0;}*{font-family:'Angsana New','TH Sarabun New',Tahoma,serif;box-sizing:border-box;}#bswFormDoc{font-size:18.5px!important;max-width:100%!important;width:100%!important;line-height:1.42!important;border-width:2.5px!important;page-break-inside:avoid;}#bswFormDoc td{padding:3px 11px!important;}#bswFormDoc .bswttl{font-size:23px!important;padding:8px!important;}</style></head><body>${doc.outerHTML}</body></html>`);
