@@ -8148,12 +8148,14 @@ function _renderBswOut(){
   nov('อื่นๆ (ค่าล่วงเวลา)', s.other||0, 0);
   const sm=f=>rows.reduce((a,x)=>a+(x[f]||0),0);
   const Lbase=sm('base'),Lvat=sm('vat'),L3=sm('w3'),L1=sm('w1'); const Lgross=Lbase+Lvat, Lnet=Lgross-L3-L1;
-  let billing, plug;
+  let billing, plug, billGross=0;
   if(s.vatMode==='excl'){
-    billing = (s.singleRate ? (Number(s.rate)||0)*(Number(s.ctr)||0) : (s.subFac||[]).reduce((a,f)=>a+(Number(f.rate)||0)*(Number(f.count)||0),0)) + (s.telexSep?telex:0);   /* Σ(เรต×ตู้) แยก VAT · WKP บวก telex แยก (OGM/KNT ไม่บวก) · SHL=เรตเดียว×ตู้ (โรงงานเดียว) */
-    plug = billing + s.insurance - Lbase;   /* X = วางบิล + ประกัน − Σbase (ไม่มี ×7%) */
+    billGross = (s.singleRate ? (Number(s.rate)||0)*(Number(s.ctr)||0) : (s.subFac||[]).reduce((a,f)=>a+(Number(f.rate)||0)*(Number(f.count)||0),0)) + (s.telexSep?telex:0);   /* Σ(เรต×ตู้) แยก VAT · WKP บวก telex แยก (OGM/KNT ไม่บวก) · SHL=เรตเดียว×ตู้ (โรงงานเดียว) */
+    billing = billGross - (Number(s.loloCredit)||0);   /* SHL: หักค่า LO/LO รถโรงงาน "ก่อน" คิดค่าพิธีการ → ค่าพิธีการอิงยอดสุทธิ (RCN 23 พ.ย.69) · โรงงานอื่น loloCredit=0 ไม่กระทบ */
+    plug = billing + s.insurance - Lbase;   /* X = วางบิลสุทธิ + ประกัน − Σbase (ไม่มี ×7%) */
   } else {
-    billing = s.rate*s.ctr + telex + s.insurance;   /* รวม VAT: วางบิล = Σbase + ΣVAT + X + X×7% */
+    billGross = s.rate*s.ctr + telex + s.insurance;
+    billing = billGross;   /* รวม VAT: วางบิล = Σbase + ΣVAT + X + X×7% */
     plug = (billing-Lgross)/1.07;
   }
   const pith = s.pithAuto ? plug : (s.pithManual||0);
@@ -8163,8 +8165,8 @@ function _renderBswOut(){
   const addMove=moveRate*s.ctr, pithSvc=pith-addMove;
   const _r2=x=>Math.round((Number(x)||0)*100)/100;   /* กัน diff 0.01: ยอดรวม/สุทธิ = ผลรวมช่องที่ปัด 2 ตำแหน่งแล้ว ให้บวกตามที่เห็นได้เป๊ะ (RCN 19 พ.ย.69) */
   const grandF=Lgross+Rgross;            /* full precision ไว้เช็ค margin (ลงตัว) */
-  const _loloCr=_r2(s.loloCredit||0);   /* หักค่า LO/LO ที่รถโรงงานจ่ายเอง (เรตขายรวม LO/LO แล้ว · SHL) */
-  const grand=_r2(Lbase)+_r2(Lvat)+_r2(pith)+_r2(Rvat)-_loloCr;   /* ยอดรวม(รวม VAT) = ผลรวมช่องที่ปัดแล้ว − LO/LO รถโรงงาน */
+  const _loloCr=_r2(s.loloCredit||0);   /* ค่า LO/LO รถโรงงาน — หักจาก billing ก่อนคิดค่าพิธีการแล้ว (ยุบในค่าพิธีการ) ไม่หักซ้ำใน grand */
+  const grand=_r2(Lbase)+_r2(Lvat)+_r2(pith)+_r2(Rvat);   /* ยอดรวม(รวม VAT) = ผลรวมช่องที่ปัดแล้ว (ค่าพิธีการต่ำลงเพราะหัก LO/LO ไปแล้ว) */
   const whtTot=_r2(L3)+_r2(L1)+_r2(R3), netRecv=grand-whtTot, margin=billing-grandF;
   const _FACCO={BSW:'BANSONG PARAWOOD CO.,LTD.',INV:'THE ONE PARAWOOD CO.,LTD.',KNT:'KANOKTHONG INTERTRADE CO.,LTD',NMP:'NAMUANGPHET PARAWOOD CO.,LTD',OGM:'ONE GOLD MARKETING CO.,LTD',SHL:'S.H.L. PARAWOOD CO.,LTD.',WKP:'WORAKIAT PANICH CO.,LTD.'};
   const co=_FACCO[String(s.inv).slice(0,3).toUpperCase()]||'BANSONG PARAWOOD CO.,LTD.';
@@ -8173,7 +8175,7 @@ function _renderBswOut(){
   const ok=(s.vatMode==='excl')?(Math.abs((Lbase+pith)-(billing+s.insurance))<0.01):(Math.abs(margin)<0.01), dash='<span style="color:#000;">-</span>';
   const td='padding:2px 8px;', tr='text-align:right;padding:2px 8px;', bd='border:1px solid #000;';
   const status=`<div class="noprint" style="margin-bottom:10px;display:flex;gap:16px;flex-wrap:wrap;font-size:12px;align-items:center;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:7px 12px;">
-    ${s.vatMode==='excl'?`<span>วางบิล (แยก VAT) <b>${fmt(billing)}</b></span><span style="color:#64748b;">+ประกัน = ${fmt(billing+s.insurance)}</span><span>ฐาน+ค่าพิธีการ <b style="color:${ok?'#166534':'#dc2626'};">${fmt(Lbase+pith)}${ok?' ✓ ลงตัว':''}</b></span><span style="color:#64748b;">รวม VAT ${fmt(grand)}</span>`:`<span>ยอดวางบิล <b>${fmt(billing)}</b></span><span>ยอดรวมในใบ <b style="color:${ok?'#166534':'#dc2626'};">${fmt(grand)}${ok?' ✓ ลงตัว':''}</b></span>`}${_loloCr>0?`<span style="color:#b45309;">หัก LO/LO รถโรงงาน ${s.facLoloCnt} ตู้ −${fmt(_loloCr)}</span>`:''}<span style="color:#b45309;">หักรวม −${fmt(whtTot)}</span><span>รับจริง <b style="color:#0f766e;">${fmt(netRecv)}</b></span>${pithSvc<0?'<span style="color:#dc2626;font-weight:700;">⚠️ ค่าพิธีการติดลบ</span>':''}</div>`;
+    ${s.vatMode==='excl'?`<span>วางบิล (แยก VAT) <b>${fmt(billGross)}</b></span>${_loloCr>0?`<span style="color:#b45309;">− LO/LO รถโรงงาน ${s.facLoloCnt} ตู้ ${fmt(_loloCr)}</span><span style="color:#64748b;">= สุทธิ ${fmt(billing)}</span>`:''}<span style="color:#64748b;">+ประกัน = ${fmt(billing+s.insurance)}</span><span>ฐาน+ค่าพิธีการ <b style="color:${ok?'#166534':'#dc2626'};">${fmt(Lbase+pith)}${ok?' ✓ ลงตัว':''}</b></span><span style="color:#64748b;">รวม VAT ${fmt(grand)}</span>`:`<span>ยอดวางบิล <b>${fmt(billing)}</b></span><span>ยอดรวมในใบ <b style="color:${ok?'#166534':'#dc2626'};">${fmt(grand)}${ok?' ✓ ลงตัว':''}</b></span>`}<span style="color:#b45309;">หักรวม −${fmt(whtTot)}</span><span>รับจริง <b style="color:#0f766e;">${fmt(netRecv)}</b></span>${pithSvc<0?'<span style="color:#dc2626;font-weight:700;">⚠️ ค่าพิธีการติดลบ</span>':''}</div>`;
   const form=`<div id="bswFormDoc" style="font-family:'Angsana New','TH Sarabun New',Tahoma,serif;color:#000;background:#fff;border:2px solid #000;max-width:720px;margin:0 auto;line-height:1.3;font-size:13.5px;">
     <div class="bswttl" style="text-align:center;font-weight:700;font-size:15px;border-bottom:1.5px solid #000;padding:5px;">Draft บิลเงินทดลองจ่าย &nbsp;&nbsp; INV. NO. ${h(s.invDisplay||s.inv)}</div>
     <table style="width:100%;border-collapse:collapse;"><tbody>
@@ -8190,7 +8192,7 @@ function _renderBswOut(){
       ${telex>0?`<tr><td style="${td}">SURRENDER B/L FEE &nbsp; 1,500.00 THB</td><td style="${td}">X ${s.nSet||1} ชุด</td><td style="${tr}">${fmt(cTELEX)}</td><td></td></tr>`:''}
       <tr><td style="height:7px;"></td><td></td><td></td><td></td></tr></tbody>
      <tbody style="border-bottom:1.5px solid #000;">
-      <tr><td style="${td}">ค่าพิธีการ</td><td></td><td></td><td style="${tr}">${fmt(pithSvc)}</td></tr>
+      <tr><td style="${td}">ค่าพิธีการ${_loloCr>0?` <span style="font-size:10px;color:#555;">(หักค่า LO/LO รถโรงงาน ${s.facLoloCnt} ตู้ ${fmt(_loloCr)} แล้ว)</span>`:''}</td><td></td><td></td><td style="${tr}">${fmt(pithSvc)}</td></tr>
       <tr><td style="${td}">LOCAL CHARGE (SONGKHLA PORT)</td><td></td><td style="${tr}">${fmt(cLOCAL)}</td><td></td></tr>
       <tr><td style="${td}">${h(moveLabel)}</td><td style="${td}">${fmt(moveRate)} X ${N}</td><td></td><td style="${tr}">${fmt(addMove)}</td></tr>
       <tr><td style="${td}">LO/LO (Inter Container Depot)</td><td style="${td}">X ${s.noTransport?(s.icdCnt||0):N} ตู้${(s.noTransport&&(s.icdCnt||0)<N)?` <span style="font-size:9px;color:#555;">(รถโรงงาน ${N-(s.icdCnt||0)} ตู้ จ่ายเอง)</span>`:''}</td><td style="${tr}">${fmt(cLOLO)}</td><td></td></tr>
@@ -8211,7 +8213,6 @@ function _renderBswOut(){
       <tr><td style="${td}${bd}">VAT</td><td style="${tr}${bd}">${fmt(Lvat)}</td><td style="${tr}${bd}">${fmt(Rvat)}</td></tr>
       <tr><td style="${td}${bd}">3%</td><td style="${tr}${bd}">${fmt(L3)}</td><td style="${tr}${bd}">${fmt(R3)}</td></tr>
       <tr><td style="${td}${bd}">1%</td><td style="${tr}${bd}">${fmt(L1)}</td><td style="${tr}${bd}">-</td></tr>
-      ${_loloCr>0?`<tr><td style="${td}${bd}">หัก LO/LO (รถโรงงาน ${s.facLoloCnt} ตู้)</td><td style="${bd}"></td><td style="${tr}${bd}">-${fmt(_loloCr)}</td></tr>`:''}
       <tr><td style="${td}${bd}font-weight:700;">รวมสุทธิ</td><td style="${bd}"></td><td style="${tr}${bd}font-weight:700;">${fmt(netRecv)}</td></tr>
     </table></div>`;
   out.innerHTML=status+form;
