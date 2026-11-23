@@ -3855,13 +3855,13 @@ function _renderIcdCar(){
   } else {
     det='<div style="text-align:center;color:#94a3b8;font-size:12px;padding:10px;">👆 กดที่ชื่อขนส่งเพื่อดูรายตู้ (กดได้หลายเจ้าพร้อมกัน)</div>';
   }
-  const settleBtn=_openList.length?`<div style="margin:10px 0;"><button onclick="_icdManualSettle()" style="padding:8px 16px;border:none;border-radius:8px;background:#0e7490;color:#fff;font-size:12px;font-weight:800;cursor:pointer;">🧾 ปิดบิลที่เลือก (กดมือ)</button> <span style="font-size:10.5px;color:#94a3b8;">ติ๊ก ✓ ตู้ที่อยู่ในใบวางบิล แล้วกดปุ่มนี้ → ใส่เลขบิล → จ่ายคืนแล้ว</span></div>`:'';
+  const settleBtn=(_openList.length && LOGGED_USER==='OAK_THIRA')?`<div style="margin:10px 0;"><button onclick="_icdManualSettle()" style="padding:8px 16px;border:none;border-radius:8px;background:#0e7490;color:#fff;font-size:12px;font-weight:800;cursor:pointer;">🧾 ปิดบิลที่เลือก (กดมือ)</button> <span style="font-size:10.5px;color:#94a3b8;">ติ๊ก ✓ ตู้ที่อยู่ในใบวางบิล แล้วกดปุ่มนี้ → ใส่เลขบิล → จ่ายคืนแล้ว</span></div>`:'';
   body.innerHTML=sum+facTable+settleBtn+det;
 }
 /* ปิดบิลค่ายกตู้แบบกดมือในแดชบอร์ด (ไม่พึ่งบอท/OCR) — เลือกตู้ → ใส่เลขบิล → จ่ายคืนแล้ว (RCN 20 พ.ย.69) */
 function _icdChkAll(cb){ document.querySelectorAll('._icdChk').forEach(c=>{ c.checked=cb.checked; }); }
 async function _icdManualSettle(){
-  if(LOGGED_USER!=='OAK_THIRA'&&LOGGED_USER!=='PLA_ANTS'){ alert('🔒 เฉพาะแอดมิน (OAK/PLA) ครับ'); return; }
+  if(LOGGED_USER!=='OAK_THIRA'){ alert('🔒 เฉพาะ OAK_THIRA ครับ'); return; }
   const chks=[...document.querySelectorAll('._icdChk:checked')];
   if(!chks.length){ alert('ติ๊ก ✓ เลือกตู้ที่อยู่ในใบวางบิลก่อนครับ'); return; }
   const rnos=chks.map(c=>c.getAttribute('data-rno'));
@@ -3870,6 +3870,9 @@ async function _icdManualSettle(){
   if(billNo===null)return;
   const bn=String(billNo).trim(); if(!bn){ alert('ต้องใส่เลขวางบิลครับ'); return; }
   if(!confirm(`ยืนยันปิดบิล "${bn}"\n${rnos.length} ตู้ · รวม ${tot.toLocaleString('th-TH')} บาท → จ่ายคืนแล้ว?`))return;
+  const pin=prompt('🔒 ใส่รหัสยืนยันก่อนปิดบิล:','');   /* PIN กันกดพลาด (RCN 23 พ.ย.69) */
+  if(pin===null)return;
+  if(String(pin).trim()!=='625465'){ alert('❌ รหัสไม่ถูกต้อง — ยกเลิกการปิดบิล'); return; }
   const today=new Date().toISOString().slice(0,10), H={'apikey':SB_KEY,'Authorization':'Bearer '+SB_TOKEN,'Content-Type':'application/json','Prefer':'return=minimal'};
   try{
     for(const rno of rnos){
