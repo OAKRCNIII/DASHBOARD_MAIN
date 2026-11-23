@@ -4156,6 +4156,8 @@ function _whtPickFac(inv){ return _whtAsAnts?ANTS_WHT:_whtFac(inv); }
    หมายเหตุ: ออกใบใช้ชื่อ/ที่อยู่จาก FAC_WHT_MAP/ANTS_WHT ที่เก็บไว้ ไม่ใช้ข้อความ OCR (กันอ่านผิด) — ธงนี้แค่บอกว่าเป็นของ ANTS หรือโรงงาน */
 function _whtComputeReceiver(inv){
   _whtNameWarn=[];
+  /* OGM(AD) = ANTS จ่าย ICD เอง (เงินทดรอง) → ผู้หัก = ANTS อัตโนมัติ ไม่สนธงรายใบ ไม่โวย (RCN 23 พ.ย.69) */
+  if(/^\s*OGM\s*\(\s*AD\s*\)/i.test(String(inv||''))){ _whtAsAnts=true; return; }
   const named=_skhLiftFees.filter(f=>!f._pending && f.received_is_ants!=null && !/^(?:ค่าแก้ใบเสร็จ|ค่าล[้็]อค)/.test(f.container_no||''));
   if(!named.length){ _whtAsAnts=WHT_ANTS_INV.has(normInv(inv)); return; }   /* ยังไม่มีธง (ใบเก่า/ยังไม่ ALTER) → fallback ลิสต์เดิม */
   const nAnts=named.filter(f=>f.received_is_ants===true).length;
