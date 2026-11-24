@@ -12530,7 +12530,7 @@ function _skhProfitCardHtml(r){
         <div style="font-size:11px;display:grid;grid-template-columns:1fr 1fr;gap:0 16px;">
           ${ei('OCF',r.ocf,'#15803d')}${ei('TLX',r.tlx,'#1d4ed8')}
           ${ei('ท่าเรือ CTIC',r.ctic,'#0e7490')}${ei('ICD',r.icd,'#c2410c')}
-          ${ei('คุณวัส',r.watr,'#b45309')}${ei('รถบรรทุก',r.truck,'#7c3aed',trBadge)}
+          ${ei('คุณวัส',r.watr,'#b45309')}${r._shl?`<div style="display:flex;justify-content:space-between;gap:8px;padding:2px 0;"><span style="color:#64748b;">รถบรรทุก <span style="font-size:9px;color:#7c3aed;font-weight:700;">(ค่าขนส่ง วางบิลแยก)</span></span><span style="font-weight:700;color:#94a3b8;">0 ฿</span></div>`:ei('รถบรรทุก',r.truck,'#7c3aed',trBadge)}
           ${ei('คุณกุ้ (200/ตู้)',r.kui,'#be185d')}${ei('ANTS FEE (1000/ตู้)',r.antsFee,'#475569')}
           ${ei('ค่าประกันภัย',r.ins,'#0891b2')}
         </div>
@@ -12560,14 +12560,15 @@ function renderSkhProfit(){
     const rev=Number(BILLED_ANTS.get(k))||0;
     const ctr=Number(d.container_count||d.total_expected||d.total_actual||(d.details?d.details.length:0))||0;
     const ocf=_expSum(d.inv,'OCF'),tlx=_expSum(d.inv,'TLX'),ctic=_expSum(d.inv,'CTIC'),watr=_expSum(d.inv,'WATR');
-    const icd=(_icdRate(d.inv)||0)*Math.max(0,ctr-_shlCtr(d.inv)), truck=truckByInv[k]||0, kui=200*ctr, antsFee=1000*ctr;   /* หักตู้รถโรงงาน SHL ไม่นับ ICD */
+    const _isShl=String(d.prefix||'').trim().toUpperCase()==='SHL';   /* SHL ใช้รถโรงงาน (วางบิลค่ารถแยก) → ไม่คิดค่ารถบรรทุกเป็นต้นทุน ANTS (RCN 24 พ.ย.69) */
+    const icd=(_icdRate(d.inv)||0)*Math.max(0,ctr-_shlCtr(d.inv)), truck=_isShl?0:(truckByInv[k]||0), kui=200*ctr, antsFee=1000*ctr;   /* หักตู้รถโรงงาน SHL ไม่นับ ICD */
     const ins=Number((window._SKH_INS&&window._SKH_INS.get(k))||0);   /* ค่าประกันภัย กรอกมือ (skh_profit_ins) */
     const cost=ocf+tlx+ctic+icd+watr+truck+kui+antsFee+ins;
     if(rev<=0 && cost<=0) return;   /* ไม่มีทั้งรายรับและค่าใช้จ่าย → ข้าม · ยังไม่วางบิลแต่มีค่าใช้จ่าย = โชว์ติดลบ (RCN 4 พ.ย.) */
     const _tr=(TR_DATA||[]).find(t=>normInv(t.inv)===k);
     const trPaid=_tr?(_tr.paidCount||0):0, trTot=_tr?(_tr.total||(_tr.details?_tr.details.length:0)):0;
     const trLines=((_tr&&_tr.details)?_tr.details:[]).filter(x=>x.trMatch&&!x.trMatch._prePaid&&!x.trMatch._factoryTruck&&(Number(x.trMatch.price)||0)>0).map(x=>({ctr:x.เบอร์ตู้||x.container_no||'',plate:x.ทะเบียนรถ||x.truck_plate||'',bill:x.trMatch.billNo||x.trMatch.bill_no||'',price:Number(x.trMatch.price)||0}));
-    rows.push({inv:d.inv,prefix:d.prefix,month:d.month,ctr,rev,billed,ocf,tlx,ctic,icd,watr,truck,kui,antsFee,ins,cost,profit:rev-cost,trPaid,trTot,trLines});
+    rows.push({inv:d.inv,prefix:d.prefix,month:d.month,ctr,rev,billed,ocf,tlx,ctic,icd,watr,truck,kui,antsFee,ins,cost,profit:rev-cost,trPaid,trTot,trLines,_shl:_isShl});
   });
   const yrOf=m=>{try{return (typeof mYear==='function')?mYear(m):Number(String(m).split('_')[0]);}catch(e){return null;}};
   const allYears=[...new Set(rows.map(r=>yrOf(r.month)).filter(y=>y))].sort((a,b)=>b-a);
