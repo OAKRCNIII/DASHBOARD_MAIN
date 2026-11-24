@@ -8572,9 +8572,18 @@ async function printCticNotice(vessel, date){
         <div class="nameR"><div class="hint">เลขประจำตัวผู้เสียภาษีอากร (13 หลัก)</div><div class="taxno">${_sp(fac.tax)}</div></div></div>
       <table><thead><tr><th style="width:16%">ลำดับ</th><th>เบอร์ตู้</th></tr></thead><tbody>${trs}</tbody></table></div>`;
   }).join('<div style="page-break-after:always;height:0;"></div>');
+  /* ── ใบปะหน้า: สรุปทั้งลำ (อินวอยซ์ · บุคกิ้ง · ชิปเปอร์ · ตู้) ไว้หน้าแรก (RCN 24 พ.ย.69) ── */
+  let _covTot=0;
+  const _covRows=rows.map((r,i)=>{ const fac=_cticAsAnts(r.inv)?ANTS_WHT:_whtFac(r.inv); const cs=[...new Set(byInv.get(normInv(r.inv))||[])]; const n=Math.max(cs.length, parseInt(r.vol)||0)||cs.length; _covTot+=n; return '<tr><td class="c">'+(i+1)+'</td><td class="b">'+h(r.inv)+'</td><td class="c">'+h(r.bkg||'-')+'</td><td>'+h(fac.name||'-')+'</td><td class="c">'+n+'</td></tr>'; }).join('');
+  const _cover='<div class="page"><div class="titlebox"><div class="t1">สรุปอินวอยซ์ทั้งลำ — ท่าเรือสงขลา (CTIC)</div></div>'
+    +'<div class="sub">เรือ/เที่ยว '+h(vessel)+(date?' &middot; ETD '+h(date):'')+'</div>'
+    +'<table style="margin-top:8px;"><thead><tr><th style="width:8%">ลำดับ</th><th style="text-align:left;">อินวอยซ์</th><th style="width:24%">บุคกิ้ง</th><th style="text-align:left;">ชื่อชิปเปอร์</th><th style="width:9%">ตู้</th></tr></thead>'
+    +'<tbody>'+_covRows+'</tbody>'
+    +'<tfoot><tr><td colspan="4" style="text-align:right;font-weight:800;">รวม '+rows.length+' อินวอยซ์</td><td class="c" style="font-weight:800;">'+_covTot+'</td></tr></tfoot></table></div>'
+    +'<div style="page-break-after:always;height:0;"></div>';
   const css="@page{size:A4 portrait;margin:15mm 14mm;}*{box-sizing:border-box;margin:0;padding:0;font-family:'Sarabun',sans-serif;}body{color:#000;font-size:15px;-webkit-print-color-adjust:exact;}.titlebox{border:2px solid #000;padding:8px 10px;text-align:center;margin-bottom:6px;}.t1{font-size:19px;font-weight:800;}.sub{text-align:center;font-size:16px;font-weight:700;margin:4px 0 2px;}.inv{text-align:center;font-size:16px;font-weight:800;margin:4px 0 12px;}.infoblk{border:1.5px solid #000;margin-bottom:11px;display:flex;flex-wrap:wrap;}.infoblk .cell{width:50%;padding:6px 12px;font-size:14px;border-bottom:1px solid #000;display:flex;}.infoblk .cell:nth-child(odd){border-right:1px solid #000;}.infoblk .cell:nth-last-child(1),.infoblk .cell:nth-last-child(2){border-bottom:none;}.infoblk .lb{min-width:74px;}.infoblk .vl{font-weight:700;}.nameblk{border:1.5px solid #000;margin-bottom:12px;display:flex;}.nameL{flex:1;padding:7px 11px;font-size:14px;line-height:1.5;}.nameL .cap{font-weight:700;margin-bottom:5px;}.nameR{width:235px;border-left:1.5px solid #000;padding:7px 9px;display:flex;flex-direction:column;justify-content:center;}.hint{font-size:10.5px;color:#333;text-align:center;}.taxno{border:1.5px solid #000;text-align:center;font-weight:800;font-size:15px;padding:5px 2px;margin-top:5px;letter-spacing:.1em;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #000;padding:6px 8px;font-size:14px;}th{font-weight:800;text-align:center;}.c{text-align:center;}.b{font-weight:700;}";
   const w=window.open('','_blank','width=900,height=1100'); if(!w){ alert('⚠️ อนุญาต Pop-up ก่อนครับ'); return; }
-  w.document.write('<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>ใบแจ้ง CTIC '+h(vessel)+'</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet"><style>'+css+'</style></head><body>'+pages+'</body></html>');
+  w.document.write('<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>ใบแจ้ง CTIC '+h(vessel)+'</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet"><style>'+css+'</style></head><body>'+_cover+pages+'</body></html>');
   w.document.close(); w.focus(); setTimeout(()=>{try{w.print();}catch(e){}},500);
 }
 
