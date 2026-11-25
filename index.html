@@ -3890,8 +3890,8 @@ function _printIcdCar(){ const body=document.getElementById('icdCarBody'); if(!b
 /* 📅 รายงานค่ายกตู้ ICD เรียงตามวันที่วางบิล (วันที่ · เลขบิล · ขนส่ง · ยอดรวม) — RCN 25 พ.ย.69 */
 function _icdBillDateReport(){
   const all=(_icdCarRows||[]).filter(r=>r.settle_bill_no && r.billed_date && _carrierOf(r.truck_plate)!=='SHL');
-  const ym=s=>String(s||'').slice(0,7);
-  const rows=_icdCarMonth?all.filter(r=>ym(r.billed_date)===_icdCarMonth):all;
+  /* กรองด้วยเดือน "วันรับตู้" (receipt_date) ให้เท่าแผง — ไม่ใช่เดือนวันวางบิล (บิลวางข้ามเดือนได้ เช่น US 02 วางบิล 31/10 ตู้รับ พ.ย.) RCN 25 พ.ย.69 · ยังเรียงตามวันวางบิล */
+  const rows=_icdCarMonth?all.filter(r=>_icdYm(r.receipt_date)===_icdCarMonth):all;
   if(!rows.length){ alert('ไม่มีบิลที่ปิดแล้ว (มีวันที่วางบิล) ในช่วงนี้'); return; }
   const byBill=new Map();
   rows.forEach(r=>{ const k=r.settle_bill_no; if(!byBill.has(k))byBill.set(k,{bill:k,date:r.billed_date,carrier:_carrierOf(r.truck_plate)||'',total:0,ctr:0}); const o=byBill.get(k); o.total+=Number(r.amount_total)||0; o.ctr++; });
