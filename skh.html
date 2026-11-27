@@ -183,7 +183,6 @@ function ctrCard(c, i){
         ${cropHtml(c.eir_url, c.seal_box, 'จากใบ EIR', true)}
         <input id="f_seal_no${i}" value="${esc(c.seal_no ?? '')}" autocapitalize="characters"></div>
       <div class="fld"><label>ทะเบียนรถ</label>
-        ${cropHtml(c.eir_url, c.plate_box, 'จากใบ EIR', true)}
         <input id="f_truck_plate${i}" value="${esc(c.truck_plate ?? '')}"></div>
       <div class="grid2">
         <div class="fld"><label>น้ำหนัก (kg)</label>
