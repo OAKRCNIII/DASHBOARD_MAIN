@@ -69,6 +69,11 @@ button.save:disabled{background:#94a3b8}
 .croptag{position:absolute;top:5px;left:5px;background:rgba(37,99,235,.92);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:5px;line-height:1.6}
 .croptag.eir{background:rgba(176,116,8,.95)}
 .cropzoom{position:absolute;top:4px;right:5px;background:rgba(0,0,0,.5);color:#fff;font-size:12px;width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.cropw{cursor:zoom-in}
+.cropw.zoomed{cursor:zoom-out;line-height:0}
+.cropw .cropfull{display:none;width:100%;max-height:62vh;object-fit:contain;background:#0f172a}
+.cropw.zoomed .crop{display:none}
+.cropw.zoomed .cropfull{display:block}
 </style>
 </head>
 <body>
@@ -89,10 +94,32 @@ function cropHtml(url, box, label, isEir){
   if(!url) return '';
   const b = (Array.isArray(box) && box.length === 4) ? esc(JSON.stringify(box)) : '';
   const u = esc(url);
-  return `<div class="cropw">`
-    + `<a class="crop" href="${u}" target="_blank" rel="noopener" data-url="${u}" data-box="${b}" title="แตะดูรูปเต็ม"><span class="cphold">แตะดูรูป</span></a>`
+  return `<div class="cropw" data-full="${u}" onclick="cropZoom(this)" title="แตะเพื่อขยาย/ย่อ">`
+    + `<div class="crop" data-url="${u}" data-box="${b}"><span class="cphold">แตะดูรูป</span></div>`
+    + `<img class="cropfull" alt="">`
     + `<span class="croptag${isEir ? ' eir' : ''}">${esc(label)}</span>`
     + `<span class="cropzoom">🔍</span></div>`;
+}
+/* แตะครอป = สลับขยายรูปเต็ม inline (ในหน้าเดิม ไม่เด้งแท็บ) — เทียบกับช่องกรอกได้ */
+function cropZoom(el){
+  const z = el.classList.toggle('zoomed');
+  const img = el.querySelector('.cropfull');
+  if(z && img && !img.getAttribute('src')) img.src = el.dataset.full;
+  const zi = el.querySelector('.cropzoom'); if(zi) zi.textContent = z ? '✕' : '🔍';
+}
+/* overlay รูปเต็มในหน้าเดิม (ใช้กับรูปท้ายการ์ด) — แตะที่ไหนก็ปิด */
+function openImg(url){
+  if(!url) return;
+  let o = document.getElementById('imgov');
+  if(!o){
+    o = document.createElement('div'); o.id = 'imgov';
+    o.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:none;align-items:center;justify-content:center;padding:14px';
+    o.onclick = () => { o.style.display = 'none'; };
+    o.innerHTML = '<img style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px">';
+    document.body.appendChild(o);
+  }
+  o.querySelector('img').src = url;
+  o.style.display = 'flex';
 }
 /* วาดครอปลง canvas (ตอนกางการ์ด — ก่อนหน้านั้น det ยุบ ความกว้าง=0) */
 function drawCrop(el){
@@ -164,6 +191,7 @@ function ctrCard(c, i){
         ${cropHtml(c.eir_url, c.seal_box, 'จากใบ EIR', true)}
         <input id="f_seal_no${i}" value="${esc(c.seal_no ?? '')}" autocapitalize="characters"></div>
       <div class="fld"><label>ทะเบียนรถ</label>
+        ${cropHtml(c.eir_url, c.plate_box, 'จากใบ EIR', true)}
         <input id="f_truck_plate${i}" value="${esc(c.truck_plate ?? '')}"></div>
       <div class="grid2">
         <div class="fld"><label>น้ำหนัก (kg)</label>
@@ -210,8 +238,8 @@ function ctrCard(c, i){
       </div>
       ${(c.eir_url||c.ctr_url) ? `
       <div class="shots">
-        ${c.eir_url?`<a href="${esc(c.eir_url)}" target="_blank" rel="noopener"><img src="${esc(c.eir_url)}" loading="lazy"><span>ใบ EIR</span></a>`:''}
-        ${c.ctr_url?`<a href="${esc(c.ctr_url)}" target="_blank" rel="noopener"><img src="${esc(c.ctr_url)}" loading="lazy"><span>รูปตู้</span></a>`:''}
+        ${c.eir_url?`<a data-full="${esc(c.eir_url)}" onclick="openImg(this.dataset.full)" style="cursor:zoom-in"><img src="${esc(c.eir_url)}" loading="lazy"><span>ใบ EIR</span></a>`:''}
+        ${c.ctr_url?`<a data-full="${esc(c.ctr_url)}" onclick="openImg(this.dataset.full)" style="cursor:zoom-in"><img src="${esc(c.ctr_url)}" loading="lazy"><span>รูปตู้</span></a>`:''}
       </div>
       <p class="tiny" style="margin:6px 0 0">แตะรูปเพื่อดูเต็ม — เทียบซีล/เบอร์ตู้กับของจริงก่อนบันทึก</p>`:''}
     </div>
