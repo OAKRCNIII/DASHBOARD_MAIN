@@ -61,19 +61,14 @@ button.save:disabled{background:#94a3b8}
          overflow:hidden;background:#f8fafc}
 .shots img{width:100%;height:132px;object-fit:cover;display:block}
 .shots span{display:block;text-align:center;font-size:11px;font-weight:700;color:#475569;padding:5px 0}
-/* ครอปเลขตู้/ซีล จากรูปจริง วางเหนือช่องกรอก — เทียบตาได้ทันที */
-.cropw{position:relative;margin:0 0 7px;border:1.5px solid #e2e8f0;border-radius:9px;overflow:hidden;background:#0f172a;display:block;line-height:0}
-.cropw .crop{display:block;width:100%;height:58px;text-decoration:none}
-.cropw canvas{display:block;width:100%;height:58px}
-.cropw .cphold{height:58px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px;line-height:1.4}
-.croptag{position:absolute;top:5px;left:5px;background:rgba(37,99,235,.92);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:5px;line-height:1.6}
+/* รูปจริงต่อช่อง (ตู้/ซีล/ทะเบียน) วางเหนือช่องกรอก — แตะ=ขยายเต็ม inline เทียบกับช่องได้ */
+.cropw{position:relative;margin:0 0 7px;border:1.5px solid #e2e8f0;border-radius:9px;overflow:hidden;background:#0f172a;display:block;line-height:0;cursor:zoom-in}
+.cropw.zoomed{cursor:zoom-out}
+.cropw .crop{display:block;width:100%;height:150px;object-fit:contain;background:#0f172a;transition:height .15s}
+.cropw.zoomed .crop{height:72vh}
+.croptag{position:absolute;top:5px;left:5px;background:rgba(37,99,235,.92);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:5px;line-height:1.6;z-index:2}
 .croptag.eir{background:rgba(176,116,8,.95)}
-.cropzoom{position:absolute;top:4px;right:5px;background:rgba(0,0,0,.5);color:#fff;font-size:12px;width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;pointer-events:none}
-.cropw{cursor:zoom-in}
-.cropw.zoomed{cursor:zoom-out;line-height:0}
-.cropw .cropfull{display:none;width:100%;max-height:62vh;object-fit:contain;background:#0f172a}
-.cropw.zoomed .crop{display:none}
-.cropw.zoomed .cropfull{display:block}
+.cropzoom{position:absolute;top:4px;right:5px;background:rgba(0,0,0,.5);color:#fff;font-size:12px;width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:2}
 </style>
 </head>
 <body>
@@ -90,21 +85,18 @@ const val = v => (v === null || v === undefined || v === '') ? '—' : v;
 const kg = v => v ? Number(v).toLocaleString() + ' kg' : '—';
 
 /* ครอปรูปเลขตู้/ซีล วางเหนือช่องกรอก — มี box = ครอปเฉพาะเลข · ไม่มี box = รูปเต็ม · ไม่มี url = ไม่โชว์ */
+/* รูปจริงต่อช่อง — โชว์รูปเต็ม (object-fit contain เห็นทั้งใบ ไม่มีทางครอปผิดจุด) · แตะ=ขยาย inline */
 function cropHtml(url, box, label, isEir){
   if(!url) return '';
-  const b = (Array.isArray(box) && box.length === 4) ? esc(JSON.stringify(box)) : '';
   const u = esc(url);
-  return `<div class="cropw" data-full="${u}" onclick="cropZoom(this)" title="แตะเพื่อขยาย/ย่อ">`
-    + `<div class="crop" data-url="${u}" data-box="${b}"><span class="cphold">แตะดูรูป</span></div>`
-    + `<img class="cropfull" alt="">`
+  return `<div class="cropw" onclick="cropZoom(this)" title="แตะเพื่อขยาย/ย่อ">`
+    + `<img class="crop" src="${u}" alt="" loading="lazy">`
     + `<span class="croptag${isEir ? ' eir' : ''}">${esc(label)}</span>`
     + `<span class="cropzoom">🔍</span></div>`;
 }
-/* แตะครอป = สลับขยายรูปเต็ม inline (ในหน้าเดิม ไม่เด้งแท็บ) — เทียบกับช่องกรอกได้ */
+/* แตะ = สลับขยายรูปเต็ม inline (ในหน้าเดิม ไม่เด้งแท็บ) — เลื่อนเทียบกับช่องกรอกได้ */
 function cropZoom(el){
   const z = el.classList.toggle('zoomed');
-  const img = el.querySelector('.cropfull');
-  if(z && img && !img.getAttribute('src')) img.src = el.dataset.full;
   const zi = el.querySelector('.cropzoom'); if(zi) zi.textContent = z ? '✕' : '🔍';
 }
 /* overlay รูปเต็มในหน้าเดิม (ใช้กับรูปท้ายการ์ด) — แตะที่ไหนก็ปิด */
